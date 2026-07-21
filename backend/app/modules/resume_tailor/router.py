@@ -4,8 +4,7 @@ Resume Tailor API Routes
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 
 from app.modules.resume_tailor.schemas import (
     TailorRequest,
@@ -34,6 +33,26 @@ async def upload_resume(request: UploadResumeRequest):
             user_id=request.user_id,
             resume=request.resume,
             resume_text=request.resume_text,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/upload-resume-file", response_model=UploadResumeResponse)
+async def upload_resume_file(
+    user_id: str = Form(...),
+    file: UploadFile = File(...),
+):
+    """
+    Upload a resume file (.docx, .pdf, .txt) and embed into the vector store.
+    """
+    try:
+        contents = await file.read()
+        result = await tailor_service.upload_resume_file(
+            user_id=UUID(user_id),
+            filename=file.filename or "resume",
+            file_bytes=contents,
         )
         return result
     except Exception as e:

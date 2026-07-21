@@ -8,6 +8,7 @@ from app.core.models import ParsedJobDescription, Resume, TailoredResume
 from app.memory.experience_embedder import ExperienceEmbedder
 from app.memory.long_term import LongTermMemoryStore
 from app.modules.resume_tailor.agent import tailor_agent
+from app.modules.resume_tailor.nodes.file_parser import parse_resume_file
 from app.modules.resume_tailor.nodes.parse_jd import JDParsingNode
 from app.modules.resume_tailor.nodes.text_export import TextExportNode
 
@@ -73,6 +74,22 @@ class ResumeTailorService:
             "success": True,
             "embedded_count": count,
             "message": f"Resume uploaded and {count} chunks embedded.",
+        }
+
+    async def upload_resume_file(self, user_id: UUID, filename: str, file_bytes: bytes) -> dict:
+        """
+        Upload a resume file (.docx / .pdf / .txt), parse to text, and embed.
+        """
+        try:
+            text = parse_resume_file(filename, file_bytes)
+        except Exception as e:
+            return {"success": False, "embedded_count": 0, "message": f"Failed to parse file: {e}"}
+
+        count = await self._embed_plain_text(str(user_id), text)
+        return {
+            "success": True,
+            "embedded_count": count,
+            "message": f"File '{filename}' parsed and {count} chunks embedded.",
         }
 
     async def _embed_plain_text(self, user_id: str, text: str) -> int:
