@@ -27,11 +27,13 @@ tailor_service = ResumeTailorService()
 async def upload_resume(request: UploadResumeRequest):
     """
     Upload a user's resume and embed experiences into the vector store.
+    Accepts either a structured Resume object or plain text.
     """
     try:
         result = await tailor_service.upload_resume(
             user_id=request.user_id,
             resume=request.resume,
+            resume_text=request.resume_text,
         )
         return result
     except Exception as e:

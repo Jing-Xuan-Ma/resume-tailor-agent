@@ -12,7 +12,8 @@ from app.core.models import ParsedJobDescription, Resume, TailoredResume
 
 class UploadResumeRequest(BaseModel):
     user_id: UUID
-    resume: Resume
+    resume: Optional[Resume] = None
+    resume_text: Optional[str] = None  # Plain text fallback for MVP
 
 
 class UploadResumeResponse(BaseModel):

@@ -53,17 +53,64 @@ class ResumeTailorService:
 
         return {"experiences": list(experiences.values())}
 
-    async def upload_resume(self, user_id: UUID, resume: Resume) -> dict:
+    async def upload_resume(
+        self, user_id: UUID, resume: Optional[Resume] = None, resume_text: Optional[str] = None
+    ) -> dict:
         """
         Upload and embed a user's resume into the vector store.
+        Supports structured Resume object or plain text.
         Returns the number of documents embedded.
         """
-        count = await self.embedder.embed_resume(str(user_id), resume)
+        if resume:
+            count = await self.embedder.embed_resume(str(user_id), resume)
+        elif resume_text:
+            # Plain text mode: split into chunks and store directly
+            count = await self._embed_plain_text(str(user_id), resume_text)
+        else:
+            return {"success": False, "embedded_count": 0, "message": "No resume content provided."}
+
         return {
             "success": True,
             "embedded_count": count,
-            "message": f"Resume uploaded and {count} experience chunks embedded.",
+            "message": f"Resume uploaded and {count} chunks embedded.",
         }
+
+    async def _embed_plain_text(self, user_id: str, text: str) -> int:
+        """Split plain text into chunks and store in Chroma."""
+        # Simple chunking: split by blank lines, then by sentences if too long
+        raw_chunks = [chunk.strip() for chunk in text.split("\n\n") if chunk.strip()]
+        documents = []
+        for idx, chunk in enumerate(raw_chunks):
+            # If chunk is too long (>500 chars), split by sentences
+            if len(chunk) > 500:
+                sentences = chunk.replace(". ", ".\n").split("\n")
+                for s_idx, sentence in enumerate(sentences):
+                    s = sentence.strip()
+                    if s:
+                        documents.append({
+                            "text": s,
+                            "metadata": {
+                                "chunk_type": "text",
+                                "paragraph_index": idx,
+                                "sentence_index": s_idx,
+                                "source": "user_upload",
+                            },
+                        })
+            else:
+                documents.append({
+                    "text": chunk,
+                    "metadata": {
+                        "chunk_type": "text",
+                        "paragraph_index": idx,
+                        "source": "user_upload",
+                    },
+                })
+
+        if not documents:
+            return 0
+
+        await self.embedder.store.add_experiences(user_id, documents)
+        return len(documents)
 
     async def tailor(
         self,
