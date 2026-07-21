@@ -5,10 +5,11 @@
 ## Features
 
 - **Evidence-First Tailoring**: Every claim in the tailored resume is traceable to your original experience.
-- **ATS-Optimized Output**: Single-column, standard fonts, keyword-matched PDFs that pass automated screening.
-- **Conversational UI**: Chat with your resume advisor like talking to a human career coach.
-- **Long-Term Memory**: The agent remembers your experiences, preferences, and conversation history across sessions.
-- **Plugin-Ready Architecture**: Auto-apply, cold outreach, and growth advisor modules can be added later without touching core code.
+- **ATS-Optimized Output**: Single-column, standard fonts, keyword-matched text output that passes automated screening.
+- **File Upload**: Support `.docx`, `.pdf`, and `.txt` resume uploads with drag-and-drop.
+- **Conversational UI**: Chat with your resume advisor; switch between Chat and Upload tabs.
+- **Long-Term Memory**: Experiences are embedded into Chroma vector store for semantic retrieval across sessions.
+- **Export**: Copy tailored resume as plain text (Markdown) with one click.
 
 ## Tech Stack
 
@@ -17,106 +18,96 @@
 | Frontend | Next.js 14 + Tailwind CSS + shadcn/ui |
 | Backend | FastAPI + Python 3.11+ |
 | Agent Framework | LangGraph |
-| LLM | Claude 3.5 Sonnet (tailoring) + GPT-4o (parsing) |
-| Vector DB | Chroma (local) / Pineapple (prod) |
-| Relational DB | PostgreSQL |
-| PDF Generation | Playwright / WeasyPrint |
+| LLM | GPT-5.5 via custom OpenAI-compatible provider |
+| Vector DB | Chroma (local persistent) |
+| Relational DB | PostgreSQL (optional, not required for MVP) |
+| Resume Parsing | python-docx + pdfplumber + plain text |
 
 ## Project Structure
 
 ```
 resume-agent/
 ├── AGENT_CONTEXT.md          # Project context for AI assistants (KEEP UPDATED)
-├── docker-compose.yml        # Local infra (Postgres + Chroma)
 ├── backend/                  # FastAPI application
 │   ├── app/
 │   │   ├── main.py           # FastAPI entry point
 │   │   ├── config.py         # Pydantic settings
-│   │   ├── core/             # Domain models & events
-│   │   ├── modules/          # Business modules
+│   │   ├── memory/           # Long-term memory (Chroma vector store)
+│   │   │   ├── long_term.py  # Chroma client + embedding logic
+│   │   │   └── experience_embedder.py
+│   │   ├── modules/
 │   │   │   ├── chat/         # Conversation API
-│   │   │   ├── resume_tailor/# Core resume tailoring engine
-│   │   │   └── memory/       # Long-term memory system
-│   │   └── ...
+│   │   │   └── resume_tailor/# Core resume tailoring engine
+│   │   │       ├── router.py # API routes (tailor, upload, export)
+│   │   │       ├── nodes/    # LangGraph nodes
+│   │   │       └── prompts/  # System prompts
+│   │   └── core/             # Domain models
+│   ├── .env                  # API keys (gitignored)
 │   └── pyproject.toml        # Python dependencies
 └── frontend/                 # Next.js application
     ├── app/                  # App Router pages
-    ├── components/           # React components
+    ├── components/           # React components (ChatPanel, ResumeWorkspace)
     └── lib/                  # API clients & utilities
 ```
 
-## Quick Start
+## Quick Start (Windows)
 
-### Prerequisites
-
-- Python 3.11+
-- Node.js 18+
-- Docker & Docker Compose
+> **Note**: Project is developed and tested on Windows. Docker is not required — Chroma runs in local persistent mode.
 
 ### 1. Clone & Enter Project
 
-```bash
-cd C:\Users\HP\resume-agent
+```powershell
+cd D:\resume-agent
 ```
 
-### 2. Start Infrastructure
+### 2. Setup Backend
 
-```bash
-docker-compose up -d
-```
-
-This starts:
-- PostgreSQL on port `5432`
-- Chroma (vector DB) on port `8001`
-
-### 3. Setup Backend
-
-```bash
+```powershell
 cd backend
 python -m venv venv
-# Windows:
 venv\Scripts\activate
-# macOS/Linux:
-# source venv/bin/activate
-
 pip install -e ".[dev]"
 ```
 
-Copy environment variables:
-```bash
-cp ..\.env.example .env
-# Edit .env and add your API keys
+Create `.env` inside `backend/`:
+```env
+OPENAI_API_KEY=sk-your-key-here
+OPENAI_BASE_URL=https://router.c.yiling.top/v1
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 ```
 
 Run backend:
-```bash
-uvicorn app.main:app --reload --port 8000
+```powershell
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-API docs will be available at `http://localhost:8000/docs`.
+API docs: `http://127.0.0.1:8000/docs`
 
-### 4. Setup Frontend
+### 3. Setup Frontend
 
-```bash
+```powershell
 cd frontend
 npm install
-npm run dev
+npx next dev
 ```
 
-Frontend will be at `http://localhost:3000`.
+Frontend: `http://localhost:3000`
 
-## Development Guide
+> **Windows Tip**: Frontend uses `http://127.0.0.1:8000` to connect to backend (avoiding IPv6 localhost issues).
 
-### Adding a New Module
+## Usage Flow
 
-1. Create directory under `backend/app/modules/your_module/`
-2. Define router in `router.py`, schemas in `schemas.py`, service in `service.py`
-3. Register router in `backend/app/main.py`
-4. If the module emits events consumed by others, define events in `app/core/events.py` and publish via `EventBus`
+1. **Upload Resume**: Switch to the **Upload** tab → drag & drop or click to select `.docx`/`.pdf`/`.txt`
+2. **Paste Job Description**: Go back to **Chat** tab → paste the JD text
+3. **Get Tailored Resume**: The agent retrieves relevant experiences, tailors bullets with action verbs + metrics, and shows the result
+4. **Copy as Text**: Click the **Copy as Text** button to copy the Markdown-formatted resume
 
-### Updating Agent Context
+## Known Limitations
 
-Whenever you make significant architecture or progress changes, **update `AGENT_CONTEXT.md`** so future AI assistants (or yourself in a new chat) can pick up where you left off.
+- **Evidence Guard**: Currently returns `{"passed": True}` (mock). Full verification logic not yet implemented.
+- **Embedding**: Uses deterministic SHA-256 hash-based embeddings (384-dim) as fallback. Replace with a real embedding model for production.
+- **PDF Export**: Not yet implemented. Use **Copy as Text** and paste into Word / Google Docs.
+- **PostgreSQL**: Optional. All state is currently in-memory or Chroma.
 
 ## License
 

@@ -31,7 +31,7 @@ class _SimpleEmbeddingFunction:
 
     def __call__(self, input: list[str]) -> list[list[float]]:
         import hashlib
-        import struct
+        import math
 
         embeddings = []
         for text in input:
@@ -39,7 +39,11 @@ class _SimpleEmbeddingFunction:
             h = hashlib.sha256(text.encode("utf-8")).digest()
             vec = []
             for i in range(0, len(h), 4):
-                val = struct.unpack("<f", h[i : i + 4] + b"\x00" * (4 - len(h) + i))[0]
+                # Use signed 32-bit int normalized to [-1, 1] instead of raw float unpack
+                # to avoid NaN / Infinity values
+                val = int.from_bytes(h[i : i + 4], "little", signed=True) / (2**31)
+                if math.isnan(val) or math.isinf(val):
+                    val = 0.0
                 vec.append(val)
             # Pad / truncate to 384 dims
             while len(vec) < 384:
