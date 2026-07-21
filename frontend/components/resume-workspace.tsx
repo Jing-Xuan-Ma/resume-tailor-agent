@@ -1,11 +1,16 @@
 "use client";
 
+import { useState } from "react";
+import { exportText } from "@/lib/api";
+
 interface ResumeWorkspaceProps {
   tailoredResume?: unknown;
 }
 
 export default function ResumeWorkspace({ tailoredResume }: ResumeWorkspaceProps) {
   const resume = tailoredResume as Record<string, unknown> | undefined;
+  const [copied, setCopied] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Determine if we have a real tailored result or just a "no resume" placeholder
   const hasRealResume =
@@ -16,6 +21,22 @@ export default function ResumeWorkspace({ tailoredResume }: ResumeWorkspaceProps
     resume &&
     (!Array.isArray(resume.experiences) || resume.experiences.length === 0) &&
     resume.ats_score_estimate === null;
+
+  const handleCopyText = async () => {
+    if (!resume || exporting) return;
+    setExporting(true);
+    try {
+      const result = await exportText(resume);
+      await navigator.clipboard.writeText(result.text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Export failed";
+      alert("Copy failed: " + msg);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="flex w-2/3 flex-col bg-gray-50">
@@ -157,6 +178,33 @@ export default function ResumeWorkspace({ tailoredResume }: ResumeWorkspaceProps
                 </div>
               </div>
             )}
+
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <button
+                onClick={handleCopyText}
+                disabled={exporting}
+                className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+              >
+                {copied ? (
+                  <>
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    {exporting ? "Formatting..." : "Copy as Text"}
+                  </>
+                )}
+              </button>
+              <p className="mt-2 text-xs text-gray-500">
+                Formats the tailored resume as plain text you can paste into Word, Google Docs, or Notion.
+              </p>
+            </div>
           </div>
         )}
       </div>

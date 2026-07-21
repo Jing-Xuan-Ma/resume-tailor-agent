@@ -14,6 +14,8 @@ from app.modules.resume_tailor.schemas import (
     JDParseResponse,
     UploadResumeRequest,
     UploadResumeResponse,
+    ExportTextRequest,
+    ExportTextResponse,
 )
 from app.modules.resume_tailor.service import ResumeTailorService
 
@@ -61,6 +63,18 @@ async def parse_jd(request: JDParseRequest):
     try:
         parsed = await tailor_service.parse_jd(request.jd_text)
         return JDParseResponse(parsed=parsed)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/export-text", response_model=ExportTextResponse)
+async def export_text(request: ExportTextRequest):
+    """
+    Export a tailored resume as plain text for easy copy-paste editing.
+    """
+    try:
+        text = tailor_service.export_text(request.tailored_resume)
+        return ExportTextResponse(text=text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

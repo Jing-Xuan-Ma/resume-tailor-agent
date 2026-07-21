@@ -9,6 +9,7 @@ from app.memory.experience_embedder import ExperienceEmbedder
 from app.memory.long_term import LongTermMemoryStore
 from app.modules.resume_tailor.agent import tailor_agent
 from app.modules.resume_tailor.nodes.parse_jd import JDParsingNode
+from app.modules.resume_tailor.nodes.text_export import TextExportNode
 
 
 class ResumeTailorService:
@@ -20,6 +21,7 @@ class ResumeTailorService:
         self.jd_parser = JDParsingNode()
         self.embedder = ExperienceEmbedder()
         self.memory_store = LongTermMemoryStore()
+        self.text_exporter = TextExportNode()
 
     def _rebuild_resume_data(self, user_id: str) -> dict:
         """Rebuild resume_data dict from Chroma experience documents."""
@@ -112,3 +114,9 @@ class ResumeTailorService:
         Standalone JD parsing utility.
         """
         return await self.jd_parser.parse(jd_text)
+
+    def export_text(self, tailored_resume: dict) -> str:
+        """
+        Export tailored resume as plain text.
+        """
+        return self.text_exporter.render(tailored_resume)

@@ -44,3 +44,11 @@ class JDParseRequest(BaseModel):
 
 class JDParseResponse(BaseModel):
     parsed: ParsedJobDescription
+
+
+class ExportTextRequest(BaseModel):
+    tailored_resume: dict
+
+
+class ExportTextResponse(BaseModel):
+    text: str
