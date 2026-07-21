@@ -1,16 +1,40 @@
 """
 Long-term memory system using Chroma vector store.
 Stores and retrieves user experiences, conversation embeddings, and preferences.
+
+Falls back to local persistent Chroma + default embedding function when
+Docker/HTTP Chroma is unavailable or API keys are missing.
 """
 
+import asyncio
+from pathlib import Path
 from typing import List, Optional
 from uuid import UUID
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
-from langchain_openai import OpenAIEmbeddings
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
 from app.config import settings
+
+# Determine Chroma storage path
+_CHROMA_DB_PATH = Path("C:/Users/HP/resume-agent/data/chroma")
+_CHROMA_DB_PATH.mkdir(parents=True, exist_ok=True)
+
+
+def _get_embedding_fn():
+    """Return an embedding function. Uses OpenAI if key present, else local default."""
+    if settings.OPENAI_API_KEY and settings.OPENAI_API_KEY.startswith("sk-"):
+        from langchain_openai import OpenAIEmbeddings
+
+        kwargs = {
+            "model": settings.DEFAULT_EMBEDDING_MODEL,
+            "api_key": settings.OPENAI_API_KEY,
+        }
+        if settings.OPENAI_BASE_URL:
+            kwargs["openai_api_base"] = settings.OPENAI_BASE_URL
+        return OpenAIEmbeddings(**kwargs)
+    return DefaultEmbeddingFunction()
 
 
 class LongTermMemoryStore:
@@ -20,15 +44,34 @@ class LongTermMemoryStore:
     """
 
     def __init__(self):
-        self.client = chromadb.HttpClient(
-            host=settings.CHROMA_HOST,
-            port=settings.CHROMA_PORT,
-            settings=ChromaSettings(anonymized_telemetry=False),
-        )
-        self.embeddings = OpenAIEmbeddings(
-            model=settings.DEFAULT_EMBEDDING_MODEL,
-            api_key=settings.OPENAI_API_KEY,
-        )
+        # Prefer local persistent client when Docker is unavailable
+        try:
+            self.client = chromadb.PersistentClient(
+                path=str(_CHROMA_DB_PATH),
+                settings=ChromaSettings(anonymized_telemetry=False),
+            )
+        except Exception:
+            # Ultimate fallback: ephemeral in-memory client
+            self.client = chromadb.EphemeralClient(
+                settings=ChromaSettings(anonymized_telemetry=False),
+            )
+
+        self._embedding_fn = _get_embedding_fn()
+
+    async def _embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """Async wrapper for document embedding."""
+        if hasattr(self._embedding_fn, "aembed_documents"):
+            return await self._embedding_fn.aembed_documents(texts)
+        # Run sync embedding in thread pool to avoid blocking
+        return await asyncio.to_thread(self._embedding_fn, texts)
+
+    async def _embed_query(self, text: str) -> list[float]:
+        """Async wrapper for query embedding."""
+        if hasattr(self._embedding_fn, "aembed_query"):
+            return await self._embedding_fn.aembed_query(text)
+        # Run sync embedding in thread pool to avoid blocking
+        result = await asyncio.to_thread(self._embedding_fn, [text])
+        return result[0]
 
     def _collection_name(self, user_id: str, data_type: str) -> str:
         """Generate a unique collection name per user and data type."""
@@ -47,7 +90,7 @@ class LongTermMemoryStore:
         ids = [f"{user_id}_exp_{i}" for i in range(len(documents))]
 
         # Generate embeddings
-        vectors = await self.embeddings.aembed_documents(texts)
+        vectors = await self._embed_documents(texts)
 
         collection.add(
             embeddings=vectors,
@@ -69,7 +112,7 @@ class LongTermMemoryStore:
         collection_name = self._collection_name(user_id, "experiences")
         collection = self.client.get_or_create_collection(collection_name)
 
-        query_vector = await self.embeddings.aembed_query(query)
+        query_vector = await self._embed_query(query)
 
         results = collection.query(
             query_embeddings=[query_vector],
@@ -93,7 +136,7 @@ class LongTermMemoryStore:
         collection_name = self._collection_name(user_id, "conversations")
         collection = self.client.get_or_create_collection(collection_name)
 
-        vector = await self.embeddings.aembed_query(text)
+        vector = await self._embed_query(text)
         doc_id = f"{user_id}_conv_{session_id}_{hash(text) & 0xFFFFFFFF}"
 
         collection.add(
@@ -110,7 +153,7 @@ class LongTermMemoryStore:
         collection_name = self._collection_name(user_id, "conversations")
         collection = self.client.get_or_create_collection(collection_name)
 
-        query_vector = await self.embeddings.aembed_query(query)
+        query_vector = await self._embed_query(query)
         results = collection.query(query_embeddings=[query_vector], n_results=top_k)
 
         formatted = []

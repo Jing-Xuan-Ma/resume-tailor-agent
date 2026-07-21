@@ -16,12 +16,20 @@ class JDParsingNode:
     """
 
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model=settings.DEFAULT_PARSER_MODEL,
-            temperature=0.1,
-            api_key=settings.OPENAI_API_KEY,
-        )
+        self._llm = None
         self.parser = PydanticOutputParser(pydantic_object=ParsedJobDescription)
+
+    def _get_llm(self):
+        if self._llm is None:
+            kwargs = {
+                "model": settings.DEFAULT_PARSER_MODEL,
+                "temperature": 0.1,
+                "api_key": settings.OPENAI_API_KEY,
+            }
+            if settings.OPENAI_BASE_URL:
+                kwargs["base_url"] = settings.OPENAI_BASE_URL
+            self._llm = ChatOpenAI(**kwargs)
+        return self._llm
 
     async def parse(self, jd_text: str) -> ParsedJobDescription:
         """
@@ -47,16 +55,15 @@ class JDParsingNode:
             },
         ]
 
-        response = await self.llm.ainvoke(messages)
-        # TODO: Robust parsing with error handling and retry
-        # For now, we return a mock result if parsing fails
         try:
+            llm = self._get_llm()
+            response = await llm.ainvoke(messages)
             # Attempt to parse the LLM output
             parsed = self.parser.parse(response.content)
             parsed.raw_text = jd_text
             return parsed
         except Exception:
-            # Fallback: return basic structure
+            # Fallback: return basic structure (also used when no API key)
             return ParsedJobDescription(
                 title="Unknown Title",
                 raw_text=jd_text,

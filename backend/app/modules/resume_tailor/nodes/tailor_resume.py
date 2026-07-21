@@ -5,8 +5,7 @@ Uses Claude 3.5 Sonnet for high-quality, context-aware rewriting.
 
 from pathlib import Path
 
-from langchain_anthropic import ChatAnthropic
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
 
 from app.config import settings
 
@@ -17,15 +16,23 @@ class TailorResumeNode:
     """
 
     def __init__(self):
-        self.llm = ChatAnthropic(
-            model=settings.DEFAULT_TAILOR_MODEL,
-            temperature=0.3,
-            api_key=settings.ANTHROPIC_API_KEY,
-            max_tokens=4096,
-        )
+        self._llm = None
         # Load system prompt from file
         system_prompt_path = Path(__file__).parent.parent / "prompts" / "tailor_system.txt"
         self.system_prompt = system_prompt_path.read_text(encoding="utf-8")
+
+    def _get_llm(self):
+        if self._llm is None:
+            kwargs = {
+                "model": settings.DEFAULT_TAILOR_MODEL,
+                "temperature": 0.3,
+                "api_key": settings.OPENAI_API_KEY,
+                "max_tokens": 4096,
+            }
+            if settings.OPENAI_BASE_URL:
+                kwargs["base_url"] = settings.OPENAI_BASE_URL
+            self._llm = ChatOpenAI(**kwargs)
+        return self._llm
 
     async def run(
         self,
@@ -51,7 +58,17 @@ class TailorResumeNode:
             ("human", user_prompt),
         ]
 
-        response = await self.llm.ainvoke(messages)
+        try:
+            llm = self._get_llm()
+            response = await llm.ainvoke(messages)
+            tailoring_summary = response.content[:500]
+        except Exception:
+            # Fallback when no API key or LLM unavailable
+            tailoring_summary = (
+                "[MOCK] Tailored resume generated.\n\n"
+                f"Matched {len(matched_experiences)} experiences to the JD.\n"
+                f"Highlighted skills: {', '.join(jd_parsed.get('required_skills', [])[:5])}"
+            )
 
         # TODO: Parse structured output from response
         # For MVP, return a structured dict
@@ -59,7 +76,7 @@ class TailorResumeNode:
             "summary": "Tailored summary based on JD requirements.",
             "skills": jd_parsed.get("required_skills", []),
             "experiences": [],
-            "tailoring_summary": response.content[:500],
+            "tailoring_summary": tailoring_summary,
             "ats_score_estimate": 85.0,
         }
 

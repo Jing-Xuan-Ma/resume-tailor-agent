@@ -20,7 +20,7 @@ class TailorRequest(BaseModel):
 
 class TailorResponse(BaseModel):
     success: bool
-    tailored_resume: Optional[TailoredResume] = None
+    tailored_resume: Optional[dict] = None  # Relaxed for MVP; will be TailoredResume in production
     message: str = ""
     clarification_needed: bool = False
     clarification_question: Optional[str] = None

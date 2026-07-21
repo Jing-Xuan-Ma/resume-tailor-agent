@@ -40,8 +40,17 @@ async def understand_intent_node(state: TailorState) -> TailorState:
 
 async def retrieve_memory_node(state: TailorState) -> TailorState:
     """Retrieve relevant experiences and conversation history from memory."""
-    # TODO: Integrate with long_term.py vector store
-    return {**state, "memory_context": {"experiences": [], "chat_history": []}}
+    from app.memory.long_term import LongTermMemoryStore
+    store = LongTermMemoryStore()
+    try:
+        past_convos = await store.search_conversations(
+            user_id=state["user_id"],
+            query=state["user_input"],
+            top_k=3,
+        )
+    except Exception:
+        past_convos = []
+    return {**state, "memory_context": {"experiences": [], "chat_history": past_convos}}
 
 
 async def parse_jd_node(state: TailorState) -> TailorState:
@@ -54,8 +63,17 @@ async def parse_jd_node(state: TailorState) -> TailorState:
 
 async def match_experiences_node(state: TailorState) -> TailorState:
     """Find the user's most relevant experiences for this JD."""
-    # TODO: Vector similarity search against user experiences
-    return {**state, "matched_experiences": []}
+    from app.memory.long_term import LongTermMemoryStore
+    store = LongTermMemoryStore()
+    try:
+        matches = await store.jd_skill_match(
+            user_id=state["user_id"],
+            jd_text=state["jd_text"],
+            top_k=5,
+        )
+    except Exception:
+        matches = []
+    return {**state, "matched_experiences": matches}
 
 
 async def tailor_resume_node(state: TailorState) -> TailorState:

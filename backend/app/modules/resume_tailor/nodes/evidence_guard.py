@@ -4,7 +4,7 @@ Evidence Guard Node — Independent fact-checker that verifies tailored claims.
 
 from pathlib import Path
 
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 
 from app.config import settings
 
@@ -16,14 +16,22 @@ class EvidenceGuardNode:
     """
 
     def __init__(self):
-        self.llm = ChatAnthropic(
-            model=settings.DEFAULT_TAILOR_MODEL,
-            temperature=0.1,
-            api_key=settings.ANTHROPIC_API_KEY,
-            max_tokens=2048,
-        )
+        self._llm = None
         prompt_path = Path(__file__).parent.parent / "prompts" / "evidence_check.txt"
         self.system_prompt = prompt_path.read_text(encoding="utf-8")
+
+    def _get_llm(self):
+        if self._llm is None:
+            kwargs = {
+                "model": settings.DEFAULT_TAILOR_MODEL,
+                "temperature": 0.1,
+                "api_key": settings.OPENAI_API_KEY,
+                "max_tokens": 2048,
+            }
+            if settings.OPENAI_BASE_URL:
+                kwargs["base_url"] = settings.OPENAI_BASE_URL
+            self._llm = ChatOpenAI(**kwargs)
+        return self._llm
 
     async def verify(self, original_resume: dict, tailored_resume: dict) -> dict:
         """

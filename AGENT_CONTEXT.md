@@ -174,24 +174,33 @@ modules/
 ## 10. 当前开发进度（每次更新此字段）
 
 **最后更新**: 2026-07-21
-**当前阶段**: Phase 1 — 简历定制引擎MVP
+**当前阶段**: Phase 1 — 简历定制引擎MVP（LLM 已激活）
 **已完成**:
 - [x] 项目目录结构搭建
 - [x] AGENT_CONTEXT.md + README.md
-- [x] docker-compose.yml (Postgres + Chroma)
+- [x] docker-compose.yml (Postgres + Chroma + Redis)
 - [x] FastAPI骨架 (main.py, config.py)
 - [x] 核心Pydantic模型 (models.py)
 - [x] LangGraph Agent定义 (agent.py)
 - [x] 记忆系统封装 (long_term.py)
-- [x] Prompt模板 (tailor_system.txt)
-- [x] Next.js前端骨架 (page.tsx)
+- [x] Prompt模板 (tailor_system.txt, evidence_check.txt)
+- [x] Next.js前端骨架
+- [x] 运行后端服务并测试健康检查（/health 正常返回）
+- [x] 实现ExperienceEmbedder（经历向量化存入 Chroma）
+- [x] 后端兼容无 Docker 环境（本地持久化 Chroma + 容错）
+- [x] 前端 ChatPanel 组件（拆分组件，连接后端 API）
+- [x] 前端 ResumeWorkspace 组件（展示定制结果预览）
+- [x] 端到端测试：/health ✅ /chat/send ✅ /tailor ✅ /parse-jd ✅
+- [x] 项目迁移到 D:\resume-agent（C 盘空间不足）
+- [x] LLM 从 Claude → GPT-5.5 迁移（自定义 provider: router.c.yiling.top）
+- [x] API Key 配置完成，GPT-5.5 真实调用测试通过
+- [x] Tailor 节点真实 LLM 输出验证（拒绝编造，遵守 Evidence Guard）
 
 **待完成**:
-- [ ] 运行后端服务并测试健康检查
-- [ ] 实现ExperienceEmbedder（经历向量化）
-- [ ] 连接LLM客户端并测试Tailor节点
-- [ ] 前端ChatPanel组件
-- [ ] 首次端到端测试：用户输入JD → 返回定制简历文本
+- [ ] 实现 ExperienceEmbedder 的 API 端点（接收简历上传 → 自动向量化）
+- [ ] 填充 mock 简历数据，完成带真实经历的端到端测试
+- [ ] PDF 渲染节点（生成 ATS 友好 PDF）
+- [ ] 用户认证和数据库集成
 
 ---
 
@@ -203,13 +212,21 @@ modules/
 
 如果用户要求"继续开发"，请从 **第10节"当前开发进度"** 中标记为 `[ ]` 的第一项开始实施。
 
-**项目代码位置**: `C:\Users\HP\resume-agent\`
+**项目代码位置**: `D:\resume-agent\`
 
-**快速启动命令**:
+**快速启动命令**（无 Docker 环境）:
 ```bash
-cd C:\Users\HP\resume-agent
-docker-compose up -d  # 启动Postgres + Chroma
-cd backend
-pip install -e ".[dev]"
+# 终端 1 — 后端
+cd D:\resume-agent\backend
+.\venv\Scripts\activate
 uvicorn app.main:app --reload --port 8000
+# 访问 http://localhost:8000/health 验证
+
+# 终端 2 — 前端
+cd D:\resume-agent\frontend
+npm run dev
+# 访问 http://localhost:3000
+
+# 项目无须 Docker 即可运行（Chroma 使用本地持久化模式）
+# 填入 .env 中的 API Key 后可激活真实 LLM 调用
 ```

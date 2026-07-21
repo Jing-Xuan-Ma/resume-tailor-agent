@@ -31,9 +31,10 @@ class Settings(BaseSettings):
 
     # LLM
     OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = ""
     ANTHROPIC_API_KEY: str = ""
-    DEFAULT_TAILOR_MODEL: str = "claude-3-5-sonnet-20241022"
-    DEFAULT_PARSER_MODEL: str = "gpt-4o"
+    DEFAULT_TAILOR_MODEL: str = "gpt-5.5"
+    DEFAULT_PARSER_MODEL: str = "gpt-5.5"
     DEFAULT_EMBEDDING_MODEL: str = "text-embedding-3-large"
 
     # Security
