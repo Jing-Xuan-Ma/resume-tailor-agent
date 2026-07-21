@@ -45,6 +45,21 @@ class TailorResumeNode:
         Generate tailored resume.
         Returns a dict representing TailoredResume (serialized).
         """
+        # Guard: no resume data provided
+        if not resume_data or not resume_data.get("experiences"):
+            return {
+                "summary": None,
+                "skills": [],
+                "experiences": [],
+                "tailoring_summary": (
+                    "I could not tailor the resume because no original resume content was provided. "
+                    "To comply with the no-fabrication requirement, I cannot add any skills, "
+                    "experience bullets, projects, or achievements that were not present in the source resume. "
+                    "Please upload your resume first, then I can tailor it for this role."
+                ),
+                "ats_score_estimate": None,
+            }
+
         # Build user prompt
         user_prompt = self._build_user_prompt(
             resume_data=resume_data,
@@ -61,23 +76,27 @@ class TailorResumeNode:
         try:
             llm = self._get_llm()
             response = await llm.ainvoke(messages)
-            tailoring_summary = response.content[:500]
+            content = response.content
+            # TODO: Parse JSON structured output from response
+            # For MVP, we treat the entire response as the tailoring summary
+            tailoring_summary = content[:2000] if len(content) > 2000 else content
         except Exception:
-            # Fallback when no API key or LLM unavailable
             tailoring_summary = (
-                "[MOCK] Tailored resume generated.\n\n"
-                f"Matched {len(matched_experiences)} experiences to the JD.\n"
-                f"Highlighted skills: {', '.join(jd_parsed.get('required_skills', [])[:5])}"
+                "[LLM unavailable] Tailoring could not be completed. "
+                "Please check your API key configuration."
             )
 
-        # TODO: Parse structured output from response
-        # For MVP, return a structured dict
+        # Extract user skills from resume (intersection with JD skills)
+        user_skills = resume_data.get("skills", [])
+        jd_skills = set(jd_parsed.get("required_skills", []) + jd_parsed.get("preferred_skills", []))
+        highlighted_skills = [s for s in user_skills if s.lower() in {j.lower() for j in jd_skills}]
+
         return {
-            "summary": "Tailored summary based on JD requirements.",
-            "skills": jd_parsed.get("required_skills", []),
+            "summary": resume_data.get("summary"),
+            "skills": highlighted_skills,
             "experiences": [],
             "tailoring_summary": tailoring_summary,
-            "ats_score_estimate": 85.0,
+            "ats_score_estimate": None,  # TODO: implement real ATS scoring
         }
 
     def _build_user_prompt(

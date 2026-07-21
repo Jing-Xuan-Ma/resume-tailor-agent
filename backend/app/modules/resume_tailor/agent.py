@@ -106,15 +106,27 @@ async def evidence_guard_node(state: TailorState) -> TailorState:
 
 async def generate_response_node(state: TailorState) -> TailorState:
     """Generate the final user-facing response."""
+    resume_data = state.get("resume_data", {})
+    tailored = state.get("tailored_resume", {})
+    tailoring_summary = tailored.get("tailoring_summary", "")
+
     if state.get("requires_clarification"):
         response = (
             "I need a bit more clarity to ensure accuracy.\n\n"
             f"{state.get('evidence_check', {}).get('issues', ['Please provide more details.'])[0]}"
         )
+    elif not resume_data or not resume_data.get("experiences"):
+        # No original resume provided
+        response = (
+            "Thanks for sharing the job description! I've analyzed it, "
+            "but I can't tailor your resume yet because I don't have your original experience.\n\n"
+            f"{tailoring_summary}\n\n"
+            "Please upload or paste your resume so I can customize it for this role."
+        )
     else:
         response = (
             "I've tailored your resume for this role! Here's a summary of changes:\n\n"
-            f"{state.get('tailored_resume', {}).get('tailoring_summary', 'Resume updated.')}\n\n"
+            f"{tailoring_summary}\n\n"
             "You can review the full tailored resume in the preview panel."
         )
     return {**state, "agent_response": response}
