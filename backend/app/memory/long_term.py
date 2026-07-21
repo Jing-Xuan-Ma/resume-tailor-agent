@@ -22,19 +22,51 @@ _CHROMA_DB_PATH = Path("C:/Users/HP/resume-agent/data/chroma")
 _CHROMA_DB_PATH.mkdir(parents=True, exist_ok=True)
 
 
+class _SimpleEmbeddingFunction:
+    """
+    Lightweight deterministic embedding function.
+    No model download required — uses SHA-256 hashing.
+    Sufficient for MVP validation; replace with a real model in production.
+    """
+
+    def __call__(self, input: list[str]) -> list[list[float]]:
+        import hashlib
+        import struct
+
+        embeddings = []
+        for text in input:
+            # Deterministic 384-dim vector from text hash
+            h = hashlib.sha256(text.encode("utf-8")).digest()
+            vec = []
+            for i in range(0, len(h), 4):
+                val = struct.unpack("<f", h[i : i + 4] + b"\x00" * (4 - len(h) + i))[0]
+                vec.append(val)
+            # Pad / truncate to 384 dims
+            while len(vec) < 384:
+                vec.extend(vec)
+            embeddings.append(vec[:384])
+        return embeddings
+
+
 def _get_embedding_fn():
-    """Return an embedding function. Uses OpenAI if key present, else local default."""
-    if settings.OPENAI_API_KEY and settings.OPENAI_API_KEY.startswith("sk-"):
+    """Return an embedding function.
+
+    Uses OpenAI only when it's the official endpoint (no custom base URL).
+    Custom providers typically don't support the /embeddings endpoint.
+    """
+    if (
+        settings.OPENAI_API_KEY
+        and settings.OPENAI_API_KEY.startswith("sk-")
+        and not settings.OPENAI_BASE_URL
+    ):
         from langchain_openai import OpenAIEmbeddings
 
-        kwargs = {
-            "model": settings.DEFAULT_EMBEDDING_MODEL,
-            "api_key": settings.OPENAI_API_KEY,
-        }
-        if settings.OPENAI_BASE_URL:
-            kwargs["openai_api_base"] = settings.OPENAI_BASE_URL
-        return OpenAIEmbeddings(**kwargs)
-    return DefaultEmbeddingFunction()
+        return OpenAIEmbeddings(
+            model=settings.DEFAULT_EMBEDDING_MODEL,
+            api_key=settings.OPENAI_API_KEY,
+        )
+    # Fallback: simple hash-based embedding (no download, works offline)
+    return _SimpleEmbeddingFunction()
 
 
 class LongTermMemoryStore:
@@ -161,6 +193,25 @@ class LongTermMemoryStore:
             formatted.append({
                 "text": results["documents"][0][i],
                 "metadata": results["metadatas"][0][i],
+            })
+        return formatted
+
+    def get_all_experiences(self, user_id: str) -> List[dict]:
+        """Retrieve all embedded experience documents for a user."""
+        collection_name = self._collection_name(user_id, "experiences")
+        try:
+            collection = self.client.get_or_create_collection(collection_name)
+        except Exception:
+            return []
+        results = collection.get()
+        if not results or not results["ids"]:
+            return []
+        formatted = []
+        for i in range(len(results["ids"])):
+            formatted.append({
+                "id": results["ids"][i],
+                "text": results["documents"][i],
+                "metadata": results["metadatas"][i],
             })
         return formatted
 

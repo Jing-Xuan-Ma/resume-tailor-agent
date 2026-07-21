@@ -7,7 +7,18 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from app.core.models import ParsedJobDescription, TailoredResume
+from app.core.models import ParsedJobDescription, Resume, TailoredResume
+
+
+class UploadResumeRequest(BaseModel):
+    user_id: UUID
+    resume: Resume
+
+
+class UploadResumeResponse(BaseModel):
+    success: bool
+    embedded_count: int
+    message: str
 
 
 class TailorRequest(BaseModel):

@@ -195,10 +195,12 @@ modules/
 - [x] LLM 从 Claude → GPT-5.5 迁移（自定义 provider: router.c.yiling.top）
 - [x] API Key 配置完成，GPT-5.5 真实调用测试通过
 - [x] Tailor 节点真实 LLM 输出验证（拒绝编造，遵守 Evidence Guard）
+- [x] 实现 ExperienceEmbedder 的 API 端点（`/upload-resume`）
+- [x] 带真实经历的端到端测试通过（上传简历 → 存入 Chroma → GPT-5.5 定制 → Evidence Guard 校验）
 
 **待完成**:
-- [ ] 实现 ExperienceEmbedder 的 API 端点（接收简历上传 → 自动向量化）
-- [ ] 填充 mock 简历数据，完成带真实经历的端到端测试
+- [ ] 前端简历上传 UI（支持粘贴/上传简历文件）
+- [ ] 解析 LLM 返回的结构化 JSON（目前当作纯文本展示）
 - [ ] PDF 渲染节点（生成 ATS 友好 PDF）
 - [ ] 用户认证和数据库集成
 

@@ -12,11 +12,28 @@ from app.modules.resume_tailor.schemas import (
     TailorResponse,
     JDParseRequest,
     JDParseResponse,
+    UploadResumeRequest,
+    UploadResumeResponse,
 )
 from app.modules.resume_tailor.service import ResumeTailorService
 
 router = APIRouter()
 tailor_service = ResumeTailorService()
+
+
+@router.post("/upload-resume", response_model=UploadResumeResponse)
+async def upload_resume(request: UploadResumeRequest):
+    """
+    Upload a user's resume and embed experiences into the vector store.
+    """
+    try:
+        result = await tailor_service.upload_resume(
+            user_id=request.user_id,
+            resume=request.resume,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/tailor", response_model=TailorResponse)

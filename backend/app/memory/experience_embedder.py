@@ -28,6 +28,7 @@ class ExperienceEmbedder:
             "company": experience.company,
             "title": experience.title,
             "date_range": experience.date_range,
+            "skills": experience.skills,
             "type": "experience",
         }
 
@@ -47,15 +48,18 @@ class ExperienceEmbedder:
 
         # 2. Add each bullet as its own document
         for idx, bullet in enumerate(experience.bullets):
+            meta = {
+                **base_meta,
+                "chunk_type": "bullet",
+                "bullet_index": idx,
+            }
+            if bullet.mentioned_skills:
+                meta["mentioned_skills"] = bullet.mentioned_skills
+            if bullet.metrics:
+                meta["metrics"] = bullet.metrics
             documents.append({
                 "text": bullet.text,
-                "metadata": {
-                    **base_meta,
-                    "chunk_type": "bullet",
-                    "bullet_index": idx,
-                    "mentioned_skills": bullet.mentioned_skills,
-                    "metrics": bullet.metrics,
-                },
+                "metadata": meta,
             })
 
         return documents
