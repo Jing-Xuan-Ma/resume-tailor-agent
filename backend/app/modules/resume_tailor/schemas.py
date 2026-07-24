@@ -5,7 +5,7 @@ Request/Response schemas for Resume Tailor module.
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.core.models import ParsedJobDescription, Resume, TailoredResume
 
@@ -37,6 +37,11 @@ class TailorResponse(BaseModel):
     clarification_needed: bool = False
     clarification_question: Optional[str] = None
     ats_score_estimate: Optional[float] = None
+    tailored_resume_id: Optional[str] = None
+    draft_id: Optional[str] = None
+    revision_id: Optional[str] = None
+    markdown: Optional[str] = None
+    key_map: list[dict] = Field(default_factory=list)
 
 
 class JDParseRequest(BaseModel):
@@ -53,3 +58,19 @@ class ExportTextRequest(BaseModel):
 
 class ExportTextResponse(BaseModel):
     text: str
+
+
+class ModifyDraftRequest(BaseModel):
+    user_id: UUID
+    draft_id: str
+    instruction: str
+
+
+class ModifyDraftResponse(BaseModel):
+    success: bool
+    draft_id: str
+    revision_id: Optional[str] = None
+    tailored_resume: Optional[dict] = None
+    markdown: Optional[str] = None
+    key_map: list[dict] = Field(default_factory=list)
+    message: str = ""

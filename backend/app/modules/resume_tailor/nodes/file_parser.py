@@ -14,7 +14,16 @@ def parse_docx(file_bytes: bytes) -> str:
         raise RuntimeError("python-docx not installed") from e
 
     doc = Document(BytesIO(file_bytes))
-    paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+    paragraphs = []
+    for p in doc.paragraphs:
+        text = p.text.strip()
+        if not text:
+            continue
+        style_name = (p.style.name or "").lower() if p.style else ""
+        has_numbering = p._p.pPr is not None and p._p.pPr.numPr is not None
+        if ("bullet" in style_name or has_numbering) and not text.startswith(("•", "*")):
+            text = f"• {text}"
+        paragraphs.append(text)
     return "\n\n".join(paragraphs)
 
 

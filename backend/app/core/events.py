@@ -3,10 +3,14 @@ Domain events for inter-module communication via EventBus.
 Modules should not call each other directly; they publish and subscribe to events.
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Literal, Optional
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+from typing import Literal, Optional, Any
 from uuid import UUID
+
+
+def utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 # =============================================================================
@@ -22,7 +26,7 @@ class ResumeTailoredEvent:
     job_id: Optional[UUID] = None
     tailoring_summary: dict = field(default_factory=dict)
     ats_score_estimate: Optional[float] = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=utcnow)
 
 
 @dataclass
@@ -34,7 +38,7 @@ class UserFeedbackEvent:
     original_text: Optional[str] = None
     modified_text: Optional[str] = None
     comment: Optional[str] = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=utcnow)
 
 
 # =============================================================================
@@ -49,11 +53,11 @@ class ConversationTurnEvent:
     role: Literal["user", "assistant"]
     content: str
     agent_state: Optional[str] = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=utcnow)
 
 
 # =============================================================================
-# Job Discovery Events (Placeholders for Phase 2)
+# Job Discovery Events
 # =============================================================================
 
 @dataclass
@@ -86,11 +90,18 @@ class EventBus:
     def __init__(self):
         self._handlers: dict[type, list[Callable]] = defaultdict(list)
 
-    def subscribe(self, event_type: type, handler: Callable[[any], Awaitable[None]]):
+    def subscribe(self, event_type: type, handler: Callable[[Any], Awaitable[None]]):
         self._handlers[event_type].append(handler)
 
     async def publish(self, event):
         event_type = type(event)
+        try:
+            from app import db
+
+            payload = asdict(event) if hasattr(event, "__dataclass_fields__") else {"value": str(event)}
+            db.save_event(event_type.__name__, payload)
+        except Exception:
+            pass
         handlers = self._handlers.get(event_type, [])
         for handler in handlers:
             await handler(event)

@@ -44,10 +44,17 @@ class Settings(BaseSettings):
     # Rate limits
     MAX_DAILY_APPLICATIONS: int = 20
     MAX_DAILY_EMAILS: int = 10
+    ENABLE_AUTO_SUBMIT: bool = True
+    ENABLE_BROWSER_AUTOMATION: bool = False
+    BROWSER_HEADLESS: bool = True
+    BROWSER_TIMEOUT_MS: int = 30000
 
     @property
     def CORS_ORIGINS_LIST(self) -> list[str]:
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        if self.APP_ENV == "development":
+            return ["*"]
+        origins = [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        return origins if origins != ["*"] else ["*"]
 
 
 settings = Settings()

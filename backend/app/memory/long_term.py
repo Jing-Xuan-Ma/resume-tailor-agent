@@ -17,8 +17,9 @@ from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
 from app.config import settings
 
-# Determine Chroma storage path
-_CHROMA_DB_PATH = Path("C:/Users/HP/resume-agent/data/chroma")
+# Determine Chroma storage path relative to the project root.
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_CHROMA_DB_PATH = _PROJECT_ROOT / "data" / "chroma"
 _CHROMA_DB_PATH.mkdir(parents=True, exist_ok=True)
 
 
@@ -134,6 +135,14 @@ class LongTermMemoryStore:
             metadatas=metadatas,
             ids=ids,
         )
+
+    def clear_experiences(self, user_id: str) -> None:
+        """Remove the current user's resume memory before replacing it with a new upload."""
+        collection_name = self._collection_name(user_id, "experiences")
+        try:
+            self.client.delete_collection(collection_name)
+        except Exception:
+            pass
 
     async def search_experiences(
         self,

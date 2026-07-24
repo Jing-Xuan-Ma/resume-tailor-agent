@@ -3,11 +3,15 @@ Core domain models using Pydantic v2.
 These models define the shape of resumes, experiences, jobs, and tailored outputs.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal, Optional
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, HttpUrl
+
+
+def utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 # =============================================================================
@@ -26,8 +30,8 @@ class UserBase(BaseModel):
 
 class User(UserBase):
     id: UUID = Field(default_factory=uuid4)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
 
 class UserPreferenceProfile(BaseModel):
@@ -86,8 +90,8 @@ class Resume(BaseModel):
     education: list[Education] = Field(default_factory=list)
     projects: list[Project] = Field(default_factory=list)
     certifications: list[str] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
 
 # =============================================================================
@@ -118,7 +122,7 @@ class Job(BaseModel):
     source_platform: Optional[str] = None  # e.g., "adzuna", "linkedin"
     parsed: ParsedJobDescription
     match_score: Optional[float] = None  # 0-100
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 # =============================================================================
@@ -151,7 +155,7 @@ class TailoredResume(BaseModel):
     experiences: list[TailoredExperience] = Field(default_factory=list)
     ats_score_estimate: Optional[float] = None
     tailoring_summary: str = ""  # Human-readable summary of changes
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 # =============================================================================
@@ -161,7 +165,7 @@ class TailoredResume(BaseModel):
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant", "system"]
     content: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=utcnow)
     metadata: Optional[dict] = None  # e.g., {"node": "tailor", "state": "presenting"}
 
 
@@ -171,5 +175,5 @@ class ConversationSession(BaseModel):
     messages: list[ChatMessage] = Field(default_factory=list)
     current_state: str = "idle"  # Maps to AgentState
     context: dict = Field(default_factory=dict)  # Arbitrary context for the session
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)

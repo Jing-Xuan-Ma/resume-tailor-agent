@@ -4,8 +4,13 @@ Resume Tailor API Routes
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from io import BytesIO
 
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
+from fastapi.responses import StreamingResponse
+
+from app.config import settings
+from app.core.rate_limit import rate_limiter
 from app.modules.resume_tailor.schemas import (
     TailorRequest,
     TailorResponse,
@@ -15,6 +20,8 @@ from app.modules.resume_tailor.schemas import (
     UploadResumeResponse,
     ExportTextRequest,
     ExportTextResponse,
+    ModifyDraftRequest,
+    ModifyDraftResponse,
 )
 from app.modules.resume_tailor.service import ResumeTailorService
 
@@ -65,6 +72,7 @@ async def tailor_resume(request: TailorRequest):
     Core endpoint: tailor a user's resume for a specific job description.
     """
     try:
+        rate_limiter.check(str(request.user_id), "tailor", settings.MAX_DAILY_APPLICATIONS)
         result = await tailor_service.tailor(
             user_id=request.user_id,
             resume_id=request.resume_id,
@@ -100,8 +108,60 @@ async def export_text(request: ExportTextRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/drafts/modify", response_model=ModifyDraftResponse)
+async def modify_draft(request: ModifyDraftRequest):
+    """
+    Revise the active tailored resume draft based on a chat instruction.
+    """
+    try:
+        return await tailor_service.modify_draft(
+            user_id=request.user_id,
+            draft_id=request.draft_id,
+            instruction=request.instruction,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/drafts/{draft_id}")
+async def get_draft(draft_id: str, user_id: UUID = Query(...)):
+    """Retrieve the current draft state for the workspace."""
+    draft = tailor_service.get_draft(user_id=user_id, draft_id=draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    return draft
+
+
+@router.get("/drafts/{draft_id}/export")
+async def export_draft(draft_id: str, user_id: UUID = Query(...), format: str = Query("pdf")):
+    """Export the current draft as PDF or Word (.docx)."""
+    draft = tailor_service.get_draft(user_id=user_id, draft_id=draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+
+    fmt = format.lower()
+    if fmt == "docx":
+        data = tailor_service.export_draft_docx(draft)
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        filename = "tailored-resume.docx"
+    elif fmt == "pdf":
+        data = tailor_service.export_draft_pdf(draft)
+        media_type = "application/pdf"
+        filename = "tailored-resume.pdf"
+    else:
+        raise HTTPException(status_code=400, detail="format must be 'pdf' or 'docx'")
+
+    return StreamingResponse(
+        BytesIO(data),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/tailored/{tailored_resume_id}")
-async def get_tailored_resume(tailored_resume_id: UUID):
+async def get_tailored_resume(tailored_resume_id: UUID, user_id: UUID | None = Query(None)):
     """Retrieve a previously generated tailored resume."""
-    # TODO: Implement retrieval from DB
-    return {"tailored_resume_id": str(tailored_resume_id), "status": "not_yet_implemented"}
+    record = tailor_service.get_tailored_resume(tailored_resume_id, user_id=user_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Tailored resume not found")
+    return record

@@ -34,8 +34,14 @@ class TailorState(TypedDict, total=False):
 
 async def understand_intent_node(state: TailorState) -> TailorState:
     """Classify user intent: upload resume, paste JD, or general chat."""
-    # TODO: Implement intent classification via LLM
-    return {**state, "agent_response": "Understood. Let me analyze the job description."}
+    user_input = state.get("user_input", "") or ""
+    lowered = user_input.lower()
+    looks_like_jd = len(user_input) > 200 and any(
+        marker in lowered
+        for marker in ["responsibilities", "requirements", "qualifications", "skills", "experience"]
+    )
+    response = "Understood. Let me analyze the job description." if looks_like_jd else "Understood. Let me review the provided request."
+    return {**state, "agent_response": response, "intent": "tailor" if looks_like_jd else "review"}
 
 
 async def retrieve_memory_node(state: TailorState) -> TailorState:

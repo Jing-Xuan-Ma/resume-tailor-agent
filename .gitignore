@@ -10,8 +10,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -56,3 +56,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local resume/test artifacts
+backend/*.pdf
+backend/test_resume.txt
+frontend/tsconfig.tsbuildinfo

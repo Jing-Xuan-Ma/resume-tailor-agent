@@ -173,8 +173,8 @@ modules/
 
 ## 10. 当前开发进度（每次更新此字段）
 
-**最后更新**: 2026-07-21
-**当前阶段**: Phase 1 — 简历定制引擎MVP（LLM 已激活）
+**最后更新**: 2026-07-24
+**当前阶段**: Phase 3 — 自动投递引擎 MVP（职位发现 + 申请准备 + 手动/自动提交边界）
 **已完成**:
 - [x] 项目目录结构搭建
 - [x] AGENT_CONTEXT.md + README.md
@@ -197,12 +197,30 @@ modules/
 - [x] Tailor 节点真实 LLM 输出验证（拒绝编造，遵守 Evidence Guard）
 - [x] 实现 ExperienceEmbedder 的 API 端点（`/upload-resume`）
 - [x] 带真实经历的端到端测试通过（上传简历 → 存入 Chroma → GPT-5.5 定制 → Evidence Guard 校验）
+- [x] Chroma 本地记忆完整迁移到 `D:\resume-agent\data\chroma`，并移除 C 盘重复副本
+- [x] 后端 Chroma 路径改为项目相对路径，避免继续写入 `C:\Users\HP\resume-agent\data\chroma`
+
+**最新已完成**:
+- [x] 前端简历上传 UI（Chat/Upload 切换模式，支持粘贴纯文本简历）
+- [x] 解析 LLM 返回的结构化 JSON → 展示结构化 experiences、projects、education
+- [x] ~~PDF 渲染节点~~ → 改为文本导出（已支持 Copy as Text）
+- [x] 用户认证 API（register/login/me）和本地 SQLite 持久化层
+- [x] 用户画像、反馈学习、对话归档、事件审计、限流
+- [x] 持久化定制简历、草稿、职位、收藏、cover letter、application runs、audit logs
+- [x] Phase 2 职位发现：JobSpy provider + 本地 fallback + 职位评分/收藏
+- [x] Phase 2.2：job → tailored resume → cover letter → application plan 一键准备申请包
+- [x] Phase 3 自动投递框架：application_engine、ats_connectors、safety 模块
+- [x] ATS 识别/connector：Greenhouse、Lever、Ashby、Workday、iCIMS、Generic fallback
+- [x] 手动确认提交 API：`/api/v1/applications/{id}/confirm-manual-submit`
+- [x] 自动提交 API：`/api/v1/applications/{id}/auto-submit`
+- [x] 可选 Playwright 浏览器执行器：`ENABLE_BROWSER_AUTOMATION=True` 时尝试真实填表/提交
+- [x] Greenhouse/Workday first_name/last_name 拆分、文件 artifacts 生成、resume/cover letter 上传字段支持
+- [x] 后端测试 13 passed，前端 build 通过
 
 **待完成**:
-- [x] 前端简历上传 UI（Chat/Upload 切换模式，支持粘贴纯文本简历）
-- [ ] 解析 LLM 返回的结构化 JSON（目前当作纯文本展示）
-- [x] ~~PDF 渲染节点~~ → 改为文本导出（已支持 Copy as Text）
-- [ ] 用户认证和数据库集成
+- [ ] 安装 Playwright 浏览器依赖并做 Greenhouse 真实页面级实测
+- [ ] 逐站增强 Lever / Ashby / Workday 的真实页面填表 selector
+- [ ] 前端职位发现/申请管理 UI
 
 ---
 

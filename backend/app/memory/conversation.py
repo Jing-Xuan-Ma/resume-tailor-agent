@@ -7,6 +7,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from app.core.models import ChatMessage
+from app import db
 
 
 class ConversationMemoryManager:
@@ -42,6 +43,7 @@ class ConversationMemoryManager:
             return
 
         for msg in buffer:
+            db.save_conversation_turn(str(user_id), session_id, msg.role, msg.content)
             await self.long_term.add_conversation_turn(
                 user_id=str(user_id),
                 session_id=session_id,
@@ -55,9 +57,17 @@ class ConversationMemoryManager:
     async def compress_if_needed(self, session_id: str, llm_client):
         """
         If conversation exceeds threshold, generate summary and archive.
-        (Placeholder for future implementation)
+        Compress long sessions into a durable summary entry.
         """
         buffer = self._buffers.get(session_id, [])
         if len(buffer) >= 50:
-            # TODO: Summarize and store as long-term preference
-            pass
+            text = "\n".join(f"{msg.role}: {msg.content}" for msg in buffer[-50:])
+            try:
+                response = await llm_client.ainvoke([
+                    {"role": "system", "content": "Summarize this resume assistant conversation into durable user preferences and facts."},
+                    {"role": "user", "content": text},
+                ])
+                summary = str(response.content).strip()
+            except Exception:
+                summary = text[:2000]
+            await self.long_term.add_conversation_turn("unknown", session_id, summary, "system")

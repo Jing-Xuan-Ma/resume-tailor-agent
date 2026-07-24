@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { sendChatMessage, tailorResume, uploadResumeText, uploadResumeFile } from "@/lib/api";
+import { sendChatMessage, tailorResume, uploadResumeText, uploadResumeFile, modifyDraft } from "@/lib/api";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -28,11 +28,14 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>();
+  const [draftId, setDraftId] = useState<string | undefined>();
   const [mode, setMode] = useState<Mode>("chat");
   const [uploadSubMode, setUploadSubMode] = useState<UploadSubMode>("file");
   const [resumeInput, setResumeInput] = useState("");
+  const [uploadedResumeNote, setUploadedResumeNote] = useState<string | undefined>();
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,6 +55,11 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
         user_id: userId,
         session_id: sessionId,
         message: userMsg,
+        context: {
+          has_uploaded_resume: Boolean(uploadedResumeNote),
+          uploaded_resume_note: uploadedResumeNote,
+          active_draft_id: draftId,
+        },
       });
 
       setSessionId(chatRes.session_id);
@@ -62,11 +70,14 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
           userMsg.toLowerCase().includes("requirements") ||
           userMsg.toLowerCase().includes("experience") ||
           userMsg.toLowerCase().includes("skills"));
+      const looksLikeDraftEdit =
+        draftId &&
+        /(revise|rewrite|edit|change|update|remove|delete|shorten|lengthen|adjust|modify|polish|优化|修改|改写|调整|删除|去掉|缩短|精简|润色)/i.test(userMsg);
 
       if (looksLikeJD) {
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: chatRes.agent_message + "\n\n⏳ Tailoring your resume now..." },
+          { role: "assistant", content: "⏳ Tailoring your resume now..." },
         ]);
 
         const tailorRes = await tailorResume({
@@ -85,7 +96,15 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
                 "I've tailored your resume for this role! Check the preview panel on the right.",
             },
           ]);
-          onTailored?.(tailorRes.tailored_resume);
+          if (tailorRes.draft_id) setDraftId(tailorRes.draft_id);
+          onTailored?.({
+            tailored_resume: tailorRes.tailored_resume,
+            tailored_resume_id: tailorRes.tailored_resume_id,
+            draft_id: tailorRes.draft_id,
+            revision_id: tailorRes.revision_id,
+            markdown: tailorRes.markdown,
+            key_map: tailorRes.key_map || [],
+          });
         } else {
           setMessages((prev) => [
             ...prev,
@@ -95,6 +114,31 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
                 tailorRes.clarification_question ||
                 "I need a bit more clarity to tailor your resume accurately.",
             },
+          ]);
+        }
+      } else if (looksLikeDraftEdit) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: chatRes.agent_message + "\n\nApplying that change to the current resume draft..." },
+        ]);
+
+        const modified = await modifyDraft(userId, draftId, userMsg);
+        if (modified.success) {
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: modified.message || "Updated the resume draft. Review the workspace on the right." },
+          ]);
+          onTailored?.({
+            tailored_resume: modified.tailored_resume,
+            draft_id: modified.draft_id,
+            revision_id: modified.revision_id,
+            markdown: modified.markdown,
+            key_map: modified.key_map || [],
+          });
+        } else {
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: modified.message || "I couldn't update the current draft." },
           ]);
         }
       } else {
@@ -121,6 +165,7 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
     try {
       const result = await uploadResumeText(userId, resumeInput.trim());
       if (result.success) {
+        setUploadedResumeNote(`Text resume uploaded and ${result.embedded_count} chunks embedded.`);
         setMessages((prev) => [
           ...prev,
           {
@@ -167,8 +212,10 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
     try {
       const result = await uploadResumeFile(userId, file);
       if (result.success) {
+        setUploadedResumeNote(`File '${file.name}' uploaded and ${result.embedded_count} chunks embedded.`);
         setMessages((prev) => [
           ...prev,
+          { role: "user", content: `📎 Uploaded resume file: ${file.name}` },
           {
             role: "assistant",
             content: `✅ ${result.message}\n\nYour resume has been saved. Now you can paste a job description and I'll tailor it for you!`,
@@ -209,19 +256,19 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
   };
 
   return (
-    <div className="flex w-1/3 flex-col border-r border-gray-200 bg-white">
-      <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+    <div className="flex w-[min(34vw,470px)] min-w-[390px] flex-col border-r border-slate-200 bg-white/95 shadow-[8px_0_30px_rgba(15,23,42,0.04)]">
+      <div className="border-b border-slate-200 px-5 py-4 flex items-center justify-between bg-white">
         <div>
-          <h1 className="text-lg font-semibold text-gray-900">Resume Agent</h1>
-          <p className="text-sm text-gray-500">Your AI career coach</p>
+          <h1 className="text-[15px] font-bold tracking-tight text-slate-950">Resume Agent</h1>
+          <p className="text-xs text-slate-500">JD-aware resume workspace</p>
         </div>
-        <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
+        <div className="flex gap-1 rounded-full bg-slate-100 p-1">
           <button
             onClick={() => setMode("chat")}
             className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
               mode === "chat"
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-white text-slate-950 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
             }`}
           >
             Chat
@@ -230,8 +277,8 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
             onClick={() => setMode("upload")}
             className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
               mode === "upload"
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-white text-slate-950 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
             }`}
           >
             Upload
@@ -239,17 +286,17 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4 bg-gradient-to-b from-white to-slate-50">
         {messages.map((msg, idx) => (
           <div
             key={idx}
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap ${
+              className={`max-w-[92%] rounded-2xl px-4 py-3 text-[13px] leading-5 whitespace-pre-wrap shadow-sm ${
                 msg.role === "user"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-800"
+                  ? "bg-blue-600 text-white shadow-blue-200"
+                  : "border border-slate-200 bg-white text-slate-800"
               }`}
             >
               {msg.content}
@@ -258,7 +305,7 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className="max-w-[85%] rounded-2xl px-4 py-3 text-sm bg-gray-100 text-gray-500">
+            <div className="max-w-[85%] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[13px] text-slate-500 shadow-sm">
               Thinking...
             </div>
           </div>
@@ -267,20 +314,42 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
       </div>
 
       {mode === "chat" ? (
-        <div className="border-t border-gray-200 px-4 py-4">
-          <div className="flex items-center gap-2">
+        <div className="border-t border-slate-200 bg-white px-4 py-4">
+          <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 shadow-inner">
+            <input
+              ref={chatFileInputRef}
+              type="file"
+              accept=".docx,.pdf,.txt"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFileUpload(file);
+                e.currentTarget.value = "";
+              }}
+              className="hidden"
+            />
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Paste a job description or ask me anything..."
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="h-10 flex-1 rounded-xl border-0 bg-white px-4 text-[13px] shadow-sm outline-none ring-1 ring-transparent placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500"
             />
+            <button
+              type="button"
+              onClick={() => chatFileInputRef.current?.click()}
+              disabled={loading}
+              title="Upload resume file"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l9.193-9.193a3 3 0 114.243 4.243l-9.193 9.193a1.5 1.5 0 01-2.121-2.121l8.486-8.486" />
+              </svg>
+            </button>
             <button
               onClick={handleSend}
               disabled={loading}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="h-10 rounded-xl bg-blue-600 px-4 text-[13px] font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
             >
               Send
             </button>

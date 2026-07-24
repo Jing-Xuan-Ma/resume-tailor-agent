@@ -8,8 +8,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import db
 from app.config import settings
+from app.modules.application_engine.router import router as application_engine_router
+from app.modules.auth.router import router as auth_router
 from app.modules.chat.router import router as chat_router
+from app.modules.job_discovery.router import router as job_discovery_router
+from app.modules.profile.router import router as profile_router
 from app.modules.resume_tailor.router import router as resume_tailor_router
 
 logger = structlog.get_logger()
@@ -19,10 +24,9 @@ logger = structlog.get_logger()
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
     logger.info("Starting up Resume Tailor Agent...", env=settings.APP_ENV)
-    # TODO: Initialize database connections, vector store collections
+    db.init_db()
     yield
     logger.info("Shutting down Resume Tailor Agent...")
-    # TODO: Close connections
 
 
 app = FastAPI(
@@ -47,12 +51,12 @@ async def health_check():
     return {"status": "healthy", "version": "0.1.0", "env": settings.APP_ENV}
 
 # Routers
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(chat_router, prefix="/api/v1/chat", tags=["Chat"])
+app.include_router(profile_router, prefix="/api/v1/profile", tags=["Profile"])
 app.include_router(resume_tailor_router, prefix="/api/v1/resume-tailor", tags=["Resume Tailor"])
-
-# Placeholder routers for future modules (to maintain API contract)
-# from app.modules.job_discovery.router import router as job_discovery_router
-# app.include_router(job_discovery_router, prefix="/api/v1/jobs", tags=["Job Discovery"])
+app.include_router(job_discovery_router, prefix="/api/v1/jobs", tags=["Job Discovery"])
+app.include_router(application_engine_router, prefix="/api/v1/applications", tags=["Application Engine"])
 
 
 if __name__ == "__main__":
