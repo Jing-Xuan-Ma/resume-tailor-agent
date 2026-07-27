@@ -30,8 +30,11 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # LLM
+    LLM_PROVIDER: str = "openai"
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = ""
+    GEMINI_API_KEY: str = ""
+    BIGMODEL_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
     DEFAULT_TAILOR_MODEL: str = "gpt-5.5"
     DEFAULT_PARSER_MODEL: str = "gpt-5.5"
@@ -40,6 +43,12 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = "change-me"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
+    # Job Discovery Providers
+    ADZUNA_APP_ID: str = ""
+    ADZUNA_API_KEY: str = ""
+    JOB_DISCOVERY_MIN_SCORE: float = 0.5
+    JOB_DISCOVERY_TOP_N: int = 10
 
     # Rate limits
     MAX_DAILY_APPLICATIONS: int = 20

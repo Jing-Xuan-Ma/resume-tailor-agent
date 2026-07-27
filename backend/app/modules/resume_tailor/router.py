@@ -18,6 +18,7 @@ from app.modules.resume_tailor.schemas import (
     JDParseResponse,
     UploadResumeRequest,
     UploadResumeResponse,
+    ResumeRecordResponse,
     ExportTextRequest,
     ExportTextResponse,
     ModifyDraftRequest,
@@ -64,6 +65,15 @@ async def upload_resume_file(
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/resumes/latest", response_model=ResumeRecordResponse)
+async def get_latest_resume(user_id: UUID = Query(...)):
+    """Return the user's latest uploaded source resume."""
+    record = tailor_service.get_latest_resume(user_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    return record
 
 
 @router.post("/tailor", response_model=TailorResponse)

@@ -5,9 +5,8 @@ Evidence Guard Node — Independent fact-checker that verifies tailored claims.
 from pathlib import Path
 import re
 
-from langchain_openai import ChatOpenAI
-
 from app.config import settings
+from app.core.llm_client import get_chat_openai
 
 
 class EvidenceGuardNode:
@@ -23,15 +22,11 @@ class EvidenceGuardNode:
 
     def _get_llm(self):
         if self._llm is None:
-            kwargs = {
-                "model": settings.DEFAULT_TAILOR_MODEL,
-                "temperature": 0.1,
-                "api_key": settings.OPENAI_API_KEY,
-                "max_tokens": 2048,
-            }
-            if settings.OPENAI_BASE_URL:
-                kwargs["base_url"] = settings.OPENAI_BASE_URL
-            self._llm = ChatOpenAI(**kwargs)
+            self._llm = get_chat_openai(
+                model=settings.DEFAULT_TAILOR_MODEL,
+                temperature=0.1,
+                max_tokens=2048,
+            )
         return self._llm
 
     async def verify(self, original_resume: dict, tailored_resume: dict) -> dict:

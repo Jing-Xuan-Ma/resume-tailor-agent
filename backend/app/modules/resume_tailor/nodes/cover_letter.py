@@ -1,8 +1,7 @@
 """Cover letter generation for a saved job and tailored resume."""
 
-from langchain_openai import ChatOpenAI
-
 from app.config import settings
+from app.core.llm_client import get_chat_openai
 
 
 class CoverLetterNode:
@@ -11,15 +10,11 @@ class CoverLetterNode:
 
     def _get_llm(self):
         if self._llm is None:
-            kwargs = {
-                "model": settings.DEFAULT_TAILOR_MODEL,
-                "temperature": 0.35,
-                "api_key": settings.OPENAI_API_KEY,
-                "max_tokens": 1200,
-            }
-            if settings.OPENAI_BASE_URL:
-                kwargs["base_url"] = settings.OPENAI_BASE_URL
-            self._llm = ChatOpenAI(**kwargs)
+            self._llm = get_chat_openai(
+                model=settings.DEFAULT_TAILOR_MODEL,
+                temperature=0.35,
+                max_tokens=1200,
+            )
         return self._llm
 
     async def run(self, *, job: dict, tailored_resume: dict, original_resume: dict) -> dict:

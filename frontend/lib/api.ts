@@ -81,6 +81,33 @@ export interface JobPrepareApplicationResponse {
   application_plan?: ApplicationPlanResponse & Record<string, unknown>;
 }
 
+export interface OutreachMessage {
+  id: string;
+  user_id: string;
+  job_id?: string;
+  contact_name?: string;
+  contact_role?: string;
+  company?: string;
+  channel: string;
+  subject: string;
+  body: string;
+  status: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GrowthPlan {
+  id: string;
+  user_id: string;
+  job_id?: string;
+  target_role: string;
+  gaps: Record<string, unknown>[];
+  recommendations: Record<string, unknown>[];
+  roadmap: Record<string, unknown>[];
+  created_at: string;
+}
+
 export interface KeyMapItem {
   jd_key: string;
   resume_phrase: string;
@@ -101,8 +128,21 @@ export interface ModifyDraftResponse {
 
 export interface UploadResumeResponse {
   success: boolean;
+  resume_id?: string;
   embedded_count: number;
   message: string;
+}
+
+export interface SourceResumeRecord {
+  id: string;
+  user_id: string;
+  source_type: string;
+  filename?: string;
+  raw_text?: string;
+  parsed: Record<string, unknown>;
+  embedded_count: number;
+  created_at: string;
+  updated_at: string;
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -221,6 +261,17 @@ export async function uploadResumeFile(
   return res.json() as Promise<UploadResumeResponse>;
 }
 
+export async function getLatestResume(user_id: string): Promise<SourceResumeRecord | undefined> {
+  const params = new URLSearchParams({ user_id });
+  const res = await fetch(`${API_BASE}/api/v1/resume-tailor/resumes/latest?${params}`);
+  if (res.status === 404) return undefined;
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<SourceResumeRecord>;
+}
+
 export async function checkHealth(): Promise<{
   status: string;
   version: string;
@@ -258,6 +309,7 @@ export async function discoverJobs(req: {
   provider?: string;
   hours_old?: number;
   country_indeed?: string;
+  min_match_score?: number;
 }): Promise<{ jobs: JobRecord[] }> {
   return post<{ jobs: JobRecord[] }>("/api/v1/jobs/discover", req);
 }
@@ -361,4 +413,312 @@ export async function prepareApplicationForJob(
   }
 ): Promise<JobPrepareApplicationResponse> {
   return post<JobPrepareApplicationResponse>(`/api/v1/jobs/${job_id}/prepare-application`, req);
+}
+
+export async function draftOutreach(req: {
+  user_id: string;
+  job_id?: string;
+  contact_name?: string;
+  contact_role?: string;
+  company?: string;
+  channel?: "email" | "linkedin" | "referral";
+  tone?: "concise" | "warm" | "formal";
+}): Promise<OutreachMessage> {
+  return post<OutreachMessage>("/api/v1/outreach/draft", req);
+}
+
+export async function listOutreachMessages(user_id: string, limit = 50): Promise<{ messages: OutreachMessage[] }> {
+  const params = new URLSearchParams({ user_id, limit: String(limit) });
+  const res = await fetch(`${API_BASE}/api/v1/outreach?${params}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<{ messages: OutreachMessage[] }>;
+}
+
+export async function markOutreachSent(message_id: string, user_id: string): Promise<OutreachMessage> {
+  return post<OutreachMessage>(`/api/v1/outreach/${message_id}/mark-sent`, { user_id });
+}
+
+export interface RecommendedJob {
+  id: string;
+  title: string;
+  company?: string;
+  location?: string;
+  source_platform: string;
+  source_url?: string;
+  match_score: number;
+  raw_text: string;
+  parsed: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface HistoryRecord {
+  id: string;
+  user_id: string;
+  job_id: string;
+  action: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  title?: string;
+  company?: string;
+  location?: string;
+  source_platform?: string;
+  match_score?: number;
+  job_created_at?: string;
+}
+
+export async function getRecommendedJobs(user_id: string, top_n = 10): Promise<{
+  jobs: RecommendedJob[];
+  total_candidates: number;
+  already_processed: number;
+}> {
+  const params = new URLSearchParams({ user_id, top_n: String(top_n) });
+  const res = await fetch(`${API_BASE}/api/v1/jobs/recommended?${params}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<{ jobs: RecommendedJob[]; total_candidates: number; already_processed: number }>;
+}
+
+export async function getJobHistory(user_id: string, limit = 50): Promise<{ records: HistoryRecord[] }> {
+  const params = new URLSearchParams({ user_id, limit: String(limit) });
+  const res = await fetch(`${API_BASE}/api/v1/jobs/history?${params}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<{ records: HistoryRecord[] }>;
+}
+
+export interface JdSessionResponse {
+  session_id: string;
+  jd_text: string;
+  job_id?: string;
+  created_at: string;
+}
+
+export interface KeywordMatchItem {
+  keyword: string;
+  status: "covered" | "missing" | string;
+  source_span_in_jd: [number, number];
+  suggestion?: string;
+}
+
+export interface AnalyzeResponse {
+  session_id: string;
+  keyword_matches: KeywordMatchItem[];
+}
+
+export interface RewriteResponse {
+  new_version_id: string;
+  session_id: string;
+  version_index: number;
+  full_resume: unknown;
+  markdown: string;
+  keyword_matches: KeywordMatchItem[];
+}
+
+export interface VersionItem {
+  id: string;
+  version_index: number;
+  is_confirmed: boolean;
+  created_at: string;
+  confirmed_at?: string;
+}
+
+export interface ListVersionsResponse {
+  versions: VersionItem[];
+}
+
+export interface GetVersionResponse {
+  id: string;
+  session_id: string;
+  version_index: number;
+  content_delta: Record<string, unknown>;
+  full_resume: Record<string, unknown>;
+  markdown: string;
+  is_confirmed: boolean;
+  created_at: string;
+  confirmed_at?: string;
+}
+
+export async function createJdSession(
+  user_id: string,
+  jd_text: string,
+  job_id?: string
+): Promise<JdSessionResponse> {
+  return post<JdSessionResponse>("/api/v1/resume-workspace/jd-session", {
+    user_id,
+    jd_text,
+    job_id,
+  });
+}
+
+export async function analyzeJd(
+  session_id: string
+): Promise<AnalyzeResponse> {
+  return post<AnalyzeResponse>(
+    `/api/v1/resume-workspace/jd-session/${session_id}/analyze`,
+    {}
+  );
+}
+
+export async function rewriteResume(
+  user_id: string,
+  session_id: string,
+  instruction: string,
+  base_version_id?: string
+): Promise<RewriteResponse> {
+  return post<RewriteResponse>(
+    `/api/v1/resume-workspace/jd-session/${session_id}/rewrite`,
+    { user_id, session_id, instruction, base_version_id }
+  );
+}
+
+export async function confirmVersion(
+  version_id: string,
+  user_id: string
+): Promise<{ ok: boolean; version_id: string }> {
+  const params = new URLSearchParams({ user_id });
+  const res = await fetch(
+    `${API_BASE}/api/v1/resume-workspace/resume-version/${version_id}/confirm?${params}`,
+    { method: "POST" }
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+export async function suggestProject(
+  version_id: string,
+  user_id: string,
+  keyword: string
+): Promise<{ suggestion: string }> {
+  return post<{ suggestion: string }>(
+    `/api/v1/resume-workspace/resume-version/${version_id}/suggest-project`,
+    { user_id, keyword }
+  );
+}
+
+export async function listVersions(
+  session_id: string,
+  user_id: string
+): Promise<ListVersionsResponse> {
+  const params = new URLSearchParams({ user_id });
+  const res = await fetch(
+    `${API_BASE}/api/v1/resume-workspace/jd-session/${session_id}/versions?${params}`
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+export async function getVersion(
+  version_id: string,
+  user_id: string
+): Promise<GetVersionResponse> {
+  const params = new URLSearchParams({ user_id });
+  const res = await fetch(
+    `${API_BASE}/api/v1/resume-workspace/resume-version/${version_id}?${params}`
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+export async function exportVersion(
+  version_id: string,
+  user_id: string,
+  format: "pdf" | "docx" | "text"
+): Promise<Blob> {
+  const params = new URLSearchParams({ user_id, format });
+  const res = await fetch(
+    `${API_BASE}/api/v1/resume-workspace/resume-version/${version_id}/export?${params}`
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.blob();
+}
+
+const API_BASE_PREVIEW = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
+export async function uploadTemplate(
+  user_id: string,
+  file: File
+): Promise<{ template_id: string; block_count: number; filename: string }> {
+  const formData = new FormData();
+  formData.append("user_id", user_id);
+  formData.append("file", file);
+
+  const res = await fetch(`${API_BASE}/api/v1/resume-workspace/template/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+export async function getActiveTemplate(
+  user_id: string
+): Promise<{ template_id: string; filename: string; block_count: number; created_at: string } | null> {
+  const params = new URLSearchParams({ user_id });
+  const res = await fetch(`${API_BASE}/api/v1/resume-workspace/template/active?${params}`);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+export function getVersionPreviewUrl(version_id: string, user_id: string): string {
+  const params = new URLSearchParams({ user_id });
+  return `${API_BASE_PREVIEW}/api/v1/resume-workspace/resume-version/${version_id}/preview?${params}`;
+}
+
+export async function previewVersionPdf(
+  version_id: string,
+  user_id: string
+): Promise<Blob> {
+  const params = new URLSearchParams({ user_id });
+  const res = await fetch(
+    `${API_BASE}/api/v1/resume-workspace/resume-version/${version_id}/preview?${params}`
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.blob();
+}
+
+export async function analyzeGrowth(req: {
+  user_id: string;
+  job_id?: string;
+  target_role?: string;
+}): Promise<GrowthPlan> {
+  return post<GrowthPlan>("/api/v1/growth/analyze", req);
+}
+
+export async function listGrowthPlans(user_id: string, limit = 20): Promise<{ plans: GrowthPlan[] }> {
+  const params = new URLSearchParams({ user_id, limit: String(limit) });
+  const res = await fetch(`${API_BASE}/api/v1/growth?${params}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<{ plans: GrowthPlan[] }>;
 }

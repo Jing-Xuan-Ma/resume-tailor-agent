@@ -1,15 +1,14 @@
 """
 Tailor Resume Node — Core LLM-driven resume customization.
-Uses GPT-5.5 for high-quality, context-aware rewriting with structured JSON output.
+Uses the unified LLM client for provider-agnostic model access.
 """
 
 import json
 import re
 from pathlib import Path
 
-from langchain_openai import ChatOpenAI
-
 from app.config import settings
+from app.core.llm_client import get_chat_openai
 
 
 class TailorResumeNode:
@@ -27,15 +26,11 @@ class TailorResumeNode:
 
     def _get_llm(self):
         if self._llm is None:
-            kwargs = {
-                "model": settings.DEFAULT_TAILOR_MODEL,
-                "temperature": 0.3,
-                "api_key": settings.OPENAI_API_KEY,
-                "max_tokens": 4096,
-            }
-            if settings.OPENAI_BASE_URL:
-                kwargs["base_url"] = settings.OPENAI_BASE_URL
-            self._llm = ChatOpenAI(**kwargs)
+            self._llm = get_chat_openai(
+                model=settings.DEFAULT_TAILOR_MODEL,
+                temperature=0.3,
+                max_tokens=4096,
+            )
         return self._llm
 
     def _parse_json_from_llm(self, content: object) -> dict | None:

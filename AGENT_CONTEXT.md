@@ -87,10 +87,11 @@ modules/
 │   ├── long_term.py         # Chroma向量操作
 │   ├── conversation.py      # 对话历史管理
 │   └── user_profile.py      # 动态偏好画像
-├── job_discovery/           ⏳ Phase 2 — 职位发现（接口预留）
-├── auto_apply/              ⏳ Phase 3 — 自动投递（接口预留，依赖JobApplyAgent的ATS fill引擎）
-├── cold_outreach/           ⏳ Phase 4 — 冷邮件外联（接口预留，依赖Gmail API + LinkedIn）
-└── growth_advisor/          ⏳ Phase 5 — 成长建议（接口预留）
+├── job_discovery/           ✅ Phase 2 — 职位发现 + 收藏 + 申请包准备
+├── application_engine/      ✅ Phase 3 — 申请计划 + 手动确认 + auto-submit 边界
+├── ats_connectors/          ✅ Phase 3 — Greenhouse/Lever/Ashby/Workday/iCIMS/Generic connector
+├── cold_outreach/           ✅ Phase 4 — 冷外联草稿生成 + sent_by_user 记录（不自动发送）
+└── growth_advisor/          ✅ Phase 5 — 技能差距分析 + 推荐 + 4周路线图
 ```
 
 ---
@@ -173,8 +174,8 @@ modules/
 
 ## 10. 当前开发进度（每次更新此字段）
 
-**最后更新**: 2026-07-24
-**当前阶段**: Phase 3 — 自动投递引擎 MVP（职位发现 + 申请准备 + 手动/自动提交边界）
+**最后更新**: 2026-07-25
+**当前阶段**: Phase 1-5 MVP 全部完成（简历定制 + 职位发现 + 申请准备/提交边界 + 冷外联草稿 + 成长建议）
 **已完成**:
 - [x] 项目目录结构搭建
 - [x] AGENT_CONTEXT.md + README.md
@@ -216,11 +217,20 @@ modules/
 - [x] 可选 Playwright 浏览器执行器：`ENABLE_BROWSER_AUTOMATION=True` 时尝试真实填表/提交
 - [x] Greenhouse/Workday first_name/last_name 拆分、文件 artifacts 生成、resume/cover letter 上传字段支持
 - [x] 后端测试 13 passed，前端 build 通过
+- [x] 前端职位发现/申请管理 UI：Jobs workspace 支持职位发现、JD 导入、职位列表、收藏、申请包生成、手动确认提交、自动提交触发
+- [x] 前端登录/注册入口：AuthGate 接入 register/login/me，localStorage 持久化 token，主工作区使用真实 user_id
+- [x] 原始简历持久化表/API：上传简历写入 SQLite resumes 表，返回 durable resume_id，前端通过 latest resume 恢复并用于定制/申请包
+- [x] 后端测试环境恢复：backend/venv 安装 dev 依赖，完整 pytest 通过
+- [x] Phase 4 冷外联 MVP：`/api/v1/outreach/draft` 生成草稿，列表查询，用户手动发送后 `mark-sent`
+- [x] Phase 5 成长建议 MVP：`/api/v1/growth/analyze` 基于最新简历和目标职位输出 gap/recommendations/roadmap
+- [x] 前端 Jobs workspace 接入 Outreach/Growth 操作面板
+- [x] 后端测试 16 passed，前端 build 通过
 
 **待完成**:
 - [ ] 安装 Playwright 浏览器依赖并做 Greenhouse 真实页面级实测
 - [ ] 逐站增强 Lever / Ashby / Workday 的真实页面填表 selector
-- [ ] 前端职位发现/申请管理 UI
+- [ ] 生产级冷外联发送：OAuth/Gmail API、退订/频控/合规、逐封显式确认
+- [ ] 生产部署前迁移 SQLite 到 PostgreSQL + Alembic migrations
 
 ---
 

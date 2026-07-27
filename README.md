@@ -8,13 +8,22 @@ The project has moved beyond the original resume-tailoring MVP.
 
 - **Phase 1 complete**: Resume upload, parsing, tailoring, evidence guard, draft editing, Word/PDF/text export.
 - **Phase 2 complete**: Job discovery via JobSpy provider with local fallback, job scoring, saved jobs, bookmarks.
-- **Phase 3 MVP active**: Application package generation, ATS detection, manual confirmation, auto-submit API, optional Playwright browser automation boundary.
+- **Phase 3 MVP complete**: Application package generation, ATS detection, manual confirmation, auto-submit API, optional Playwright browser automation boundary.
+- **Phase 4 MVP complete**: Cold outreach draft generation, saved outreach records, and user-confirmed sent status.
+- **Phase 5 MVP complete**: Growth advisor skill-gap analysis, recommendations, and 4-week roadmap generation.
+- **Frontend application workspace active**: Job discovery/import, saved jobs, application package preparation, and submission tracking are available in the web UI.
+- **Frontend auth active**: Login/register UI uses the backend auth APIs and stores the current user locally for workspace requests.
+- **Durable resume records active**: Resume uploads are stored in SQLite and return `resume_id` values used by tailoring and application-package flows.
+- **Resume Workspace module (Phase 6)**: Three-column layout with JD panel, chat, version tabs, react-pdf preview, keyword gap analysis, and template .docx upload. 8 REST endpoints under `/api/v1/resume-workspace`.
+- **Job List page (Phase 7)**: Filterable job table with search, source dropdown, threshold slider, score/date sort, Top10 toggle, color-coded match badges, and adaptation summary panel. "Go to Resume Workspace" navigation. 5 new endpoints under `/api/v1/jobs`.
+- **Unified LLM client**: Single `get_chat_openai()` factory supporting OpenAI-compatible, Gemini, and Zhipu/GLM providers with `LLM_PROVIDER` env var switching.
 
 ## What The Agent Can Do
 
 ### Resume Tailoring
 
 - Upload resumes as `.pdf`, `.docx`, `.txt`, or pasted plain text.
+- Persist uploaded source resumes and retrieve the latest resume for the logged-in user.
 - Parse and store resume experience chunks in local persistent Chroma.
 - Parse job descriptions into structured skills, responsibilities, keywords, and job metadata.
 - Generate tailored resumes from the user's real experience only.
@@ -42,6 +51,14 @@ The project has moved beyond the original resume-tailoring MVP.
 - Generate local upload files under `data/application_artifacts/`.
 - Split full names into `first_name` and `last_name` where ATS forms require it.
 - Match select/dropdown answers to the closest available option.
+
+### Frontend Workspace
+
+- Switch between resume tailoring and job/application management from the main workspace.
+- Discover jobs or import a pasted JD with an optional ATS URL.
+- Review saved jobs, bookmark jobs, prepare application packages, and track application runs.
+- Confirm manual submissions or trigger the guarded auto-submit endpoint from the UI.
+- Draft cold outreach messages and create growth plans from the job workspace.
 
 ### ATS Connectors
 
@@ -72,10 +89,26 @@ Each connector can provide platform-specific field selectors, field aliases, and
 
 By default, browser automation is disabled. With `ENABLE_BROWSER_AUTOMATION=false`, auto-submit uses the connector submission boundary and records the result without launching a browser. With `ENABLE_BROWSER_AUTOMATION=true` and Playwright installed, the agent attempts to open the ATS page, fill supported fields, upload files, and click submit.
 
+### Cold Outreach
+
+- Generate draft-only outreach messages for saved jobs.
+- Support email, LinkedIn, and referral-oriented channels at the API level.
+- Store outreach drafts in SQLite and allow users to mark messages as `sent_by_user`.
+- Preserve the safety boundary: the app does not send emails or LinkedIn messages automatically.
+
+### Growth Advisor
+
+- Analyze the latest uploaded resume against a saved job or target role.
+- Identify missing or partially supported skills.
+- Generate prioritized recommendations and a 4-week execution roadmap.
+- Persist growth plans for later review.
+
 ### User And Persistence
 
 - Register, login, and `/me` auth APIs with JWT tokens.
+- Frontend login/register gate with persisted token validation through `/api/v1/auth/me`.
 - Local SQLite persistence for users, drafts, jobs, applications, cover letters, profiles, conversations, events, and audit logs.
+- Local SQLite persistence for uploaded source resumes and their durable `resume_id` values.
 - User profile and feedback learning endpoints.
 - Conversation history storage and semantic memory fallback.
 - Daily rate limits with Redis when available and in-memory fallback otherwise.
@@ -87,7 +120,7 @@ By default, browser automation is disabled. With `ENABLE_BROWSER_AUTOMATION=fals
 | Frontend | Next.js 14 + React 18 + Tailwind CSS |
 | Backend | FastAPI + Python 3.11+ |
 | Agent Flow | LangGraph |
-| LLM | GPT-5.5 via OpenAI-compatible provider |
+| LLM | GPT-5.5 / Gemini / GLM via unified `LLM_PROVIDER` client |
 | Vector DB | Chroma local persistent store |
 | App State | SQLite local persistent store |
 | Optional Cache/Rate Limit | Redis |
@@ -107,6 +140,7 @@ resume-agent/
 │   │   ├── db.py
 │   │   ├── core/
 │   │   │   ├── events.py
+│   │   │   ├── llm_client.py          # Unified LLM client (OpenAI/Gemini/GLM)
 │   │   │   ├── models.py
 │   │   │   ├── rate_limit.py
 │   │   │   └── security.py
@@ -116,9 +150,12 @@ resume-agent/
 │   │       ├── chat/
 │   │       ├── profile/
 │   │       ├── resume_tailor/
-│   │       ├── job_discovery/
+│   │       ├── resume_workspace/       # Resume Workspace (JD panel, versions, template editor)
+│   │       ├── job_discovery/          # Job list + scoring + discovery
 │   │       ├── application_engine/
 │   │       ├── ats_connectors/
+│   │       ├── cold_outreach/
+│   │       ├── growth_advisor/
 │   │       └── safety/
 │   └── pyproject.toml
 └── frontend/
@@ -144,8 +181,19 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 Create `backend/.env`:
 
 ```env
+# Provider: openai | gemini | zhipu
+LLM_PROVIDER=openai
+
+# OpenAI-compatible (used when LLM_PROVIDER=openai)
 OPENAI_API_KEY=sk-your-key-here
 OPENAI_BASE_URL=https://router.c.yiling.top/v1
+
+# Gemini (used when LLM_PROVIDER=gemini)
+# GEMINI_API_KEY=your-gemini-key
+
+# Zhipu / GLM (used when LLM_PROVIDER=zhipu)
+# BIGMODEL_API_KEY=your-zhipu-key
+
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 ```
 
@@ -265,7 +313,7 @@ cd D:\resume-agent\backend
 python -m pytest
 ```
 
-Current verified status: `13 passed`.
+Current verified status: `16 passed`.
 
 Frontend build:
 
@@ -281,6 +329,8 @@ npm run build
 - Workday flows are multi-step and often need deeper page-specific automation.
 - LinkedIn Easy Apply is intentionally not the first target due to account risk and rate limiting.
 - SQLite is used for local persistence; production should migrate to PostgreSQL with migrations.
+- Browser and ATS selectors remain the highest-risk area until validated against real application pages.
+- Cold outreach is draft-only; production email sending would require OAuth, unsubscribe/compliance handling, and explicit user confirmation.
 
 ## License
 

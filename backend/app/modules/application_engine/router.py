@@ -86,6 +86,8 @@ async def confirm_manual_submit(application_run_id: str, request: ManualSubmitCo
         status="submitted_by_user",
         submission_result=result,
     )
+    db.record_job_action(str(request.user_id), run["job_id"], "submitted_by_user",
+                         {"application_run_id": application_run_id, "mode": "manual_review"})
     audit(str(request.user_id), "manual_submission_confirmed", result, application_run_id=application_run_id)
     return ApplicationSubmitResponse(application_run_id=application_run_id, status=updated["status"], submission_result=updated["submission_result"])
 
@@ -111,6 +113,8 @@ async def auto_submit(application_run_id: str, request: AutoSubmitRequest):
         status=status,
         submission_result=result,
     )
+    db.record_job_action(str(request.user_id), run["job_id"], status,
+                         {"application_run_id": application_run_id, "mode": "auto_submit"})
     audit(str(request.user_id), status, result, application_run_id=application_run_id)
     if not result.get("submitted"):
         raise HTTPException(status_code=409, detail=result)

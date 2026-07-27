@@ -18,8 +18,21 @@ class UploadResumeRequest(BaseModel):
 
 class UploadResumeResponse(BaseModel):
     success: bool
+    resume_id: Optional[str] = None
     embedded_count: int
     message: str
+
+
+class ResumeRecordResponse(BaseModel):
+    id: str
+    user_id: str
+    source_type: str
+    filename: Optional[str] = None
+    raw_text: Optional[str] = None
+    parsed: dict = Field(default_factory=dict)
+    embedded_count: int = 0
+    created_at: str
+    updated_at: str
 
 
 class TailorRequest(BaseModel):

@@ -1,12 +1,12 @@
 """
 JD Parsing Node — Extract structured fields from raw job description text.
-Uses GPT-4o with Structured Output (JSON mode).
+Uses LLM with Structured Output (JSON mode).
 """
 
-from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import PydanticOutputParser
 
 from app.config import settings
+from app.core.llm_client import get_chat_openai
 from app.core.models import ParsedJobDescription
 
 
@@ -21,14 +21,10 @@ class JDParsingNode:
 
     def _get_llm(self):
         if self._llm is None:
-            kwargs = {
-                "model": settings.DEFAULT_PARSER_MODEL,
-                "temperature": 0.1,
-                "api_key": settings.OPENAI_API_KEY,
-            }
-            if settings.OPENAI_BASE_URL:
-                kwargs["base_url"] = settings.OPENAI_BASE_URL
-            self._llm = ChatOpenAI(**kwargs)
+            self._llm = get_chat_openai(
+                model=settings.DEFAULT_PARSER_MODEL,
+                temperature=0.1,
+            )
         return self._llm
 
     async def parse(self, jd_text: str) -> ParsedJobDescription:

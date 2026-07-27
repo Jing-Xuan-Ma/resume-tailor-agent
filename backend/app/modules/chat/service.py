@@ -5,11 +5,10 @@ Chat Service — Orchestrates conversation flow and delegates to resume tailor w
 from typing import AsyncGenerator, Optional
 from uuid import UUID, uuid4
 
-from langchain_openai import ChatOpenAI
-
 from app import db
 from app.config import settings
 from app.core.events import ConversationTurnEvent, event_bus
+from app.core.llm_client import get_chat_openai
 from app.memory.conversation import ConversationMemoryManager
 from app.memory.long_term import LongTermMemoryStore
 from app.core.models import ChatMessage
@@ -29,15 +28,11 @@ class ChatService:
 
     def _get_llm(self):
         if self._llm is None:
-            kwargs = {
-                "model": settings.DEFAULT_PARSER_MODEL,
-                "temperature": 0.4,
-                "api_key": settings.OPENAI_API_KEY,
-                "max_tokens": 1000,
-            }
-            if settings.OPENAI_BASE_URL:
-                kwargs["base_url"] = settings.OPENAI_BASE_URL
-            self._llm = ChatOpenAI(**kwargs)
+            self._llm = get_chat_openai(
+                model=settings.DEFAULT_PARSER_MODEL,
+                temperature=0.4,
+                max_tokens=1000,
+            )
         return self._llm
 
     async def handle_message(

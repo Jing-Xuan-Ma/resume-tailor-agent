@@ -48,6 +48,22 @@ def test_profile_api_persists_feedback() -> None:
     assert response.json()["profile"]["verbosity"] == "concise"
 
 
+def test_upload_resume_returns_durable_resume_id_and_latest_record() -> None:
+    user_id = uuid4()
+    response = client.post(
+        "/api/v1/resume-tailor/upload-resume",
+        json={"user_id": str(user_id), "resume_text": "Jane Doe\nPython analyst with SQL experience."},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["resume_id"]
+    assert body["embedded_count"] > 0
+
+    latest = client.get(f"/api/v1/resume-tailor/resumes/latest?user_id={user_id}")
+    assert latest.status_code == 200
+    assert latest.json()["id"] == body["resume_id"]
+
+
 def test_phase2_job_discovery_creates_jobs() -> None:
     user_id = uuid4()
     response = client.post(
@@ -273,3 +289,60 @@ def test_auto_submit_blocked_without_auto_policy() -> None:
     )
     assert submit.status_code == 409
     assert submit.json()["detail"]["status"] == "blocked_by_policy"
+
+
+def test_cold_outreach_draft_and_mark_sent() -> None:
+    user_id = uuid4()
+    ingest = client.post(
+        "/api/v1/jobs/ingest",
+        json={
+            "user_id": str(user_id),
+            "raw_text": "Data Analyst\nCompany: Example Co\nRequirements: Python, SQL, dashboards",
+            "source_url": "https://job-boards.greenhouse.io/example/jobs/777",
+            "source_platform": "greenhouse",
+        },
+    )
+    assert ingest.status_code == 200
+    job_id = ingest.json()["id"]
+
+    draft = client.post(
+        "/api/v1/outreach/draft",
+        json={"user_id": str(user_id), "job_id": job_id, "contact_name": "Alex", "channel": "email"},
+    )
+    assert draft.status_code == 200
+    body = draft.json()
+    assert body["status"] == "draft"
+    assert "Data Analyst" in body["subject"]
+
+    sent = client.post(f"/api/v1/outreach/{body['id']}/mark-sent", json={"user_id": str(user_id)})
+    assert sent.status_code == 200
+    assert sent.json()["status"] == "sent_by_user"
+
+
+def test_growth_advisor_creates_gap_plan() -> None:
+    user_id = uuid4()
+    upload = client.post(
+        "/api/v1/resume-tailor/upload-resume",
+        json={"user_id": str(user_id), "resume_text": "Jane Doe\nPython analyst with SQL dashboard experience."},
+    )
+    assert upload.status_code == 200
+    ingest = client.post(
+        "/api/v1/jobs/ingest",
+        json={
+            "user_id": str(user_id),
+            "raw_text": "Machine Learning Engineer\nRequirements: Python, Kubernetes, model monitoring, CI/CD",
+            "source_platform": "manual",
+        },
+    )
+    assert ingest.status_code == 200
+
+    plan = client.post(
+        "/api/v1/growth/analyze",
+        json={"user_id": str(user_id), "job_id": ingest.json()["id"]},
+    )
+    assert plan.status_code == 200
+    body = plan.json()
+    assert body["target_role"]
+    assert body["gaps"]
+    assert body["recommendations"]
+    assert body["roadmap"]

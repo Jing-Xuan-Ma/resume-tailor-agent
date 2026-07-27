@@ -81,14 +81,28 @@ class ResumeTailorService:
         if resume:
             self.memory_store.clear_experiences(str(user_id))
             count = await self.embedder.embed_resume(str(user_id), resume)
+            resume_id = db.save_resume(
+                user_id=str(user_id),
+                source_type="structured",
+                parsed=resume.model_dump(mode="json"),
+                embedded_count=count,
+            )
         elif resume_text:
             # Plain text mode: split into chunks and store directly
             count = await self._embed_plain_text(str(user_id), resume_text)
+            resume_id = db.save_resume(
+                user_id=str(user_id),
+                source_type="text",
+                raw_text=resume_text,
+                parsed=self._parse_standard_resume_text(resume_text),
+                embedded_count=count,
+            )
         else:
-            return {"success": False, "embedded_count": 0, "message": "No resume content provided."}
+            return {"success": False, "resume_id": None, "embedded_count": 0, "message": "No resume content provided."}
 
         return {
             "success": True,
+            "resume_id": resume_id,
             "embedded_count": count,
             "message": f"Resume uploaded and {count} chunks embedded.",
         }
@@ -103,11 +117,23 @@ class ResumeTailorService:
             return {"success": False, "embedded_count": 0, "message": f"Failed to parse file: {e}"}
 
         count = await self._embed_plain_text(str(user_id), text)
+        resume_id = db.save_resume(
+            user_id=str(user_id),
+            source_type="file",
+            filename=filename,
+            raw_text=text,
+            parsed=self._parse_standard_resume_text(text),
+            embedded_count=count,
+        )
         return {
             "success": True,
+            "resume_id": resume_id,
             "embedded_count": count,
             "message": f"File '{filename}' parsed and {count} chunks embedded.",
         }
+
+    def get_latest_resume(self, user_id: UUID) -> dict | None:
+        return db.get_latest_resume(str(user_id))
 
     async def _embed_plain_text(self, user_id: str, text: str) -> int:
         """Split plain text into chunks and store in Chroma."""

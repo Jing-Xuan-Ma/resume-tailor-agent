@@ -72,6 +72,18 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS resumes (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                filename TEXT,
+                raw_text TEXT,
+                parsed_json TEXT NOT NULL,
+                embedded_count INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS drafts (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -162,13 +174,90 @@ def init_db() -> None:
                 created_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS outreach_messages (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                job_id TEXT,
+                contact_name TEXT,
+                contact_role TEXT,
+                company TEXT,
+                channel TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                body TEXT NOT NULL,
+                status TEXT NOT NULL,
+                metadata_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS growth_plans (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                job_id TEXT,
+                target_role TEXT NOT NULL,
+                gaps_json TEXT NOT NULL,
+                recommendations_json TEXT NOT NULL,
+                roadmap_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_tailored_user ON tailored_resumes(user_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_resumes_user ON resumes(user_id, updated_at);
             CREATE INDEX IF NOT EXISTS idx_drafts_user ON drafts(user_id, updated_at);
             CREATE INDEX IF NOT EXISTS idx_conversation_session ON conversation_turns(user_id, session_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON job_bookmarks(user_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_application_runs_user ON application_runs(user_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_cover_letters_user ON cover_letters(user_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_outreach_user ON outreach_messages(user_id, created_at);
+            CREATE TABLE IF NOT EXISTS job_history (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                job_id TEXT NOT NULL,
+                action TEXT NOT NULL,
+                metadata TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS jd_sessions (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                job_id TEXT,
+                jd_text TEXT NOT NULL,
+                keyword_matches_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS resume_versions (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                version_index INTEGER NOT NULL,
+                content_delta_json TEXT NOT NULL,
+                full_resume_json TEXT NOT NULL,
+                markdown TEXT NOT NULL DEFAULT '',
+                is_confirmed INTEGER NOT NULL DEFAULT 0,
+                confirmed_at TEXT,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS resume_templates (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                docx_bytes BLOB,
+                parsed_blocks_json TEXT NOT NULL DEFAULT '[]',
+                is_active INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_growth_user ON growth_plans(user_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_job_history_user_job ON job_history(user_id, job_id);
+            CREATE INDEX IF NOT EXISTS idx_jd_sessions_user ON jd_sessions(user_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_resume_versions_session ON resume_versions(session_id, version_index);
+            CREATE INDEX IF NOT EXISTS idx_resume_templates_user ON resume_templates(user_id, is_active);
             """
         )
         columns = {row[1] for row in conn.execute("PRAGMA table_info(application_runs)").fetchall()}
@@ -215,6 +304,56 @@ def get_user(user_id: str) -> dict[str, Any] | None:
     with connect() as conn:
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     return dict(row) if row else None
+
+
+def save_resume(
+    *,
+    user_id: str,
+    source_type: str,
+    filename: str | None = None,
+    raw_text: str | None = None,
+    parsed: dict[str, Any] | None = None,
+    embedded_count: int = 0,
+) -> str:
+    now = utcnow()
+    resume_id = str(uuid4())
+    with connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO resumes (id, user_id, source_type, filename, raw_text, parsed_json, embedded_count, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (resume_id, user_id, source_type, filename, raw_text, _json(parsed or {}), embedded_count, now, now),
+        )
+    return resume_id
+
+
+def get_resume(resume_id: str, user_id: str | None = None) -> dict[str, Any] | None:
+    query = "SELECT * FROM resumes WHERE id = ?"
+    params: tuple[Any, ...] = (resume_id,)
+    if user_id:
+        query += " AND user_id = ?"
+        params = (resume_id, user_id)
+    with connect() as conn:
+        row = conn.execute(query, params).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    item["parsed"] = _loads(item.pop("parsed_json"), {})
+    return item
+
+
+def get_latest_resume(user_id: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM resumes WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1",
+            (user_id,),
+        ).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    item["parsed"] = _loads(item.pop("parsed_json"), {})
+    return item
 
 
 def save_tailored_resume(
@@ -523,3 +662,297 @@ def get_cover_letter(cover_letter_id: str, user_id: str | None = None) -> dict[s
     item = dict(row)
     item["metadata"] = _loads(item.pop("metadata_json"), {})
     return item
+
+
+def save_outreach_message(
+    *,
+    user_id: str,
+    job_id: str | None,
+    contact_name: str | None,
+    contact_role: str | None,
+    company: str | None,
+    channel: str,
+    subject: str,
+    body: str,
+    status: str = "draft",
+    metadata: dict[str, Any] | None = None,
+) -> str:
+    message_id = str(uuid4())
+    now = utcnow()
+    with connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO outreach_messages
+            (id, user_id, job_id, contact_name, contact_role, company, channel, subject, body, status, metadata_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (message_id, user_id, job_id, contact_name, contact_role, company, channel, subject, body, status, _json(metadata or {}), now, now),
+        )
+    return message_id
+
+
+def update_outreach_status(message_id: str, user_id: str, status: str) -> dict[str, Any] | None:
+    now = utcnow()
+    with connect() as conn:
+        conn.execute(
+            "UPDATE outreach_messages SET status = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+            (status, now, message_id, user_id),
+        )
+    return get_outreach_message(message_id, user_id=user_id)
+
+
+def get_outreach_message(message_id: str, user_id: str | None = None) -> dict[str, Any] | None:
+    query = "SELECT * FROM outreach_messages WHERE id = ?"
+    params: tuple[Any, ...] = (message_id,)
+    if user_id:
+        query += " AND user_id = ?"
+        params = (message_id, user_id)
+    with connect() as conn:
+        row = conn.execute(query, params).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    item["metadata"] = _loads(item.pop("metadata_json"), {})
+    return item
+
+
+def list_outreach_messages(user_id: str, limit: int = 50) -> list[dict[str, Any]]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM outreach_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+    messages = []
+    for row in rows:
+        item = dict(row)
+        item["metadata"] = _loads(item.pop("metadata_json"), {})
+        messages.append(item)
+    return messages
+
+
+def save_growth_plan(
+    *,
+    user_id: str,
+    job_id: str | None,
+    target_role: str,
+    gaps: list[dict[str, Any]],
+    recommendations: list[dict[str, Any]],
+    roadmap: list[dict[str, Any]],
+) -> str:
+    plan_id = str(uuid4())
+    with connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO growth_plans (id, user_id, job_id, target_role, gaps_json, recommendations_json, roadmap_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (plan_id, user_id, job_id, target_role, _json(gaps), _json(recommendations), _json(roadmap), utcnow()),
+        )
+    return plan_id
+
+
+def list_growth_plans(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM growth_plans WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+    plans = []
+    for row in rows:
+        item = dict(row)
+        item["gaps"] = _loads(item.pop("gaps_json"), [])
+        item["recommendations"] = _loads(item.pop("recommendations_json"), [])
+        item["roadmap"] = _loads(item.pop("roadmap_json"), [])
+        plans.append(item)
+    return plans
+
+
+def record_job_action(user_id: str, job_id: str, action: str, metadata: dict | None = None) -> str:
+    record_id = str(uuid4())
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO job_history (id, user_id, job_id, action, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (record_id, user_id, job_id, action, _json(metadata or {}), utcnow()),
+        )
+    return record_id
+
+
+def get_job_actions(user_id: str, job_id: str | None = None) -> list[dict[str, Any]]:
+    if job_id:
+        query = "SELECT * FROM job_history WHERE user_id = ? AND job_id = ? ORDER BY created_at DESC"
+        params: tuple = (user_id, job_id)
+    else:
+        query = "SELECT * FROM job_history WHERE user_id = ? ORDER BY created_at DESC"
+        params = (user_id,)
+    with connect() as conn:
+        rows = conn.execute(query, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def list_processed_job_ids(user_id: str) -> set[str]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT job_id FROM job_history WHERE user_id = ?",
+            (user_id,),
+        ).fetchall()
+    return {r["job_id"] for r in rows}
+
+
+def create_jd_session(*, user_id: str, job_id: str | None = None, jd_text: str) -> dict[str, Any]:
+    session_id = str(uuid4())
+    now = utcnow()
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO jd_sessions (id, user_id, job_id, jd_text, keyword_matches_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (session_id, user_id, job_id, jd_text, _json([]), now, now),
+        )
+    return {"id": session_id, "user_id": user_id, "job_id": job_id, "jd_text": jd_text, "keyword_matches": [], "created_at": now, "updated_at": now}
+
+
+def get_jd_session(session_id: str, user_id: str | None = None) -> dict[str, Any] | None:
+    query = "SELECT * FROM jd_sessions WHERE id = ?"
+    params: tuple[Any, ...] = (session_id,)
+    if user_id:
+        query += " AND user_id = ?"
+        params = (session_id, user_id)
+    with connect() as conn:
+        row = conn.execute(query, params).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    item["keyword_matches"] = _loads(item.pop("keyword_matches_json"), [])
+    return item
+
+
+def update_jd_session_keywords(session_id: str, keyword_matches: list[dict]) -> None:
+    now = utcnow()
+    with connect() as conn:
+        conn.execute(
+            "UPDATE jd_sessions SET keyword_matches_json = ?, updated_at = ? WHERE id = ?",
+            (_json(keyword_matches), now, session_id),
+        )
+
+
+def create_resume_version(*, session_id: str, user_id: str, version_index: int, content_delta: dict, full_resume: dict, markdown: str = "") -> str:
+    version_id = str(uuid4())
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO resume_versions (id, session_id, user_id, version_index, content_delta_json, full_resume_json, markdown, is_confirmed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
+            (version_id, session_id, user_id, version_index, _json(content_delta), _json(full_resume), markdown, utcnow()),
+        )
+    return version_id
+
+
+def confirm_resume_version(version_id: str, user_id: str) -> bool:
+    now = utcnow()
+    with connect() as conn:
+        cursor = conn.execute(
+            "UPDATE resume_versions SET is_confirmed = 1, confirmed_at = ? WHERE id = ? AND user_id = ?",
+            (now, version_id, user_id),
+        )
+        return cursor.rowcount > 0
+
+
+def get_resume_version(version_id: str, user_id: str | None = None) -> dict[str, Any] | None:
+    query = "SELECT * FROM resume_versions WHERE id = ?"
+    params: tuple[Any, ...] = (version_id,)
+    if user_id:
+        query += " AND user_id = ?"
+        params = (version_id, user_id)
+    with connect() as conn:
+        row = conn.execute(query, params).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    item["content_delta"] = _loads(item.pop("content_delta_json"), {})
+    item["full_resume"] = _loads(item.pop("full_resume_json"), {})
+    return item
+
+
+def list_resume_versions(session_id: str, user_id: str) -> list[dict[str, Any]]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM resume_versions WHERE session_id = ? AND user_id = ? ORDER BY version_index ASC",
+            (session_id, user_id),
+        ).fetchall()
+    versions = []
+    for row in rows:
+        item = dict(row)
+        item["content_delta"] = _loads(item.pop("content_delta_json"), {})
+        item["full_resume"] = _loads(item.pop("full_resume_json"), {})
+        versions.append(item)
+    return versions
+
+
+def get_latest_version_index(session_id: str, user_id: str) -> int:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(version_index), 0) AS max_idx FROM resume_versions WHERE session_id = ? AND user_id = ?",
+            (session_id, user_id),
+        ).fetchone()
+    return row["max_idx"] if row else 0
+
+
+def save_template(*, user_id: str, filename: str, docx_bytes: bytes, parsed_blocks: list[dict]) -> str:
+    template_id = str(uuid4())
+    now = utcnow()
+    with connect() as conn:
+        conn.execute(
+            "UPDATE resume_templates SET is_active = 0 WHERE user_id = ?",
+            (user_id,),
+        )
+        conn.execute(
+            "INSERT INTO resume_templates (id, user_id, filename, docx_bytes, parsed_blocks_json, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)",
+            (template_id, user_id, filename, docx_bytes, _json(parsed_blocks), now, now),
+        )
+    return template_id
+
+
+def get_active_template(user_id: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM resume_templates WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1",
+            (user_id,),
+        ).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    item["parsed_blocks"] = _loads(item.pop("parsed_blocks_json"), [])
+    return item
+
+
+def get_template(template_id: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM resume_templates WHERE id = ?",
+            (template_id,),
+        ).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    item["parsed_blocks"] = _loads(item.pop("parsed_blocks_json"), [])
+    return item
+
+
+def delete_oldest_version(session_id: str, user_id: str) -> None:
+    with connect() as conn:
+        conn.execute(
+            "DELETE FROM resume_versions WHERE id = (SELECT id FROM resume_versions WHERE session_id = ? AND user_id = ? ORDER BY version_index ASC LIMIT 1)",
+            (session_id, user_id),
+        )
+
+
+def list_job_history_with_details(user_id: str, limit: int = 50) -> list[dict[str, Any]]:
+    with connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT jh.*, j.title, j.company, j.location, j.source_platform, j.match_score, j.created_at AS job_created_at
+            FROM job_history jh
+            LEFT JOIN jobs j ON j.id = jh.job_id
+            WHERE jh.user_id = ?
+            ORDER BY jh.created_at DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]

@@ -10,14 +10,15 @@ export interface ChatMessage {
 
 interface ChatPanelProps {
   userId: string;
-  resumeId: string;
+  resumeId?: string;
+  onResumeUploaded?: (resumeId: string) => void;
   onTailored?: (result: unknown) => void;
 }
 
 type Mode = "chat" | "upload";
 type UploadSubMode = "file" | "text";
 
-export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelProps) {
+export default function ChatPanel({ userId, resumeId, onResumeUploaded, onTailored }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
@@ -75,6 +76,13 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
         /(revise|rewrite|edit|change|update|remove|delete|shorten|lengthen|adjust|modify|polish|优化|修改|改写|调整|删除|去掉|缩短|精简|润色)/i.test(userMsg);
 
       if (looksLikeJD) {
+        if (!resumeId) {
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: "Upload your resume first so I can tailor it against this job description." },
+          ]);
+          return;
+        }
         setMessages((prev) => [
           ...prev,
           { role: "assistant", content: "⏳ Tailoring your resume now..." },
@@ -165,6 +173,7 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
     try {
       const result = await uploadResumeText(userId, resumeInput.trim());
       if (result.success) {
+        if (result.resume_id) onResumeUploaded?.(result.resume_id);
         setUploadedResumeNote(`Text resume uploaded and ${result.embedded_count} chunks embedded.`);
         setMessages((prev) => [
           ...prev,
@@ -212,6 +221,7 @@ export default function ChatPanel({ userId, resumeId, onTailored }: ChatPanelPro
     try {
       const result = await uploadResumeFile(userId, file);
       if (result.success) {
+        if (result.resume_id) onResumeUploaded?.(result.resume_id);
         setUploadedResumeNote(`File '${file.name}' uploaded and ${result.embedded_count} chunks embedded.`);
         setMessages((prev) => [
           ...prev,

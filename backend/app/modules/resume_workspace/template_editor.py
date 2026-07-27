@@ -1,0 +1,448 @@
+import json
+import re
+from io import BytesIO
+from pathlib import Path
+from typing import Optional
+
+
+class ResumeTemplateEditor:
+    def __init__(self):
+        self._run_map: dict[str, tuple[int, int]] = {}
+        self._paragraph_count = 0
+
+    def load_template(self, docx_bytes: bytes) -> dict:
+        try:
+            from docx import Document
+        except ImportError:
+            raise RuntimeError("python-docx is required for template editing")
+
+        doc = Document(BytesIO(docx_bytes))
+        run_map = {}
+        editable_blocks = []
+
+        for p_idx, paragraph in enumerate(doc.paragraphs):
+            for r_idx, run in enumerate(paragraph.runs):
+                block_id = f"p{p_idx}_r{r_idx}"
+                run_map[block_id] = (p_idx, r_idx)
+                if run.text.strip():
+                    font_name = run.font.name
+                    font_size = None
+                    if run.font.size:
+                        font_size = str(int(run.font.size.pt))
+                    editable_blocks.append({
+                        "block_id": block_id,
+                        "paragraph_index": p_idx,
+                        "run_index": r_idx,
+                        "text": run.text,
+                        "bold": bool(run.bold),
+                        "font_name": font_name,
+                        "font_size": font_size,
+                    })
+
+        self._run_map = run_map
+        self._paragraph_count = len(doc.paragraphs)
+        return {
+            "blocks": editable_blocks,
+            "paragraph_count": self._paragraph_count,
+            "block_count": len(editable_blocks),
+        }
+
+    def apply_text_replacements(self, docx_bytes: bytes, replacements: dict[str, str]) -> bytes:
+        try:
+            from docx import Document
+        except ImportError:
+            raise RuntimeError("python-docx is required for template editing")
+
+        doc = Document(BytesIO(docx_bytes))
+
+        for block_id, new_text in replacements.items():
+            if block_id not in self._run_map:
+                continue
+            p_idx, r_idx = self._run_map[block_id]
+            paragraph = doc.paragraphs[p_idx]
+            if r_idx < len(paragraph.runs):
+                paragraph.runs[r_idx].text = new_text
+
+        output = BytesIO()
+        doc.save(output)
+        return output.getvalue()
+
+    def _run_id_for_paragraph_text(self, paragraph_text: str, template_docx: bytes) -> Optional[str]:
+        try:
+            from docx import Document
+        except ImportError:
+            raise RuntimeError("python-docx is required")
+
+        doc = Document(BytesIO(template_docx))
+        # Rebuild run map if not already loaded
+        if not self._run_map:
+            self.load_template(template_docx)
+
+        needle = paragraph_text.strip().lower()
+        for block_id, (p_idx, r_idx) in self._run_map.items():
+            paragraph = doc.paragraphs[p_idx]
+            if r_idx < len(paragraph.runs):
+                run_text = paragraph.runs[r_idx].text.strip().lower()
+                if run_text == needle or (len(needle) > 20 and needle in run_text):
+                    return block_id
+        return None
+
+    def build_replacement_map(self, original_resume: dict, tailored_resume: dict, template_docx: bytes) -> dict[str, str]:
+        try:
+            from docx import Document
+        except ImportError:
+            raise RuntimeError("python-docx is required")
+
+        doc = Document(BytesIO(template_docx))
+        if not self._run_map:
+            self.load_template(template_docx)
+
+        replacements: dict[str, str] = {}
+        text_blocks = self._extract_text_blocks(tailored_resume)
+
+        for block_id, (p_idx, r_idx) in self._run_map.items():
+            paragraph = doc.paragraphs[p_idx]
+            if r_idx >= len(paragraph.runs):
+                continue
+            run = paragraph.runs[r_idx]
+            original_text = run.text.strip()
+            if not original_text:
+                continue
+
+            new_text = self._find_best_match(original_text, text_blocks)
+            if new_text and new_text != original_text:
+                replacements[block_id] = new_text
+
+        return replacements
+
+    def _extract_text_blocks(self, resume: dict) -> dict[str, str]:
+        blocks: dict[str, str] = {}
+        if resume.get("summary"):
+            blocks["summary"] = resume["summary"]
+        for exp in resume.get("experiences", []):
+            title = exp.get("title", "")
+            company = exp.get("company", "")
+            heading = f"{title} | {company}" if title and company else (title or company)
+            if heading:
+                blocks[f"exp_heading_{company}"] = heading
+            for i, bullet in enumerate(exp.get("bullets", [])):
+                text = bullet.get("text", "") if isinstance(bullet, dict) else str(bullet)
+                if text:
+                    blocks[f"exp_bullet_{company}_{i}"] = text
+        for proj in resume.get("projects", []):
+            name = proj.get("name", "")
+            tools = ", ".join(str(t) for t in (proj.get("tools") or []))
+            heading = f"{name} | {tools}" if name and tools else name
+            if heading:
+                blocks[f"proj_heading_{name}"] = heading
+            for i, bullet in enumerate(proj.get("bullets", [])):
+                text = bullet.get("text", "") if isinstance(bullet, dict) else str(bullet)
+                if text:
+                    blocks[f"proj_bullet_{name}_{i}"] = text
+        if resume.get("skills_certifications"):
+            blocks["skills"] = resume["skills_certifications"]
+        return blocks
+
+    def _find_best_match(self, original_text: str, text_blocks: dict[str, str]) -> Optional[str]:
+        original_lower = original_text.lower()
+        best_match = None
+        best_score = 0
+
+        for key, new_text in text_blocks.items():
+            score = self._similarity_score(original_lower, new_text.lower())
+            if score > best_score:
+                best_score = score
+                best_match = new_text
+
+        return best_match
+
+    def _similarity_score(self, a: str, b: str) -> float:
+        if not a or not b:
+            return 0
+        if a == b:
+            return 1.0
+        a_words = set(a.split())
+        b_words = set(b.split())
+        if not a_words or not b_words:
+            return 0
+        intersection = a_words & b_words
+        union = a_words | b_words
+        return len(intersection) / len(union)
+
+    @staticmethod
+    def generate_preview_pdf(full_resume: dict) -> bytes:
+        try:
+            from docx import Document
+            from docx.shared import Inches, Pt
+        except ImportError:
+            raise RuntimeError("python-docx is required")
+
+        document = Document()
+
+        for section in document.sections:
+            section.top_margin = Inches(0.2)
+            section.bottom_margin = Inches(0)
+            section.left_margin = Inches(0.2)
+            section.right_margin = Inches(0.2)
+
+        style = document.styles["Normal"]
+        style.font.name = "Calibri"
+        style.font.size = Pt(10)
+        style.paragraph_format.space_before = Pt(0)
+        style.paragraph_format.space_after = Pt(0)
+        style.paragraph_format.line_spacing = 1.0
+
+        fr = full_resume
+
+        if fr.get("candidate_name"):
+            p = document.add_paragraph()
+            p.alignment = 1
+            run = p.add_run(str(fr["candidate_name"]).upper())
+            run.bold = True
+            run.font.size = Pt(15)
+            run.font.name = "Calibri"
+
+        if fr.get("contact_line"):
+            p = document.add_paragraph()
+            p.alignment = 1
+            run = p.add_run(str(fr["contact_line"]))
+            run.font.size = Pt(10)
+            run.font.name = "Calibri"
+
+        if fr.get("summary"):
+            p = document.add_paragraph()
+            p.alignment = 3
+            run = p.add_run(str(fr["summary"]))
+            run.font.size = Pt(10)
+            run.font.name = "Calibri"
+
+        section_defs = [
+            ("education", "EDUCATION", "institution"),
+            ("experiences", "PROFESSIONAL EXPERIENCE", "company"),
+            ("projects", "PROJECTS", "name"),
+        ]
+
+        for key, title, _ in section_defs:
+            items = fr.get(key, [])
+            if not items:
+                continue
+            document.add_paragraph()
+            p = document.add_paragraph()
+            run = p.add_run(title)
+            run.bold = True
+            run.font.size = Pt(10)
+            run.font.name = "Calibri"
+            p.paragraph_format.space_after = Pt(0)
+
+            for item in items:
+                if key == "education":
+                    heading = " | ".join(str(p) for p in [item.get("institution", ""), item.get("date_range", "")] if p)
+                    if heading:
+                        p = document.add_paragraph()
+                        run = p.add_run(heading)
+                        run.bold = True
+                        run.font.size = Pt(10)
+                        run.font.name = "Calibri"
+                    detail = " ".join(str(p) for p in [item.get("degree"), item.get("field")] if p)
+                    if detail:
+                        p = document.add_paragraph()
+                        run = p.add_run(detail)
+                        run.font.size = Pt(10)
+                        run.font.name = "Calibri"
+                        p.alignment = 3
+                else:
+                    left = item.get("title") or item.get("name", "")
+                    middle = item.get("company") or ", ".join(str(t) for t in (item.get("tools") or []))
+                    heading = " | ".join(str(p) for p in [left, middle] if p)
+                    if item.get("date_range"):
+                        heading += f" - {item['date_range']}"
+                    if heading:
+                        p = document.add_paragraph()
+                        run = p.add_run(heading)
+                        run.bold = True
+                        run.font.size = Pt(10)
+                        run.font.name = "Calibri"
+                        p.paragraph_format.space_after = Pt(0)
+
+                    for bullet in item.get("bullets", []):
+                        text = bullet.get("text", "") if isinstance(bullet, dict) else str(bullet)
+                        if text:
+                            p = document.add_paragraph()
+                            run = p.add_run(f"• {text}")
+                            run.font.size = Pt(10)
+                            run.font.name = "Calibri"
+                            p.alignment = 3
+                            p.paragraph_format.space_after = Pt(0)
+
+        skills = fr.get("skills_certifications")
+        if skills:
+            document.add_paragraph()
+            p = document.add_paragraph()
+            run = p.add_run("SKILLS & CERTIFICATIONS")
+            run.bold = True
+            run.font.size = Pt(10)
+            run.font.name = "Calibri"
+
+            p = document.add_paragraph()
+            run = p.add_run(str(skills))
+            run.font.size = Pt(10)
+            run.font.name = "Calibri"
+            p.alignment = 3
+
+        docx_bytes = BytesIO()
+        document.save(docx_bytes)
+        return docx_bytes.getvalue()
+
+    @staticmethod
+    def generate_export_docx(full_resume: dict, template_docx: Optional[bytes] = None) -> bytes:
+        if template_docx:
+            return template_docx
+        return ResumeTemplateEditor.generate_preview_pdf(full_resume)
+
+    @staticmethod
+    def convert_to_pdf_via_libreoffice(docx_bytes: bytes, timeout_seconds: int = 30) -> bytes:
+        import subprocess
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp_docx:
+            tmp_docx.write(docx_bytes)
+            docx_path = tmp_docx.name
+
+        pdf_path = docx_path.replace(".docx", ".pdf")
+
+        try:
+            result = subprocess.run(
+                ["soffice", "--headless", "--convert-to", "pdf", "--outdir", str(Path(pdf_path).parent), docx_path],
+                capture_output=True,
+                timeout=timeout_seconds,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"LibreOffice conversion failed: {result.stderr.decode()}")
+            with open(pdf_path, "rb") as f:
+                pdf_bytes = f.read()
+            return pdf_bytes
+        except FileNotFoundError:
+            raise RuntimeError("LibreOffice not found. Install it and ensure 'soffice' is on PATH.")
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"LibreOffice conversion timed out after {timeout_seconds}s")
+        finally:
+            Path(docx_path).unlink(missing_ok=True)
+            Path(pdf_path).unlink(missing_ok=True)
+
+    @staticmethod
+    def generate_pdf_from_resume(full_resume: dict) -> bytes:
+        markdown = ResumeTemplateEditor._render_markdown(full_resume)
+        raw_lines = [line.strip() for line in markdown.splitlines() if line.strip()]
+
+        configs = [
+            {"font_size": 7.8, "leading": 9.1, "wrap_width": 132},
+            {"font_size": 7.2, "leading": 8.3, "wrap_width": 146},
+            {"font_size": 6.7, "leading": 7.7, "wrap_width": 158},
+        ]
+        page_height = 792
+        top = 752
+        bottom = 34
+
+        selected_lines = raw_lines
+        selected = configs[-1]
+        for config in configs:
+            wrapped = ResumeTemplateEditor._wrap_lines(raw_lines, config["wrap_width"])
+            max_lines = int((top - bottom) / config["leading"])
+            if len(wrapped) <= max_lines:
+                selected_lines = wrapped
+                selected = config
+                break
+
+        return ResumeTemplateEditor._render_pdf(
+            selected_lines,
+            font_size=selected["font_size"],
+            leading=selected["leading"],
+            top=top,
+            page_height=page_height,
+        )
+
+    @staticmethod
+    def _render_markdown(resume: dict) -> str:
+        lines = []
+        if resume.get("candidate_name"):
+            lines.append(f"# {resume['candidate_name']}")
+        if resume.get("contact_line"):
+            lines.append(resume["contact_line"])
+        if resume.get("summary"):
+            lines.append(f"\n{resume['summary']}")
+        if resume.get("education"):
+            lines.append("\n## EDUCATION")
+            for edu in resume["education"]:
+                parts = [p for p in [edu.get("institution"), edu.get("date_range")] if p]
+                if parts:
+                    lines.append(f"**{' | '.join(str(p) for p in parts)}**")
+        for key, title in [("experiences", "PROFESSIONAL EXPERIENCE"), ("projects", "PROJECTS")]:
+            items = resume.get(key, [])
+            if items:
+                lines.append(f"\n## {title}")
+                for item in items:
+                    left = item.get("title") or item.get("name", "")
+                    mid = item.get("company") or ", ".join(str(t) for t in (item.get("tools") or []))
+                    heading = " | ".join(str(p) for p in [left, mid] if p)
+                    if item.get("date_range"):
+                        heading += f" - {item['date_range']}"
+                    if heading:
+                        lines.append(f"**{heading}**")
+                    for bullet in item.get("bullets", []):
+                        text = bullet.get("text", "") if isinstance(bullet, dict) else str(bullet)
+                        lines.append(f"  • {text}")
+        skills = resume.get("skills_certifications") or ", ".join(resume.get("skills") or [])
+        if skills:
+            lines.append(f"\n## SKILLS & CERTIFICATIONS\n{skills}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _wrap_lines(raw_lines: list[str], width: int) -> list[str]:
+        from textwrap import wrap
+        section_names = {"EDUCATION", "PROFESSIONAL EXPERIENCE", "PROJECTS", "COMPETITIONS", "SKILLS & CERTIFICATIONS"}
+        lines = []
+        for raw in raw_lines:
+            line = raw.replace("* ", "• ")
+            if line in section_names or line.startswith("#"):
+                lines.append(line)
+                continue
+            is_bullet = line.startswith("•")
+            wrapped = wrap(line, width=width, subsequent_indent="  " if is_bullet else "") or [line]
+            lines.extend(wrapped)
+        return lines
+
+    @staticmethod
+    def _render_pdf(lines: list[str], font_size: float, leading: float, top: int, page_height: int) -> bytes:
+        objects: list[bytes] = []
+
+        def add(obj: str) -> int:
+            objects.append(obj.encode("cp1252", errors="replace"))
+            return len(objects)
+
+        add("<< /Type /Catalog /Pages 2 0 R >>")
+        add("<< /Type /Pages /Kids [] /Count 0 >>")
+        font_id = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+        commands = ["BT", f"/F1 {font_size} Tf", f"48 {top} Td", f"{leading} TL"]
+        for line in lines:
+            safe = line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+            commands.append(f"({safe}) Tj")
+            commands.append("T*")
+        commands.append("ET")
+        stream = "\n".join(commands)
+        content_id = add(f"<< /Length {len(stream.encode('cp1252', errors='replace'))} >>\nstream\n{stream}\nendstream")
+        page_id = add(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 {page_height}] /Resources << /Font << /F1 {font_id} 0 R >> >> /Contents {content_id} 0 R >>")
+        objects[1] = f"<< /Type /Pages /Kids [{page_id} 0 R] /Count 1 >>".encode("latin-1")
+
+        pdf = bytearray(b"%PDF-1.4\n")
+        offsets = []
+        for idx, obj in enumerate(objects, start=1):
+            offsets.append(len(pdf))
+            pdf.extend(f"{idx} 0 obj\n".encode("latin-1"))
+            pdf.extend(obj)
+            pdf.extend(b"\nendobj\n")
+        xref_at = len(pdf)
+        pdf.extend(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode("latin-1"))
+        for offset in offsets:
+            pdf.extend(f"{offset:010d} 00000 n \n".encode("latin-1"))
+        pdf.extend(f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF".encode("latin-1"))
+        return bytes(pdf)
