@@ -965,6 +965,20 @@ def get_jd_session(session_id: str, user_id: str | None = None) -> dict[str, Any
     return item
 
 
+def list_jd_sessions_by_job(user_id: str, job_id: str) -> list[dict[str, Any]]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM jd_sessions WHERE user_id = ? AND job_id = ? ORDER BY created_at DESC LIMIT 1",
+            (user_id, job_id),
+        ).fetchall()
+    results = []
+    for row in rows:
+        item = dict(row)
+        item["keyword_matches"] = _loads(item.pop("keyword_matches_json"), [])
+        results.append(item)
+    return results
+
+
 def update_jd_session_keywords(session_id: str, keyword_matches: list[dict]) -> None:
     now = utcnow()
     with connect() as conn:

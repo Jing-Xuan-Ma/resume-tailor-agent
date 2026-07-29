@@ -167,12 +167,12 @@ class JobListService:
         job = db.get_job(job_id)
         if not job:
             return None
-        session = db.create_jd_session(
-            user_id=user_id,
-            job_id=job_id,
-            jd_text=job.get("raw_text", ""),
-        )
-        return {"sessionId": session["id"], "jobId": job_id}
+        return {
+            "jobId": job_id,
+            "raw_text": job.get("raw_text", ""),
+            "title": job.get("title", ""),
+            "company": job.get("company", ""),
+        }
 
     def get_available_sources(self, user_id: str = "") -> list[str]:
         if not user_id:

@@ -13,6 +13,7 @@ import {
   getVersionPreviewUrl,
   uploadTemplate,
   getActiveTemplate,
+  listVersions,
 } from "@/lib/api";
 import JdPanel from "@/components/jd-panel";
 import WorkspaceChat from "@/components/workspace-chat";
@@ -72,19 +73,25 @@ export default function ResumeWorkspace({ userId, initialJobId }: ResumeWorkspac
   const [rewriting, setRewriting] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [exporting, setExporting] = useState<"pdf" | "docx" | "text" | null>(null);
-  const [initialized, setInitialized] = useState(false);
   const [templateInfo, setTemplateInfo] = useState<{ filename: string; block_count: number } | null>(null);
   const [uploadingTemplate, setUploadingTemplate] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const initSession = useCallback(async (text: string) => {
+  const initSession = useCallback(async (text: string, jobId?: string) => {
     setAnalyzing(true);
     try {
-      const session = await createJdSession(userId, text, initialJobId);
+      const session = await createJdSession(userId, text, jobId || initialJobId);
       setSessionId(session.session_id);
       setJdText(text);
       const analysis = await analyzeJd(session.session_id);
       setKeywordMatches(analysis.keyword_matches);
+      const versionsResp = await listVersions(session.session_id, userId);
+      if (versionsResp.versions.length > 0) {
+        setVersions(versionsResp.versions);
+        const last = versionsResp.versions[versionsResp.versions.length - 1];
+        setActiveVersionId(last.id);
+        setPdfPreviewUrl(getVersionPreviewUrl(last.id, userId));
+      }
     } catch {
       setSessionId("mock-session-" + Date.now());
     } finally {
@@ -93,14 +100,26 @@ export default function ResumeWorkspace({ userId, initialJobId }: ResumeWorkspac
   }, [userId, initialJobId]);
 
   useEffect(() => {
-    if (!initialized) {
-      setInitialized(true);
+    getActiveTemplate(userId).then((t) => {
+      if (t) setTemplateInfo({ filename: t.filename, block_count: t.block_count });
+    }).catch(() => {});
+    if (initialJobId) {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+      setVersions([]);
+      setActiveVersionId(null);
+      setActiveResume(null);
+      setPdfPreviewUrl(null);
+      fetch(`${apiBase}/api/v1/jobs/${initialJobId}/to-resume-workspace?user_id=${userId}`, { method: "POST" })
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => {
+          if (data?.raw_text) initSession(data.raw_text, initialJobId);
+          else initSession(MOCK_JD);
+        })
+        .catch(() => initSession(MOCK_JD));
+    } else {
       initSession(MOCK_JD);
-      getActiveTemplate(userId).then((t) => {
-        if (t) setTemplateInfo({ filename: t.filename, block_count: t.block_count });
-      }).catch(() => {});
     }
-  }, [initialized, initSession, userId]);
+  }, [initSession, userId, initialJobId]);
 
   const handlePasteJd = async () => {
     if (!pasteInput.trim()) return;
