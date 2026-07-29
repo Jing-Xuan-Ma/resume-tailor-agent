@@ -101,13 +101,13 @@ export default function JobsWorkspace({ userId, onGoToWorkspace }: JobsWorkspace
       setJobs(data.jobs);
       setTotal(data.total);
       setFilteredTotal(data.filtered_total);
-      if (!selectedJobId && data.jobs.length > 0) setSelectedJobId(data.jobs[0].id);
+      if (data.jobs.length > 0) setSelectedJobId(prev => prev && data.jobs.find(j => j.id === prev) ? prev : data.jobs[0].id);
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : "Failed to load jobs");
     } finally {
       setLoading(false);
     }
-  }, [userId, threshold, sortBy, topNEnabled, source, search, selectedJobId]);
+  }, [userId, threshold, sortBy, topNEnabled, source, search]);
 
   useEffect(() => {
     fetchJobs();
@@ -116,7 +116,7 @@ export default function JobsWorkspace({ userId, onGoToWorkspace }: JobsWorkspace
   useEffect(() => {
     async function loadSources() {
       try {
-        const res = await fetch(`${API_BASE}/api/v1/jobs/sources/list`);
+        const res = await fetch(`${API_BASE}/api/v1/jobs/sources/list?user_id=${userId}`);
         if (res.ok) {
           const data = await res.json();
           setAvailableSources(data.sources);
@@ -124,7 +124,7 @@ export default function JobsWorkspace({ userId, onGoToWorkspace }: JobsWorkspace
       } catch { /* ignore */ }
     }
     loadSources();
-  }, []);
+  }, [userId]);
 
   const handleSelectJob = async (jobId: string) => {
     setSelectedJobId(jobId);

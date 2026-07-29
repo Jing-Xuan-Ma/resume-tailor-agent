@@ -85,6 +85,20 @@ class Settings(BaseSettings):
     JOB_DISCOVERY_MIN_SCORE: float = 0.5
     JOB_DISCOVERY_TOP_N: int = 10
 
+    # ── Email (cold outreach) ────────────────────────────────
+    EMAIL_PROVIDER: str = "smtp"
+    """smtp (default) | gmail_api"""
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    GMAIL_CREDENTIALS_PATH: str = ""
+    """Path to Google OAuth client JSON (for gmail_api provider)"""
+    OUTREACH_COOLDOWN_HOURS: int = 72
+    """Min hours between outreach emails to the same company"""
+    APP_HOST_URL: str = "http://localhost:8000"
+    """Public-facing host URL for unsubscribe links"""
+
     # Rate limits
     MAX_DAILY_APPLICATIONS: int = 20
     MAX_DAILY_EMAILS: int = 10

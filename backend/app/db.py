@@ -184,8 +184,12 @@ def init_db() -> None:
                 channel TEXT NOT NULL,
                 subject TEXT NOT NULL,
                 body TEXT NOT NULL,
-                status TEXT NOT NULL,
-                metadata_json TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'draft',
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                unsubscribe_token TEXT,
+                sent_at TEXT,
+                delivery_status TEXT,
+                delivery_error TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -666,6 +670,7 @@ def get_cover_letter(cover_letter_id: str, user_id: str | None = None) -> dict[s
 
 def save_outreach_message(
     *,
+    message_id: str | None = None,
     user_id: str,
     job_id: str | None,
     contact_name: str | None,
@@ -676,19 +681,52 @@ def save_outreach_message(
     body: str,
     status: str = "draft",
     metadata: dict[str, Any] | None = None,
+    unsubscribe_token: str | None = None,
 ) -> str:
-    message_id = str(uuid4())
+    message_id = message_id or str(uuid4())
     now = utcnow()
     with connect() as conn:
         conn.execute(
             """
             INSERT INTO outreach_messages
-            (id, user_id, job_id, contact_name, contact_role, company, channel, subject, body, status, metadata_json, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, user_id, job_id, contact_name, contact_role, company, channel, subject, body, status, metadata_json, unsubscribe_token, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (message_id, user_id, job_id, contact_name, contact_role, company, channel, subject, body, status, _json(metadata or {}), now, now),
+            (message_id, user_id, job_id, contact_name, contact_role, company, channel, subject, body, status, _json(metadata or {}), unsubscribe_token, now, now),
         )
     return message_id
+
+
+def update_outreach_send_status(message_id: str, user_id: str, delivery_status: str, delivery_error: str | None = None) -> dict[str, Any] | None:
+    now = utcnow()
+    with connect() as conn:
+        conn.execute(
+            "UPDATE outreach_messages SET status = ?, delivery_status = ?, delivery_error = ?, sent_at = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+            ("sent", delivery_status, delivery_error, now, now, message_id, user_id),
+        )
+    return get_outreach_message(message_id, user_id=user_id)
+
+
+def get_outreach_by_unsubscribe_token(token: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM outreach_messages WHERE unsubscribe_token = ?",
+            (token,),
+        ).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    item["metadata"] = _loads(item.pop("metadata_json"), {})
+    return item
+
+
+def mark_outreach_unsubscribed(token: str) -> bool:
+    with connect() as conn:
+        cursor = conn.execute(
+            "UPDATE outreach_messages SET status = 'unsubscribed', updated_at = ? WHERE unsubscribe_token = ?",
+            (utcnow(), token),
+        )
+        return cursor.rowcount > 0
 
 
 def update_outreach_status(message_id: str, user_id: str, status: str) -> dict[str, Any] | None:

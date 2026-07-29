@@ -62,12 +62,17 @@ mistral = ["langchain-mistralai>=0.2.0"]
 aws = ["langchain-aws>=0.2.0"]
 azure = ["langchain-openai>=0.1.0"]  # reuse via base_url
 
-# Install all providers: pip install -e ".[all]"
+# Email / Cold Outreach
+email = ["google-api-python-client>=2.0.0", "google-auth-oauthlib>=1.0.0"]
+
+# Install all extras: pip install -e ".[all]"
 all = [
     "langchain-anthropic>=0.1.0",
     "langchain-google-genai>=2.0.0",
     "langchain-mistralai>=0.2.0",
     "langchain-aws>=0.2.0",
+    "google-api-python-client>=2.0.0",
+    "google-auth-oauthlib>=1.0.0",
 ]
 
 [tool.setuptools.packages.find]
