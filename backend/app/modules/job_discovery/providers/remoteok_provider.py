@@ -16,7 +16,7 @@ class RemoteOkProvider(BaseJobProvider):
         limit: int = 10,
     ) -> list[RawJobLead]:
         try:
-            async with httpx.AsyncClient(timeout=20) as client:
+            async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.get(
                     self.BASE_URL,
                     headers={"User-Agent": "Mozilla/5.0"},

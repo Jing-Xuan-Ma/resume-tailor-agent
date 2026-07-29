@@ -17,7 +17,7 @@ class RemotiveProvider(BaseJobProvider):
     ) -> list[RawJobLead]:
         try:
             params = {"search": query, "limit": min(limit * 2, 100)}
-            async with httpx.AsyncClient(timeout=20) as client:
+            async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.get(self.BASE_URL, params=params)
                 resp.raise_for_status()
                 data = resp.json()

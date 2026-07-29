@@ -21,7 +21,7 @@ class JobicyProvider(BaseJobProvider):
                 "keyword": query,
                 "industry": "",
             }
-            async with httpx.AsyncClient(timeout=20) as client:
+            async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.get(self.BASE_URL, params=params)
                 resp.raise_for_status()
                 data = resp.json()

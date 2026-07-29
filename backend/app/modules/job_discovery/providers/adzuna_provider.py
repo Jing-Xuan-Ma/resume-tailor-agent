@@ -33,7 +33,7 @@ class AdzunaProvider(BaseJobProvider):
                 "content_type": "application/json",
             }
             url = f"{self.BASE_URL}/{country}/search/{page}"
-            async with httpx.AsyncClient(timeout=20) as client:
+            async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.get(url, params=params)
                 resp.raise_for_status()
                 data = resp.json()

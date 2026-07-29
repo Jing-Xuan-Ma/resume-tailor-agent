@@ -40,34 +40,6 @@ cover_letter_node = CoverLetterNode()
 application_planner = ApplicationPlanner()
 
 
-class AutoDiscoverRequest(BaseModel):
-    user_id: UUID
-    query: str | None = None
-    location: str | None = None
-    limit: int = Field(default=20, ge=1, le=50)
-
-
-@router.post("/auto-discover", response_model=JobListResponse)
-async def auto_discover_jobs(request: AutoDiscoverRequest):
-    """Auto-discover jobs based on the user's latest resume."""
-    query = request.query
-    if not query:
-        resume = db.get_latest_resume(str(request.user_id))
-        if resume:
-            parsed = resume.get("parsed") or {}
-            query = parsed.get("title") or ""
-        if not query:
-            raise HTTPException(status_code=400, detail="No resume found. Please upload a resume or provide a search query.")
-
-    discover_request = JobDiscoverRequest(
-        user_id=request.user_id,
-        query=query,
-        location=request.location,
-        limit=request.limit,
-    )
-    return await discover_jobs(discover_request)
-
-
 @router.post("/discover", response_model=JobListResponse)
 async def discover_jobs(request: JobDiscoverRequest):
     rate_limiter.check(str(request.user_id), "job_discovery", settings.MAX_DAILY_APPLICATIONS)
@@ -123,6 +95,34 @@ async def discover_jobs(request: JobDiscoverRequest):
         ))
         jobs.append(db.list_jobs(str(request.user_id), limit=1)[0])
     return JobListResponse(jobs=jobs)
+
+
+class AutoDiscoverRequest(BaseModel):
+    user_id: UUID
+    query: str | None = None
+    location: str | None = None
+    limit: int = Field(default=20, ge=1, le=50)
+
+
+@router.post("/auto-discover", response_model=JobListResponse)
+async def auto_discover_jobs(request: AutoDiscoverRequest):
+    """Auto-discover jobs based on the user's latest resume."""
+    query = request.query
+    if not query:
+        resume = db.get_latest_resume(str(request.user_id))
+        if resume:
+            parsed = resume.get("parsed") or {}
+            query = parsed.get("title") or ""
+        if not query:
+            raise HTTPException(status_code=400, detail="No resume found. Please upload a resume or provide a search query.")
+
+    discover_request = JobDiscoverRequest(
+        user_id=request.user_id,
+        query=query,
+        location=request.location,
+        limit=request.limit,
+    )
+    return await discover_jobs(discover_request)
 
 
 @router.post("/ingest", response_model=JobResponse)

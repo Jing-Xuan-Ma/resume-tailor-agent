@@ -1,6 +1,7 @@
 """Orchestrator: run all job providers concurrently, deduplicate, score, rank."""
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from typing import Any
 
 from app import db
@@ -54,6 +55,9 @@ ALL_PROVIDERS: list[BaseJobProvider] = [
     AdzunaProvider(),
 ]
 
+# Timeout for the entire discovery pipeline
+DISCOVER_TIMEOUT = 25
+
 
 async def discover_all(
     *,
@@ -89,41 +93,52 @@ async def discover_all(
             parsed = latest.get("parsed") or {}
             resume_text = f"{raw} {' '.join(str(v) for v in parsed.values() if isinstance(v, str))}"
 
-    async def _run(provider: BaseJobProvider) -> list[RawJobLead]:
-        if provider.name == "jobspy":
-            jsp = provider  # type: ignore[assignment]
-            raw_jobs = jsp.discover(
-                query=query,
-                location=location,
-                limit=limit * 3,
-                sites=sites,
-                hours_old=hours_old,
-                country_indeed=country_indeed,
+    loop = asyncio.get_running_loop()
+    thread_pool = ThreadPoolExecutor(max_workers=2)
+
+    async def _run_jobspy() -> list[RawJobLead]:
+        jsp = next(p for p in ALL_PROVIDERS if p.name == "jobspy")
+        try:
+            raw_jobs = await loop.run_in_executor(
+                thread_pool,
+                lambda: jsp.discover(
+                    query=query, location=location, limit=limit * 3,
+                    sites=sites or ["linkedin", "indeed", "google"],
+                    hours_old=hours_old, country_indeed=country_indeed,
+                ),
             )
             return [_to_lead(j) for j in raw_jobs]
-        return await provider.discover(query=query, location=location, limit=limit * 2)
+        except Exception:
+            return []
 
-    tasks = [_run(p) for p in ALL_PROVIDERS]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    async def _run_async(provider: BaseJobProvider) -> list[RawJobLead]:
+        if provider.name == "jobspy":
+            return []
+        try:
+            return await provider.discover(query=query, location=location, limit=limit * 2)
+        except Exception:
+            return []
 
-    seen: set[tuple] = set()
+    tasks = [asyncio.ensure_future(_run_async(p)) for p in ALL_PROVIDERS if p.name != "jobspy"]
+    tasks.append(asyncio.ensure_future(_run_jobspy()))
+
+    done, pending = await asyncio.wait(tasks, timeout=DISCOVER_TIMEOUT)
+    for task in pending:
+        task.cancel()
+    thread_pool.shutdown(wait=False)
+
     unified: list[dict] = []
-
-    for r in results:
-        if isinstance(r, Exception):
-            continue
-        for lead in r:
+    seen: set[tuple] = set()
+    for task in done:
+        for lead in (task.result() or []):
             key = _dedup_key(lead)
             if key in seen:
                 continue
             seen.add(key)
             item = _normalize(lead)
-            parsed_for_score = {"title": item["title"]}
-            score = score_job(parsed_for_score, query, resume_text=resume_text)
-            item["match_score"] = score
+            item["match_score"] = score_job({"title": item["title"]}, query, resume_text=resume_text)
             unified.append(item)
 
     unified.sort(key=lambda x: x.get("match_score") or 0, reverse=True)
-    cutoff = max(int(len(unified) * 0.3), limit)
     high_quality = [j for j in unified if (j.get("match_score") or 0) >= min_score]
     return (high_quality or unified)[:limit]

@@ -5,6 +5,7 @@ when a job board blocks the request, this provider returns an empty list so the
 router can fall back to local synthetic leads and keep the product usable.
 """
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from typing import Any
 
 
@@ -28,17 +29,22 @@ class JobSpyProvider:
 
         site_name = sites or ["indeed", "linkedin", "zip_recruiter", "google"]
         try:
-            frame = scrape_jobs(
-                site_name=site_name,
-                search_term=query,
-                google_search_term=f"{query} jobs {location or ''}".strip(),
-                location=location,
-                results_wanted=limit,
-                hours_old=hours_old,
-                country_indeed=country_indeed,
-                verbose=0,
-                description_format="markdown",
-            )
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                fut = pool.submit(
+                    scrape_jobs,
+                    site_name=site_name,
+                    search_term=query,
+                    google_search_term=f"{query} jobs {location or ''}".strip(),
+                    location=location,
+                    results_wanted=limit,
+                    hours_old=hours_old,
+                    country_indeed=country_indeed,
+                    verbose=0,
+                    description_format="markdown",
+                )
+                frame = fut.result(timeout=10)
+        except TimeoutError:
+            return []
         except Exception:
             return []
 
