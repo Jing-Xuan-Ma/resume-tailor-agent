@@ -55,6 +55,21 @@ dev = [
     "watchdog>=4.0.0",
 ]
 
+# Provider-specific SDKs (optional — OpenAI-compatible providers use langchain-openai)
+anthropic = ["langchain-anthropic>=0.1.0"]
+google = ["langchain-google-genai>=2.0.0"]
+mistral = ["langchain-mistralai>=0.2.0"]
+aws = ["langchain-aws>=0.2.0"]
+azure = ["langchain-openai>=0.1.0"]  # reuse via base_url
+
+# Install all providers: pip install -e ".[all]"
+all = [
+    "langchain-anthropic>=0.1.0",
+    "langchain-google-genai>=2.0.0",
+    "langchain-mistralai>=0.2.0",
+    "langchain-aws>=0.2.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["app*"]

@@ -14,6 +14,26 @@ class BrowserSession:
     def open(self, url: str | None) -> dict:
         return {"mode": self.mode, "url": url, "opened": bool(url)}
 
+    def _click_apply(self, page) -> bool:
+        apply_selectors = [
+            "button:has-text('Apply for this Job')",
+            "button:has-text('Apply')",
+            "button:has-text('Start Application')",
+            "a:has-text('Apply for this Job')",
+            "a:has-text('Apply')",
+            "[role=button]:has-text('Apply')",
+        ]
+        for selector in apply_selectors:
+            try:
+                locator = page.locator(selector).first
+                if locator.count() > 0 and locator.is_visible():
+                    locator.click(timeout=3000)
+                    page.wait_for_timeout(2000)
+                    return True
+            except Exception:
+                continue
+        return False
+
     def submit(
         self,
         *,
@@ -22,6 +42,7 @@ class BrowserSession:
         should_submit: bool,
         field_selectors: dict[str, list[str]] | None = None,
         submit_selectors: list[str] | None = None,
+        apply_selectors: list[str] | None = None,
     ) -> dict:
         if not settings.ENABLE_BROWSER_AUTOMATION:
             return {
@@ -50,6 +71,19 @@ class BrowserSession:
             browser = playwright.chromium.launch(headless=settings.BROWSER_HEADLESS)
             page = browser.new_page()
             page.goto(url, wait_until="domcontentloaded", timeout=settings.BROWSER_TIMEOUT_MS)
+            page.wait_for_timeout(2000)
+            if apply_selectors:
+                for selector in apply_selectors:
+                    try:
+                        locator = page.locator(selector).first
+                        if locator.count() > 0 and locator.is_visible():
+                            locator.click(timeout=3000)
+                            page.wait_for_timeout(2000)
+                            break
+                    except Exception:
+                        continue
+            else:
+                self._click_apply(page)
             for item in answers:
                 answer = str(item.get("answer") or "").strip()
                 question = str(item.get("question") or "").strip()
