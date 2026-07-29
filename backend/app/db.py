@@ -286,7 +286,7 @@ CREATE INDEX IF NOT EXISTS idx_resume_templates_user ON resume_templates(user_id
 # ---------------------------------------------------------------------------
 
 def _init_pg_schema() -> None:
-    global _INITIALIZED
+    global _INITIALIZED, _db_connection
     if _INITIALIZED:
         return
     conn = _get_pg_conn()
@@ -298,6 +298,7 @@ def _init_pg_schema() -> None:
                 cur.execute(stmt + ";")
         conn.commit()
         _INITIALIZED = True
+        _db_connection = _get_pg_conn
     except Exception as e:
         conn.rollback()
         raise RuntimeError(f"Failed to initialize PostgreSQL schema: {e}")
@@ -306,7 +307,7 @@ def _init_pg_schema() -> None:
 
 
 def init_db() -> None:
-    global _INITIALIZED
+    global _INITIALIZED, _db_connection
     if _INITIALIZED:
         return
     if _is_pg():
@@ -328,6 +329,7 @@ def init_db() -> None:
             conn.execute("ALTER TABLE application_runs ADD COLUMN submitted_at TEXT")
         conn.commit()
         _INITIALIZED = True
+        _db_connection = lambda: sqlite3.connect(str(_DB_PATH))
     finally:
         conn.close()
 
