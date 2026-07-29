@@ -27,8 +27,8 @@ class BrowserSession:
             try:
                 locator = page.locator(selector).first
                 if locator.count() > 0 and locator.is_visible():
-                    locator.click(timeout=3000)
-                    page.wait_for_timeout(2000)
+                    with page.expect_navigation(wait_until="domcontentloaded", timeout=15000):
+                        locator.click(timeout=5000)
                     return True
             except Exception:
                 continue
@@ -77,13 +77,14 @@ class BrowserSession:
                     try:
                         locator = page.locator(selector).first
                         if locator.count() > 0 and locator.is_visible():
-                            locator.click(timeout=3000)
-                            page.wait_for_timeout(2000)
+                            with page.expect_navigation(wait_until="domcontentloaded", timeout=15000):
+                                locator.click(timeout=5000)
                             break
                     except Exception:
                         continue
             else:
                 self._click_apply(page)
+            page.wait_for_timeout(2000)
             for item in answers:
                 answer = str(item.get("answer") or "").strip()
                 question = str(item.get("question") or "").strip()
