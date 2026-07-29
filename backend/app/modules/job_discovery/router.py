@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from app import db
 from app.config import settings
@@ -37,6 +38,34 @@ parser = JDParsingNode()
 tailor_service = ResumeTailorService()
 cover_letter_node = CoverLetterNode()
 application_planner = ApplicationPlanner()
+
+
+class AutoDiscoverRequest(BaseModel):
+    user_id: UUID
+    query: str | None = None
+    location: str | None = None
+    limit: int = Field(default=20, ge=1, le=50)
+
+
+@router.post("/auto-discover", response_model=JobListResponse)
+async def auto_discover_jobs(request: AutoDiscoverRequest):
+    """Auto-discover jobs based on the user's latest resume."""
+    query = request.query
+    if not query:
+        resume = db.get_latest_resume(str(request.user_id))
+        if resume:
+            parsed = resume.get("parsed") or {}
+            query = parsed.get("title") or ""
+        if not query:
+            raise HTTPException(status_code=400, detail="No resume found. Please upload a resume or provide a search query.")
+
+    discover_request = JobDiscoverRequest(
+        user_id=request.user_id,
+        query=query,
+        location=request.location,
+        limit=request.limit,
+    )
+    return await discover_jobs(discover_request)
 
 
 @router.post("/discover", response_model=JobListResponse)
