@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 TITLE_BLACKLIST_PATTERNS = [
     r"(?i)^(senior|staff|principal|lead|sr\.?).+",
     r"(?i)^(director|vp|vice president|head of|chief|manager)\b.+",
+    r"(?i)^(intern|internship)$",
     r"(?i).+\bintern(ship)?$",
 ]
 
