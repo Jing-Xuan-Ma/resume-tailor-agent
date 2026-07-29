@@ -1,257 +1,188 @@
+"""Job list service — backed by real DB data and three-stage scoring pipeline."""
+
+import logging
 from typing import Any
-from uuid import uuid4
-from datetime import UTC, datetime
+
 from app import db
+from app.modules.job_discovery.scoring_pipeline import score_all_jobs, stage3_score
+
+logger = logging.getLogger(__name__)
 
 
-MOCK_JOBS: list[dict[str, Any]] = [
-    {
-        "id": "mock_job_001",
-        "company": "Google",
-        "title": "Senior Software Engineer, Infrastructure",
-        "source": "linkedin",
-        "originalUrl": "https://linkedin.com/jobs/view/1",
-        "scrapedAt": "2026-07-27T08:00:00Z",
-        "passedStage1": True,
-        "stage2Score": 82,
-        "stage3Result": {
-            "atsScore": 0.78, "semanticScore": 0.85, "hardConditionsPassed": True,
-            "finalScore": 0.83, "coveredKeywords": ["Python", "Go", "Kubernetes", "Docker", "distributed systems"],
-            "missingKeywords": ["Terraform", "Istio"],
-        },
-        "status": "unprocessed",
-    },
-    {
-        "id": "mock_job_002",
-        "company": "Meta",
-        "title": "Backend Engineer - ML Platform",
-        "source": "linkedin",
-        "originalUrl": "https://linkedin.com/jobs/view/2",
-        "scrapedAt": "2026-07-27T07:30:00Z",
-        "passedStage1": True,
-        "stage2Score": 78,
-        "stage3Result": {
-            "atsScore": 0.72, "semanticScore": 0.80, "hardConditionsPassed": True,
-            "finalScore": 0.77, "coveredKeywords": ["Python", "Go", "Kafka", "PostgreSQL"],
-            "missingKeywords": ["PyTorch", "ML pipelines", "Ray"],
-        },
-        "status": "unprocessed",
-    },
-    {
-        "id": "mock_job_003",
-        "company": "Amazon",
-        "title": "SDE II - AWS Infrastructure",
-        "source": "jobspy",
-        "originalUrl": "https://amazon.com/jobs/3",
-        "scrapedAt": "2026-07-26T18:00:00Z",
-        "passedStage1": True,
-        "stage2Score": 91,
-        "stage3Result": {
-            "atsScore": 0.90, "semanticScore": 0.88, "hardConditionsPassed": True,
-            "finalScore": 0.89, "coveredKeywords": ["Python", "Kubernetes", "Docker", "AWS", "microservices"],
-            "missingKeywords": ["Java", "CloudFormation"],
-        },
-        "status": "resume_generated",
-        "linkedApplicationId": "run_003",
-    },
-    {
-        "id": "mock_job_004",
-        "company": "Stripe",
-        "title": "Senior Backend Engineer - Payments",
-        "source": "jobspy",
-        "originalUrl": "https://stripe.com/jobs/4",
-        "scrapedAt": "2026-07-26T16:00:00Z",
-        "passedStage1": True,
-        "stage2Score": 65,
-        "stage3Result": {
-            "atsScore": 0.55, "semanticScore": 0.70, "hardConditionsPassed": True,
-            "finalScore": 0.61, "coveredKeywords": ["PostgreSQL", "Redis", "distributed systems"],
-            "missingKeywords": ["Ruby", "PCI compliance", "idempotency"],
-        },
-        "status": "unprocessed",
-    },
-    {
-        "id": "mock_job_005",
-        "company": "Datadog",
-        "title": "Software Engineer - Observability",
-        "source": "indeed",
-        "originalUrl": "https://indeed.com/view/5",
-        "scrapedAt": "2026-07-25T12:00:00Z",
-        "passedStage1": True,
-        "stage2Score": 88,
-        "stage3Result": {
-            "atsScore": 0.85, "semanticScore": 0.92, "hardConditionsPassed": True,
-            "finalScore": 0.88, "coveredKeywords": ["Go", "Kubernetes", "Kafka", "distributed systems", "monitoring"],
-            "missingKeywords": ["OpenTelemetry"],
-        },
-        "status": "applied",
-        "linkedApplicationId": "run_005",
-    },
-    {
-        "id": "mock_job_006",
-        "company": "Cloudflare",
-        "title": "Network Engineer",
-        "source": "linkedin",
-        "originalUrl": "https://linkedin.com/jobs/view/6",
-        "scrapedAt": "2026-07-25T10:00:00Z",
-        "passedStage1": False,
-        "stage2Score": None,
-        "stage3Result": None,
-        "status": "unprocessed",
-    },
-    {
-        "id": "mock_job_007",
-        "company": "Microsoft",
-        "title": "Principal Software Engineer - Azure",
-        "source": "linkedin",
-        "originalUrl": "https://linkedin.com/jobs/view/7",
-        "scrapedAt": "2026-07-24T09:00:00Z",
-        "passedStage1": True,
-        "stage2Score": 72,
-        "stage3Result": {
-            "atsScore": 0.68, "semanticScore": 0.75, "hardConditionsPassed": False,
-            "finalScore": 0.72, "coveredKeywords": ["Azure", "Kubernetes", "Docker", "distributed systems"],
-            "missingKeywords": ["C#", "Terraform"],
-        },
-        "status": "unprocessed",
-    },
-    {
-        "id": "mock_job_008",
-        "company": "Uber",
-        "title": "Staff Engineer - Marketplace",
-        "source": "jobspy",
-        "originalUrl": "https://uber.com/jobs/8",
-        "scrapedAt": "2026-07-24T08:00:00Z",
-        "passedStage1": True,
-        "stage2Score": 95,
-        "stage3Result": {
-            "atsScore": 0.93, "semanticScore": 0.90, "hardConditionsPassed": True,
-            "finalScore": 0.92, "coveredKeywords": ["Go", "Kafka", "Redis", "PostgreSQL", "microservices"],
-            "missingKeywords": [],
-        },
-        "status": "replied",
-        "linkedApplicationId": "run_008",
-    },
-    {
-        "id": "mock_job_009",
-        "company": "Apple",
-        "title": "Data Engineer - Siri",
-        "source": "linkedin",
-        "originalUrl": "https://apple.com/jobs/9",
-        "scrapedAt": "2026-07-23T14:00:00Z",
-        "passedStage1": True,
-        "stage2Score": 60,
-        "stage3Result": {
-            "atsScore": 0.50, "semanticScore": 0.65, "hardConditionsPassed": True,
-            "finalScore": 0.57, "coveredKeywords": ["Python", "PostgreSQL"],
-            "missingKeywords": ["Spark", "Airflow", "TensorFlow", "Data modeling"],
-        },
-        "status": "rejected",
-    },
-    {
-        "id": "mock_job_010",
-        "company": "Netflix",
-        "title": "Senior Platform Engineer",
-        "source": "indeed",
-        "originalUrl": "https://netflix.com/jobs/10",
-        "scrapedAt": "2026-07-23T12:00:00Z",
-        "passedStage1": True,
-        "stage2Score": 85,
-        "stage3Result": {
-            "atsScore": 0.80, "semanticScore": 0.88, "hardConditionsPassed": True,
-            "finalScore": 0.84, "coveredKeywords": ["Python", "Go", "Docker", "Kubernetes", "AWS", "distributed systems"],
-            "missingKeywords": ["Chaos engineering"],
-        },
-        "status": "unprocessed",
-    },
-]
+def _build_job_listing(job: dict, user_id: str = "") -> dict:
+    s3 = job.get("_stage3_result")
+    return {
+        "id": job["id"],
+        "company": job.get("company") or "",
+        "title": job.get("title") or "",
+        "source": job.get("source_platform") or "",
+        "originalUrl": job.get("source_url") or "",
+        "scrapedAt": job.get("created_at") or "",
+        "passedStage1": job.get("_passed_stage1", False),
+        "stage2Score": job.get("_stage2_score"),
+        "stage3Result": s3,
+        "status": _resolve_status(job.get("id", ""), user_id),
+        "linkedApplicationId": _resolve_linked_app(job.get("id", ""), user_id),
+    }
+
+
+def _resolve_status(job_id: str, user_id: str = "") -> str:
+    """Determine latest status from job actions."""
+    actions = db.get_job_actions(user_id, job_id) if user_id else []
+    if not actions:
+        return "unprocessed"
+    action_map = {
+        "resume_prepared": "resume_generated",
+        "prepared_for_submit": "applied",
+        "auto_submitted": "applied",
+        "submitted_by_user": "applied",
+    }
+    for a in reversed(actions):
+        mapped = action_map.get(a.get("action", ""))
+        if mapped:
+            return mapped
+    return "unprocessed"
+
+
+def _resolve_linked_app(job_id: str, user_id: str = "") -> str | None:
+    actions = db.get_job_actions(user_id, job_id) if user_id else []
+    if actions:
+        for a in reversed(actions):
+            meta = a.get("metadata") or {}
+            rid = meta.get("application_run_id")
+            if rid:
+                return rid
+    return None
 
 
 class JobListService:
 
-    def list_jobs(self, threshold: float = 0, sort_by: str = "score",
-                  top_n: int = 0, source: str = "", search: str = "") -> dict:
-        filtered = list(MOCK_JOBS)
+    def list_jobs(
+        self,
+        threshold: float = 0,
+        sort_by: str = "score",
+        top_n: int = 0,
+        source: str = "",
+        search: str = "",
+        user_id: str = "",
+    ) -> dict:
+        # Load jobs from DB
+        raw_jobs = db.list_jobs(user_id, limit=200) if user_id else []
 
-        # Source filter
-        if source and source != "all":
-            filtered = [j for j in filtered if j["source"] == source]
+        # Get resume for scoring
+        resume_text = ""
+        resume_parsed: dict | None = None
+        if user_id:
+            resume = db.get_latest_resume(user_id)
+            if resume:
+                resume_text = resume.get("raw_text") or ""
+                resume_parsed = resume.get("parsed")
 
-        # Search filter (company or title)
+        # Fallback if no DB jobs
+        if not raw_jobs:
+            return {"jobs": [], "total": 0, "filtered_total": 0}
+
+        # Source filter (applied before scoring to save work)
+        if source:
+            raw_jobs = [j for j in raw_jobs if (j.get("source_platform") or "") == source]
+
+        # Search filter
         if search:
             s = search.lower()
-            filtered = [j for j in filtered if s in j["company"].lower() or s in j["title"].lower()]
+            raw_jobs = [
+                j for j in raw_jobs
+                if s in (j.get("title") or "").lower() or s in (j.get("company") or "").lower()
+            ]
 
-        # Only show jobs that passed stage 1 and have a score
-        scored = [j for j in filtered if j["passedStage1"] and j.get("stage3Result") and j["stage3Result"]["hardConditionsPassed"]]
-        unscored = [j for j in filtered if j not in scored]
+        # Run scoring pipeline
+        scored = score_all_jobs(raw_jobs, resume_text, resume_parsed, skip_stage2=True)
 
-        # Apply threshold AFTER stage1/stage3 filter but BEFORE topN (spec Section 3)
+        # Build listings
+        listings = [_build_job_listing(j, user_id) for j in scored]
+
+        # Separate scored and unscored
+        scored_listings = [
+            j for j in listings
+            if j["passedStage1"] and j.get("stage3Result") and j["stage3Result"].get("hardConditionsPassed", True)
+        ]
+        unscored_listings = [j for j in listings if j not in scored_listings]
+
+        # Apply threshold (spec: applies before topN)
         threshold_pct = threshold / 100.0
-        scored_above = [j for j in scored if j["stage3Result"]["finalScore"] >= threshold_pct]
+        above = [j for j in scored_listings if (j.get("stage3Result") or {}).get("finalScore", 0) >= threshold_pct]
 
-        # Apply Top10: take top N from the threshold-filtered result (spec: not global topN)
-        if top_n > 0 and len(scored_above) > top_n:
-            scored_above.sort(key=lambda j: j["stage3Result"]["finalScore"], reverse=True)
-            scored_above = scored_above[:top_n]
+        # Apply topN on threshold-filtered results (spec: Section 3)
+        if top_n > 0 and len(above) > top_n:
+            above.sort(key=lambda j: (j.get("stage3Result") or {}).get("finalScore", 0), reverse=True)
+            above = above[:top_n]
 
         # Sort
         if sort_by == "score":
-            scored_above.sort(key=lambda j: j["stage3Result"]["finalScore"], reverse=True)
+            above.sort(key=lambda j: (j.get("stage3Result") or {}).get("finalScore", 0), reverse=True)
         else:
-            scored_above.sort(key=lambda j: j["scrapedAt"], reverse=True)
+            above.sort(key=lambda j: j.get("scrapedAt", ""), reverse=True)
 
-        # Include unscored (not matching threshold) at the bottom
-        result = scored_above + unscored
+        result = above + unscored_listings
 
         return {
             "jobs": result,
             "total": len(result),
-            "filtered_total": len(scored_above),
+            "filtered_total": len(above),
         }
 
     def get_summary(self, job_id: str) -> dict | None:
-        for job in MOCK_JOBS:
-            if job["id"] == job_id:
-                s3 = job.get("stage3Result") or {}
-                return {
-                    "title": job["title"],
-                    "company": job["company"],
-                    "atsScore": s3.get("atsScore", 0),
-                    "semanticScore": s3.get("semanticScore", 0),
-                    "finalScore": s3.get("finalScore", 0),
-                    "coveredKeywords": s3.get("coveredKeywords", []),
-                    "missingKeywords": s3.get("missingKeywords", []),
-                    "hasHardConditionIssues": not s3.get("hardConditionsPassed", True),
-                    "status": job["status"],
-                }
-        return None
+        job = db.get_job(job_id)
+        if not job:
+            return None
+
+        resume = db.get_latest_resume(job.get("user_id", ""))
+        resume_text = (resume.get("raw_text") or "") if resume else ""
+        resume_parsed = (resume.get("parsed") or {}) if resume else None
+
+        s3 = stage3_score(job, resume_text, resume_parsed)
+        return {
+            "title": job.get("title", ""),
+            "company": job.get("company", ""),
+            "atsScore": s3.get("atsScore", 0),
+            "semanticScore": s3.get("semanticScore", 0),
+            "finalScore": s3.get("finalScore", 0),
+            "coveredKeywords": s3.get("coveredKeywords", []),
+            "missingKeywords": s3.get("missingKeywords", []),
+            "hasHardConditionIssues": not s3.get("hardConditionsPassed", True),
+            "hardConditionIssues": s3.get("hardConditionIssues", []),
+            "status": _resolve_status(job_id),
+        }
 
     def trigger_scoring(self, job_id: str) -> dict | None:
-        for job in MOCK_JOBS:
-            if job["id"] == job_id:
-                s3 = job.get("stage3Result") or {}
-                return {"stage3Result": s3}
-        return None
+        job = db.get_job(job_id)
+        if not job:
+            return None
+        resume = db.get_latest_resume(job.get("user_id", ""))
+        resume_text = (resume.get("raw_text") or "") if resume else ""
+        resume_parsed = (resume.get("parsed") or {}) if resume else None
+        s3 = stage3_score(job, resume_text, resume_parsed)
+        return {"stage3Result": s3}
 
     def to_resume_workspace(self, job_id: str, user_id: str) -> dict | None:
-        for job in MOCK_JOBS:
-            if job["id"] == job_id:
-                session = db.create_jd_session(
-                    user_id=user_id,
-                    job_id=job_id,
-                    jd_text=f"{job['title']} at {job['company']}\n\n"
-                            f"Source: {job['source']}\n"
-                            f"URL: {job.get('originalUrl', '')}\n\n"
-                            f"This is a mock job description for {job['title']} at {job['company']}."
-                )
-                return {"sessionId": session["id"], "jobId": job_id}
-        return None
+        job = db.get_job(job_id)
+        if not job:
+            return None
+        session = db.create_jd_session(
+            user_id=user_id,
+            job_id=job_id,
+            jd_text=job.get("raw_text", ""),
+        )
+        return {"sessionId": session["id"], "jobId": job_id}
 
-    def get_available_sources(self) -> list[str]:
+    def get_available_sources(self, user_id: str = "") -> list[str]:
+        if not user_id:
+            return []
+        jobs = db.list_jobs(user_id, limit=500)
         sources = set()
-        for job in MOCK_JOBS:
-            sources.add(job["source"])
+        for j in jobs:
+            sp = j.get("source_platform")
+            if sp:
+                sources.add(sp)
         return sorted(sources)
 
 

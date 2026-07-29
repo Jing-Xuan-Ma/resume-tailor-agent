@@ -259,6 +259,7 @@ async def list_user_jobs_filtered(
         top_n=top_n,
         source=source,
         search=search,
+        user_id=user_id,
     )
 
 
@@ -287,8 +288,8 @@ async def to_resume_workspace(job_id: str, user_id: str = Query(...)):
 
 
 @router.get("/sources/list", response_model=dict)
-async def list_sources():
-    return {"sources": job_list_service.get_available_sources()}
+async def list_sources(user_id: str = Query(...)):
+    return {"sources": job_list_service.get_available_sources(user_id=user_id)}
 
 
 def _synthetic_job_text(query: str, location: str | None, idx: int) -> str:
