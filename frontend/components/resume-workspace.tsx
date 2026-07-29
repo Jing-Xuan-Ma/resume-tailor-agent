@@ -253,7 +253,7 @@ export default function ResumeWorkspace({ userId, initialJobId }: ResumeWorkspac
             </div>
           </div>
 
-          <KeywordGapSection keywordMatches={keywordMatches} onSuggest={handleSuggestProject} />
+          <KeywordGapSection keywordMatches={keywordMatches} onSuggest={handleSuggestProject} userId={userId} versionId={activeVersionId} />
         </div>
       </div>
     </div>

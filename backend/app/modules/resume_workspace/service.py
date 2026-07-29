@@ -1,111 +1,33 @@
+import json
+import re
 from pathlib import Path
 from uuid import uuid4
 from datetime import UTC, datetime
 
 from app import db
+from app.config import settings
 from app.modules.resume_workspace.schemas import KeywordMatchItem
 from app.modules.resume_workspace.template_editor import ResumeTemplateEditor
+from app.core.llm_client import get_chat_openai
 
 
+_PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 _RESUME_TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "data" / "templates"
 _RESUME_TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 
 
-MOCK_RESUME = {
-    "candidate_name": "ZHANG WEI",
-    "contact_line": "zhangwei@email.com | +86 138-0000-0000 | linkedin.com/in/zhangwei",
-    "summary": "Senior software engineer with 6+ years of experience building scalable distributed systems. Proficient in Python, Go, and cloud-native architectures.",
-    "education": [
-        {
-            "institution": "Tsinghua University",
-            "degree": "B.S. in Computer Science",
-            "field": "Computer Science",
-            "location": "Beijing",
-            "date_range": "September 2016 - June 2020",
-        }
-    ],
-    "experiences": [
-        {
-            "company": "TechCorp Inc.",
-            "title": "Senior Software Engineer",
-            "location": "Shanghai",
-            "date_range": "July 2022 - Present",
-            "bullets": [
-                {"text": "Designed and implemented a high-throughput message queue processing pipeline handling 50K+ events/sec using Kafka and Go"},
-                {"text": "Reduced API latency by 40% through query optimization and caching strategy redesign"},
-                {"text": "Led a team of 4 engineers to deliver a real-time analytics platform serving 10+ internal teams"},
-            ],
-        },
-        {
-            "company": "DataStream Ltd.",
-            "title": "Software Engineer",
-            "location": "Beijing",
-            "date_range": "August 2020 - June 2022",
-            "bullets": [
-                {"text": "Built RESTful microservices with Python/FastAPI and PostgreSQL, serving 1M+ daily requests"},
-                {"text": "Implemented CI/CD pipelines with GitHub Actions, reducing deployment time by 60%"},
-                {"text": "Developed ETL jobs processing 200GB+ daily data using Apache Spark"},
-            ],
-        },
-    ],
-    "projects": [
-        {
-            "name": "Distributed Task Scheduler",
-            "tools": ["Go", "Redis", "Docker", "Kubernetes"],
-            "context": "Independent Project",
-            "date_range": "Jan 2024 - Mar 2024",
-            "bullets": [
-                {"text": "Built a distributed task scheduler supporting cron-based and event-driven scheduling across 20+ worker nodes"},
-            ],
-        }
-    ],
-    "skills_certifications": "Python, Go, FastAPI, Kafka, PostgreSQL, Redis, Docker, Kubernetes, AWS, Spark, TensorFlow",
-}
+def _load_prompt(name: str) -> str:
+    return (_PROMPTS_DIR / name).read_text(encoding="utf-8")
 
-MOCK_JD_TEXT = """
-Software Engineer - Backend Infrastructure
 
-About the role:
-We are looking for a talented backend infrastructure engineer to join our growing team. You will design and build scalable systems that power our core platform.
-
-Requirements:
-• 5+ years of experience in backend development
-• Strong proficiency in Python or Go
-• Experience with distributed systems and microservice architecture
-• Hands-on experience with Kafka or similar message queue systems
-• Deep understanding of SQL and NoSQL databases (PostgreSQL, Redis)
-• Experience with Kubernetes and Docker containerization
-• Strong problem-solving and communication skills
-
-Preferred:
-• Experience with real-time data processing
-• Knowledge of CI/CD pipelines and infrastructure as code
-• Experience leading technical projects
-• Familiarity with machine learning pipelines
-
-Responsibilities:
-• Design and implement scalable backend services
-• Optimize system performance and reliability
-• Collaborate with cross-functional teams to deliver product features
-• Mentor junior engineers and conduct code reviews
-"""
-
-MOCK_KEYWORD_MATCHES = [
-    KeywordMatchItem(keyword="Python", status="covered", source_span_in_jd=[180, 186], suggestion=None),
-    KeywordMatchItem(keyword="Go", status="covered", source_span_in_jd=[191, 193], suggestion=None),
-    KeywordMatchItem(keyword="Kafka", status="covered", source_span_in_jd=[459, 464], suggestion=None),
-    KeywordMatchItem(keyword="PostgreSQL", status="covered", source_span_in_jd=[552, 562], suggestion=None),
-    KeywordMatchItem(keyword="Redis", status="covered", source_span_in_jd=[564, 569], suggestion=None),
-    KeywordMatchItem(keyword="Kubernetes", status="covered", source_span_in_jd=[614, 624], suggestion=None),
-    KeywordMatchItem(keyword="Docker", status="covered", source_span_in_jd=[619, 625], suggestion=None),
-    KeywordMatchItem(keyword="distributed systems", status="covered", source_span_in_jd=[274, 294], suggestion=None),
-    KeywordMatchItem(keyword="real-time data processing", status="missing", source_span_in_jd=[701, 726], suggestion="Consider building a real-time dashboard project using Kafka Streams or Flink to process live data."),
-    KeywordMatchItem(keyword="CI/CD pipelines", status="covered", source_span_in_jd=[751, 766], suggestion=None),
-    KeywordMatchItem(keyword="infrastructure as code", status="missing", source_span_in_jd=[791, 814], suggestion="Learn Terraform or Pulumi and create a sample infrastructure repo."),
-    KeywordMatchItem(keyword="machine learning pipelines", status="missing", source_span_in_jd=[872, 898], suggestion="Take an existing ML project and wrap it with MLflow for experiment tracking."),
-    KeywordMatchItem(keyword="microservice architecture", status="covered", source_span_in_jd=[298, 321], suggestion=None),
-    KeywordMatchItem(keyword="team leadership", status="covered", source_span_in_jd=[723, 739], suggestion=None),
-]
+def _extract_json(text: str) -> dict:
+    match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    if match:
+        text = match.group(1)
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1].rsplit("\n", 1)[0]
+    return json.loads(text)
 
 
 class ResumeWorkspaceService:
@@ -133,13 +55,40 @@ class ResumeWorkspaceService:
     def get_active_template(self, user_id: str) -> dict | None:
         return db.get_active_template(user_id)
 
-    def analyze(self, session_id: str) -> list[dict]:
+    async def analyze(self, session_id: str) -> list[dict]:
         session = db.get_jd_session(session_id)
         if not session:
-            session_data = db.create_jd_session(user_id="mock", jd_text=MOCK_JD_TEXT)
-            session_id = session_data["id"]
+            return []
 
-        matches = [m.model_dump() for m in MOCK_KEYWORD_MATCHES]
+        jd_text = session["jd_text"]
+        user_id = session.get("user_id", "")
+        resume_text = ""
+        if user_id:
+            latest = db.get_latest_resume(user_id)
+            if latest:
+                resume_text = json.dumps(latest.get("parsed", latest), ensure_ascii=False)
+
+        system_prompt = _load_prompt("keyword_analysis.txt")
+
+        llm = get_chat_openai(
+            model=settings.DEFAULT_PARSER_MODEL,
+            temperature=0.1,
+            max_tokens=2048,
+        )
+        human_prompt = f"JD:\n{jd_text}"
+        if resume_text:
+            human_prompt += f"\n\nResume:\n{resume_text}"
+
+        try:
+            response = await llm.ainvoke([
+                ("system", system_prompt),
+                ("human", human_prompt),
+            ])
+            result = _extract_json(response.content)
+            matches = result.get("keyword_matches", [])
+        except Exception:
+            matches = []
+
         db.update_jd_session_keywords(session_id, matches)
         return matches
 
@@ -147,18 +96,52 @@ class ResumeWorkspaceService:
         self, user_id: str, session_id: str, instruction: str,
         base_version_id: str | None = None
     ) -> dict:
+        session = db.get_jd_session(session_id)
+        jd_text = session["jd_text"] if session else ""
+
         if base_version_id:
             base = db.get_resume_version(base_version_id, user_id)
-            resume = base["full_resume"] if base else MOCK_RESUME
+            resume = base["full_resume"] if base else None
         else:
-            resume = MOCK_RESUME
+            resume = None
 
-        tailored = dict(resume)
-        tailored["summary"] = (
-            "Senior backend infrastructure engineer with 6+ years of experience "
-            "designing and building scalable distributed systems. Proficient in Python, "
-            "Go, and cloud-native technologies including Kafka, Kubernetes, and Docker."
+        if not resume:
+            latest = db.get_latest_resume(user_id)
+            resume = latest["parsed"] if latest else None
+
+        if not resume:
+            resume = await self._llm_generate_initial_resume(user_id, jd_text)
+
+        # Get keyword matches before rewrite
+        keyword_matches = await self.analyze(session_id)
+
+        # Build prompt
+        system_prompt = _load_prompt("workspace_rewrite.txt")
+        user_prompt = (
+            f"Target JD:\n{jd_text}\n\n"
+            f"Current Resume:\n{json.dumps(resume, ensure_ascii=False, indent=2)}\n\n"
+            f"User instruction: {instruction}\n\n"
+            f"Rewrite the resume following the format rules above. "
+            f"Keep all section structure identical. Only rewrite text content."
         )
+
+        llm = get_chat_openai(
+            model=settings.DEFAULT_TAILOR_MODEL,
+            temperature=0.3,
+            max_tokens=4096,
+        )
+        try:
+            response = await llm.ainvoke([
+                ("system", system_prompt),
+                ("human", user_prompt),
+            ])
+            tailored = _extract_json(response.content)
+        except Exception as e:
+            tailored = dict(resume)
+
+        # Re-analyze keyword matches after rewrite
+        if session_id:
+            keyword_matches = await self.analyze(session_id)
 
         version_index = db.get_latest_version_index(session_id, user_id) + 1
         if version_index > 5:
@@ -167,7 +150,6 @@ class ResumeWorkspaceService:
 
         markdown = ResumeTemplateEditor._render_markdown(tailored)
 
-        # Try template-based editing if a template exists
         template_record = db.get_active_template(user_id)
         template_docx: bytes | None = None
         template_replacements: dict[str, str] = {}
@@ -190,7 +172,6 @@ class ResumeWorkspaceService:
                 except Exception:
                     pass
 
-        # Generate preview PDF
         pdf_bytes: bytes | None = None
         try:
             if template_docx:
@@ -204,20 +185,17 @@ class ResumeWorkspaceService:
             version_index=version_index,
             content_delta={
                 "instruction": instruction,
-                "changed_fields": ["summary"],
+                "changed_fields": list(tailored.keys()) if tailored != resume else [],
                 "template_replacements": template_replacements,
             },
             full_resume=tailored,
             markdown=markdown,
         )
 
-        # Store generated files
         if template_docx:
             self._store_version_file(version_id, "docx", template_docx)
         if pdf_bytes:
             self._store_version_file(version_id, "pdf", pdf_bytes)
-
-        matches = [m.model_dump() for m in MOCK_KEYWORD_MATCHES]
 
         return {
             "new_version_id": version_id,
@@ -225,10 +203,32 @@ class ResumeWorkspaceService:
             "version_index": version_index,
             "full_resume": tailored,
             "markdown": markdown,
-            "keyword_matches": matches,
+            "keyword_matches": keyword_matches,
             "has_template": bool(template_docx),
             "has_pdf": bool(pdf_bytes),
         }
+
+    async def _llm_generate_initial_resume(self, user_id: str, jd_text: str) -> dict:
+        system_prompt = _load_prompt("workspace_rewrite.txt")
+        llm = get_chat_openai(
+            model=settings.DEFAULT_TAILOR_MODEL,
+            temperature=0.3,
+            max_tokens=4096,
+        )
+        try:
+            response = await llm.ainvoke([
+                ("system", system_prompt),
+                ("human", (
+                    f"Target JD:\n{jd_text}\n\n"
+                    f"No existing resume found for this user. "
+                    f"Create a minimal resume structure with empty sections. "
+                    f"Set candidate_name to 'Unknown', summary to a brief placeholder. "
+                    f"Do NOT fabricate any experience or skills."
+                )),
+            ])
+            return _extract_json(response.content)
+        except Exception:
+            return {"candidate_name": "", "contact_line": "", "summary": "", "education": [], "experiences": [], "projects": [], "skills_certifications": ""}
 
     def _store_version_file(self, version_id: str, ext: str, data: bytes) -> Path:
         version_dir = _RESUME_TEMPLATES_DIR / version_id
@@ -246,14 +246,26 @@ class ResumeWorkspaceService:
     def confirm_version(self, version_id: str, user_id: str) -> bool:
         return db.confirm_resume_version(version_id, user_id)
 
-    def suggest_project(self, keyword: str) -> str:
-        for m in MOCK_KEYWORD_MATCHES:
-            if m.keyword == keyword and m.suggestion:
-                return m.suggestion
-        return (
-            f"For '{keyword}', consider building a practical project that "
-            f"demonstrates this skill."
+    async def suggest_project(self, keyword: str) -> str:
+        system_prompt = _load_prompt("suggest_project.txt")
+        llm = get_chat_openai(
+            model=settings.DEFAULT_PARSER_MODEL,
+            temperature=0.5,
+            max_tokens=512,
         )
+        try:
+            response = await llm.ainvoke([
+                ("system", system_prompt),
+                ("human", f"Missing keyword/skill: {keyword}"),
+            ])
+            result = _extract_json(response.content)
+            return result.get("suggestion", "")
+        except Exception:
+            return (
+                f"For '{keyword}', consider building a practical project that "
+                f"demonstrates this skill. Try searching for open-source projects "
+                f"or tutorials related to {keyword}."
+            )
 
     def list_versions(self, session_id: str, user_id: str) -> list[dict]:
         return db.list_resume_versions(session_id, user_id)
@@ -263,17 +275,13 @@ class ResumeWorkspaceService:
 
     def export_version(self, version_id: str, user_id: str, fmt: str) -> bytes | None:
         version = db.get_resume_version(version_id, user_id)
-        if not version:
-            return None
-        if not version["is_confirmed"]:
+        if not version or not version["is_confirmed"]:
             return None
 
-        # Try stored file first
         stored = self._get_version_file(version_id, fmt)
         if stored:
             return stored
 
-        # Generate on the fly
         if fmt == "text":
             return ResumeTemplateEditor._render_markdown(
                 version["full_resume"]
