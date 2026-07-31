@@ -104,17 +104,61 @@ class AutoDiscoverRequest(BaseModel):
     limit: int = Field(default=20, ge=1, le=50)
 
 
+def _query_from_resume(resume: dict | None) -> str:
+    """Derive a search query from a stored resume when the client omits one.
+
+    Parsed resumes from text upload expose experiences/summary/skills — not a
+    top-level ``title`` field — so auto-discover must fall back through those.
+    """
+    if not resume:
+        return ""
+    parsed = resume.get("parsed") or {}
+    for key in ("title", "target_role", "desired_title"):
+        value = parsed.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+
+    experiences = parsed.get("experiences") or []
+    if experiences and isinstance(experiences[0], dict):
+        title = (experiences[0].get("title") or "").strip()
+        if title:
+            return title
+
+    summary = (parsed.get("summary") or "").strip()
+    if summary:
+        return " ".join(summary.split()[:8])
+
+    skills = parsed.get("skills") or []
+    if isinstance(skills, list) and skills:
+        return " ".join(str(skill) for skill in skills[:3] if skill)
+
+    raw = (resume.get("raw_text") or "").strip()
+    if raw:
+        for line in raw.splitlines():
+            cleaned = line.strip()
+            if not cleaned or "@" in cleaned or cleaned.lower().startswith("http"):
+                continue
+            # Skip likely name-only first header lines by preferring longer signals.
+            if len(cleaned.split()) >= 3:
+                return cleaned[:80]
+        lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+        if len(lines) >= 2:
+            return lines[1][:80]
+    return ""
+
+
 @router.post("/auto-discover", response_model=JobListResponse)
 async def auto_discover_jobs(request: AutoDiscoverRequest):
     """Auto-discover jobs based on the user's latest resume."""
-    query = request.query
+    query = (request.query or "").strip() or None
     if not query:
         resume = db.get_latest_resume(str(request.user_id))
-        if resume:
-            parsed = resume.get("parsed") or {}
-            query = parsed.get("title") or ""
+        query = _query_from_resume(resume) or None
         if not query:
-            raise HTTPException(status_code=400, detail="No resume found. Please upload a resume or provide a search query.")
+            raise HTTPException(
+                status_code=400,
+                detail="No resume found. Please upload a resume or provide a search query.",
+            )
 
     discover_request = JobDiscoverRequest(
         user_id=request.user_id,
