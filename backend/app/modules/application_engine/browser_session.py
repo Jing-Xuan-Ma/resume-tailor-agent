@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from app.config import settings
 
 
@@ -93,10 +95,15 @@ class BrowserSession:
                 aliases = [str(alias) for alias in item.get("aliases", []) or []]
                 if not answer:
                     continue
-                if field_type == "file":
-                    filled_ok = self._upload_file(page, field_name, aliases, answer, field_selectors or {})
-                else:
-                    filled_ok = self._fill_field(page, field_name, question, aliases, answer, field_selectors or {})
+                filled_ok = self._apply_answer(
+                    page,
+                    field_name=field_name,
+                    question=question,
+                    aliases=aliases,
+                    field_type=field_type,
+                    answer=answer,
+                    field_selectors=field_selectors or {},
+                )
                 if filled_ok:
                     filled.append({"question": question, "status": "filled"})
                 else:
@@ -113,6 +120,50 @@ class BrowserSession:
             "filled": filled,
             "message": "Browser automation completed.",
         }
+
+    def _apply_answer(
+        self,
+        page,
+        *,
+        field_name: str,
+        question: str,
+        aliases: list[str],
+        field_type: str,
+        answer: str,
+        field_selectors: dict[str, list[str]],
+    ) -> bool:
+        """Fill or upload a field, with cover-letter text/file hybrid support.
+
+        Lever often exposes cover letter as a textarea; Greenhouse may use a
+        file input or ``#cover_letter`` textarea. Prefer the matching control.
+        """
+        text_from_file = self._read_text_file(answer)
+        if field_type == "file":
+            if self._upload_file(page, field_name, aliases, answer, field_selectors):
+                return True
+            if field_name == "cover_letter" and text_from_file:
+                return self._fill_field(
+                    page, field_name, question, aliases, text_from_file, field_selectors
+                )
+            return False
+
+        fill_value = text_from_file if text_from_file else answer
+        if self._fill_field(page, field_name, question, aliases, fill_value, field_selectors):
+            return True
+        # Text-typed cover letter on a board that only has a file input.
+        if field_name == "cover_letter" and Path(answer).is_file():
+            return self._upload_file(page, field_name, aliases, answer, field_selectors)
+        return False
+
+    @staticmethod
+    def _read_text_file(value: str) -> str | None:
+        path = Path(value)
+        if not path.is_file() or path.suffix.lower() not in {".txt", ".md"}:
+            return None
+        try:
+            return path.read_text(encoding="utf-8").strip() or None
+        except Exception:
+            return None
 
     def _fill_field(
         self,
