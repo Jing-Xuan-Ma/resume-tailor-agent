@@ -1,7 +1,6 @@
 """Orchestrator: run all job providers concurrently, deduplicate, score, rank."""
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from typing import Any
 
 from app import db
@@ -55,7 +54,8 @@ ALL_PROVIDERS: list[BaseJobProvider] = [
     AdzunaProvider(),
 ]
 
-# Timeout for the entire discovery pipeline
+# Timeout for the entire discovery pipeline (wall clock). Individual HTTP
+# providers also have their own shorter client timeouts.
 DISCOVER_TIMEOUT = 25
 
 
@@ -94,43 +94,59 @@ async def discover_all(
             resume_text = f"{raw} {' '.join(str(v) for v in parsed.values() if isinstance(v, str))}"
 
     loop = asyncio.get_running_loop()
-    thread_pool = ThreadPoolExecutor(max_workers=2)
+
+    def _jobspy_sync() -> list[RawJobLead]:
+        jsp = next(p for p in ALL_PROVIDERS if p.name == "jobspy")
+        raw_jobs = jsp.discover(
+            query=query,
+            location=location,
+            limit=limit * 3,
+            sites=sites or ["linkedin", "indeed", "google"],
+            hours_old=hours_old,
+            country_indeed=country_indeed,
+        )
+        return [_to_lead(j) for j in raw_jobs]
 
     async def _run_jobspy() -> list[RawJobLead]:
-        jsp = next(p for p in ALL_PROVIDERS if p.name == "jobspy")
         try:
-            raw_jobs = await loop.run_in_executor(
-                thread_pool,
-                lambda: jsp.discover(
-                    query=query, location=location, limit=limit * 3,
-                    sites=sites or ["linkedin", "indeed", "google"],
-                    hours_old=hours_old, country_indeed=country_indeed,
-                ),
-            )
-            return [_to_lead(j) for j in raw_jobs]
+            # Use the default executor (shared, bounded) instead of creating a
+            # per-request ThreadPoolExecutor that leaks on timeout.
+            return await loop.run_in_executor(None, _jobspy_sync)
         except Exception:
             return []
 
     async def _run_async(provider: BaseJobProvider) -> list[RawJobLead]:
-        if provider.name == "jobspy":
-            return []
         try:
             return await provider.discover(query=query, location=location, limit=limit * 2)
         except Exception:
             return []
 
-    tasks = [asyncio.ensure_future(_run_async(p)) for p in ALL_PROVIDERS if p.name != "jobspy"]
-    tasks.append(asyncio.ensure_future(_run_jobspy()))
+    # Keep a stable task order matching ALL_PROVIDERS so dedup is deterministic.
+    ordered_coros: list = []
+    for provider in ALL_PROVIDERS:
+        if provider.name == "jobspy":
+            ordered_coros.append(_run_jobspy())
+        else:
+            ordered_coros.append(_run_async(provider))
 
+    tasks = [asyncio.ensure_future(coro) for coro in ordered_coros]
     done, pending = await asyncio.wait(tasks, timeout=DISCOVER_TIMEOUT)
     for task in pending:
         task.cancel()
-    thread_pool.shutdown(wait=False)
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
 
     unified: list[dict] = []
     seen: set[tuple] = set()
-    for task in done:
-        for lead in (task.result() or []):
+    # Iterate in original provider order (not set(done) order) for stable dedup.
+    for task in tasks:
+        if task not in done:
+            continue
+        try:
+            leads = task.result() or []
+        except Exception:
+            continue
+        for lead in leads:
             key = _dedup_key(lead)
             if key in seen:
                 continue
