@@ -7,16 +7,17 @@
 The project has moved beyond the original resume-tailoring MVP.
 
 - **Phase 1 complete**: Resume upload, parsing, tailoring, evidence guard, draft editing, Word/PDF/text export.
-- **Phase 2 complete**: Job discovery via JobSpy provider with local fallback, job scoring, saved jobs, bookmarks.
-- **Phase 3 MVP complete**: Application package generation, ATS detection, manual confirmation, auto-submit API, optional Playwright browser automation boundary.
-- **Phase 4 MVP complete**: Cold outreach draft generation, saved outreach records, and user-confirmed sent status.
+- **Phase 2 complete**: Multi-provider job discovery (JobSpy + Remotive / RemoteOK / Himalayas / Jobicy / Adzuna) with synthetic local fallback, three-stage scoring pipeline, saved jobs, bookmarks, auto-discover from resume.
+- **Phase 3 MVP complete**: Application package generation, ATS detection, manual confirmation, auto-submit API, optional Playwright browser automation. **Greenhouse + Lever** are the deep core-field targets; Workday / iCIMS / Ashby remain thinner overlays.
+- **Phase 4 MVP complete**: Cold outreach draft generation, saved outreach records, production-oriented email send skeleton (still gated), and user-confirmed sent status.
 - **Phase 5 MVP complete**: Growth advisor skill-gap analysis, recommendations, and 4-week roadmap generation.
 - **Frontend application workspace active**: Job discovery/import, saved jobs, application package preparation, and submission tracking are available in the web UI.
 - **Frontend auth active**: Login/register UI uses the backend auth APIs and stores the current user locally for workspace requests.
-- **Durable resume records active**: Resume uploads are stored in SQLite and return `resume_id` values used by tailoring and application-package flows.
-- **Resume Workspace module (Phase 6)**: Three-column layout with JD panel, chat, version tabs, react-pdf preview, keyword gap analysis, and template .docx upload. 8 REST endpoints under `/api/v1/resume-workspace`.
-- **Job List page (Phase 7)**: Filterable job table with search, source dropdown, threshold slider, score/date sort, Top10 toggle, color-coded match badges, and adaptation summary panel. "Go to Resume Workspace" navigation. 5 new endpoints under `/api/v1/jobs`.
+- **Durable resume records active**: Resume uploads persist via SQLite (local) or PostgreSQL (when `DATABASE_URL` is `postgresql://…`) and return `resume_id` values used by tailoring and application-package flows.
+- **Resume Workspace module (Phase 6)**: Three-column layout with JD panel, chat, version tabs, react-pdf preview, keyword gap analysis, and template .docx upload. REST under `/api/v1/resume-workspace`.
+- **Job List page (Phase 7)**: Filterable job table with search, source dropdown, threshold slider, score/date sort, Top10 toggle, color-coded match badges, and adaptation summary panel.
 - **Unified LLM client**: Single `get_chat_openai()` factory supporting OpenAI-compatible, Gemini, and Zhipu/GLM providers with `LLM_PROVIDER` env var switching.
+- **Golden-path acceptance**: `pytest tests/test_golden_path.py` and `python -m scripts.run_golden_path` cover upload → auto-discover → tailor → prepare → manual confirm (offline-safe with provider fallback).
 
 ## What The Agent Can Do
 
@@ -33,11 +34,21 @@ The project has moved beyond the original resume-tailoring MVP.
 
 ### Job Discovery
 
-- Discover jobs through an optional JobSpy provider.
-- Fall back to deterministic local job leads when JobSpy is unavailable or blocked.
-- Save discovered/imported jobs in local persistent storage.
-- Score jobs against the query and parsed JD fields.
-- Bookmark jobs for later application.
+Discovery runs **all** wired providers concurrently (`DISCOVER_TIMEOUT` ≈ 25s), then dedupes and ranks:
+
+| Provider | Type | Targets |
+|----------|------|---------|
+| **JobSpy** (optional dep) | Scrape | Indeed, LinkedIn, ZipRecruiter, Google Jobs |
+| **Remotive** | API | `https://remotive.com/api/remote-jobs` |
+| **RemoteOK** | API | `https://remoteok.com/api` |
+| **Himalayas** | API | `https://himalayas.app/jobs/api` |
+| **Jobicy** | API | `https://jobicy.com/api/v2/remote-jobs` |
+| **Adzuna** | API | `api.adzuna.com` (needs `ADZUNA_APP_ID` + `ADZUNA_API_KEY`) |
+
+- `POST /api/v1/jobs/auto-discover` derives a query from the latest resume (experience title / summary / skills) when the client omits one.
+- If every provider misses, the router falls back to deterministic `local_phase2` synthetic leads so demos never hang empty.
+- Three-stage scoring pipeline: rule filter → cheap LLM prelim → deeper ATS/semantic scoring (`scoring_pipeline.py`).
+- Save discovered/imported jobs, bookmark, and filter via the Job List APIs.
 
 ### Application Preparation
 
@@ -64,14 +75,16 @@ The project has moved beyond the original resume-tailoring MVP.
 
 The agent detects and prepares plans for these ATS platforms:
 
-- Greenhouse
-- Lever
-- Ashby
-- Workday
-- iCIMS
-- Generic fallback
+| ATS | Depth | Notes |
+|-----|-------|-------|
+| **Greenhouse** | Deep | Core fields validated on real pages: first/last, email, phone, resume, cover letter, LinkedIn, `#submit_app` |
+| **Lever** | Deep | Single `name` field + email/phone/resume + `urls[LinkedIn|GitHub|Portfolio]` + cover textarea/`comments`; apply + submit selectors |
+| Ashby | Overlay | System-field selectors present; not deeply validated |
+| Workday | Fallback | Multi-step / custom widgets not fully automated |
+| iCIMS | Fallback | Thin first/last overlay; iframes/login unhandled |
+| Generic | Fallback | Broad heuristics for unmatched URLs |
 
-Each connector can provide platform-specific field selectors, field aliases, and submit button selectors for browser automation.
+Each deep connector provides platform-specific field selectors, field aliases, apply/submit selectors, and phone/LinkedIn answers from the user profile.
 
 ### Manual And Automatic Submission
 
@@ -122,11 +135,11 @@ By default, browser automation is disabled. With `ENABLE_BROWSER_AUTOMATION=fals
 | Agent Flow | LangGraph |
 | LLM | GPT-5.5 / Gemini / GLM via unified `LLM_PROVIDER` client |
 | Vector DB | Chroma local persistent store |
-| App State | SQLite local persistent store |
+| App State | SQLite (local) or PostgreSQL via `DATABASE_URL` + Alembic |
 | Optional Cache/Rate Limit | Redis |
-| Job Discovery | JobSpy provider + local fallback |
+| Job Discovery | JobSpy + Remotive / RemoteOK / Himalayas / Jobicy / Adzuna + local fallback |
 | Resume Parsing | python-docx + pdfplumber + plain text |
-| Browser Automation | Optional Playwright boundary |
+| Browser Automation | Optional Playwright boundary (Greenhouse + Lever prioritized) |
 
 ## Project Structure
 
@@ -325,12 +338,12 @@ npm run build
 ## Current Limitations
 
 - Browser automation requires Playwright and real ATS page testing.
-- File upload support exists, but each ATS may require additional selector tuning.
+- **Greenhouse + Lever** are the prioritized deep-fill targets; Ashby / Workday / iCIMS remain thinner overlays.
 - Workday flows are multi-step and often need deeper page-specific automation.
 - LinkedIn Easy Apply is intentionally not the first target due to account risk and rate limiting.
-- SQLite is used for local persistence; production should migrate to PostgreSQL with migrations.
-- Browser and ATS selectors remain the highest-risk area until validated against real application pages.
-- Cold outreach is draft-only; production email sending would require OAuth, unsubscribe/compliance handling, and explicit user confirmation.
+- Persistence supports SQLite and PostgreSQL dual-mode; production should prefer PostgreSQL with Alembic migrations applied.
+- Browser and ATS selectors remain the highest-risk area until validated against more real application pages.
+- Cold outreach drafts are safe by default; production email sending still needs OAuth, unsubscribe/compliance handling, and explicit user confirmation.
 
 ## License
 

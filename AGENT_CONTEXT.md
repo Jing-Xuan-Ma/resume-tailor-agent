@@ -28,17 +28,18 @@
 
 | 层级 | 技术 |
 |------|------|
-| **前端** | Next.js 14 (App Router) + Tailwind CSS + shadcn/ui |
+| **前端** | Next.js 14 (App Router) + Tailwind CSS |
 | **后端API** | FastAPI (Python 3.11+) |
 | **Agent编排** | LangGraph (状态机、工具调用、人机循环) |
-| **LLM** | Claude 3.5 Sonnet (简历定制主模型) + GPT-4o (通用) |
-| **Embedding** | text-embedding-3-large |
-| **向量DB** | Chroma (本地) / Pineapple (生产) |
-| **关系DB** | PostgreSQL |
-| **缓存/消息** | Redis |
-| **PDF生成** | Playwright print-to-PDF / WeasyPrint |
+| **LLM** | 统一 `LLM_PROVIDER`：OpenAI-compatible / Gemini / 智谱 GLM |
+| **Embedding** | 本地 hash embedding fallback + 可选 OpenAI embeddings |
+| **向量DB** | Chroma (本地持久化) |
+| **关系DB** | SQLite（本地）/ PostgreSQL（`DATABASE_URL=postgresql://…` + Alembic） |
+| **缓存/限流** | Redis（可选）+ 内存 fallback |
+| **职位发现** | JobSpy 抓取 + Remotive/RemoteOK/Himalayas/Jobicy/Adzuna API |
+| **ATS 深挖** | Greenhouse + Lever（核心字段）；Workday/iCIMS 为薄层 fallback |
 | **文档处理** | python-docx, pdfplumber |
-| **部署** | Vercel(前端) + Railway/Render/Fly.io(后端) |
+| **浏览器自动化** | 可选 Playwright（默认关闭） |
 
 ---
 
@@ -72,27 +73,35 @@
 
 ```
 modules/
-├── chat/                    ✅ Phase 1 — 对话接口
-├── resume_tailor/           ✅ Phase 1 — 核心：简历定制（当前主战场）
-│   ├── nodes/
-│   │   ├── parse_jd.py      # JD解析（Structured Output）
-│   │   ├── match_skills.py  # 经历匹配（向量相似度）
-│   │   ├── tailor_resume.py # LLM定制（Claude 3.5）
-│   │   ├── evidence_guard.py# 证据校验（独立LLM调用）
-│   │   └── render_pdf.py    # PDF渲染
-│   └── prompts/
-│       ├── tailor_system.txt
-│       └── evidence_check.txt
-├── memory/                  ✅ Phase 1 — 记忆系统
-│   ├── long_term.py         # Chroma向量操作
-│   ├── conversation.py      # 对话历史管理
-│   └── user_profile.py      # 动态偏好画像
-├── job_discovery/           ✅ Phase 2 — 职位发现 + 收藏 + 申请包准备
-├── application_engine/      ✅ Phase 3 — 申请计划 + 手动确认 + auto-submit 边界
-├── ats_connectors/          ✅ Phase 3 — Greenhouse/Lever/Ashby/Workday/iCIMS/Generic connector
-├── cold_outreach/           ✅ Phase 4 — 冷外联草稿生成 + sent_by_user 记录（不自动发送）
-└── growth_advisor/          ✅ Phase 5 — 技能差距分析 + 推荐 + 4周路线图
+├── chat/                    ✅ 对话接口
+├── resume_tailor/           ✅ 简历定制 + Evidence Guard + 导出
+├── resume_workspace/        ✅ Phase 6 — JD面板 / 版本 / 关键词缺口
+├── memory/                  ✅ Chroma 经历记忆
+├── job_discovery/           ✅ 多 provider 发现 + auto-discover + 三阶段打分 + Job List
+│   └── providers/           JobSpy, Remotive, RemoteOK, Himalayas, Jobicy, Adzuna
+├── application_engine/      ✅ 申请计划 + 手动确认 + auto-submit 边界 + Playwright
+├── ats_connectors/          ✅ GH+Lever 深挖；Ashby/Workday/iCIMS/Generic 薄层
+├── cold_outreach/           ✅ 草稿 + mark-sent + 发信骨架
+├── growth_advisor/          ✅ 技能差距 + 4周路线图
+├── auth/ / profile/         ✅ 注册登录 + 画像反馈
+└── safety/                  ✅ 审计 / 日限额 / 人工确认策略
 ```
+
+### 职位爬取 / 发现源（不是 ATS 投递站）
+
+| Provider | 类型 | 目标站点 / API |
+|----------|------|----------------|
+| jobspy | 抓取（可选依赖 python-jobspy） | Indeed, LinkedIn, ZipRecruiter, Google Jobs |
+| remotive | API | remotive.com/api/remote-jobs |
+| remoteok | API | remoteok.com/api |
+| himalayas | API | himalayas.app/jobs/api |
+| jobicy | API | jobicy.com/api/v2/remote-jobs |
+| adzuna | API（需 key） | api.adzuna.com |
+| local_phase2 | 合成 fallback | 无外网时保证演示可用 |
+
+### ATS 投递目标（申请表单，不是爬虫源）
+
+Greenhouse（深）、Lever（深）、Ashby、Workday（fallback）、iCIMS（fallback）、Generic。
 
 ---
 
@@ -165,7 +174,7 @@ modules/
 | 风险 | 规避策略 |
 |------|---------|
 | LLM编造经历 | Evidence Guard + 用户确认环节 + 绝不使用"生成式"经历 |
-| LinkedIn封号 | 抓取作为可选数据源，主推Adzuna/RemoteOK/RSS API |
+| LinkedIn封号 | JobSpy 中 LinkedIn 为可选抓取源；主路径用 Remotive/RemoteOK/Himalayas/Jobicy/Adzuna API |
 | 平台ToS违规（自动投递） | 默认人工确认模式；全自动为可选高级功能 |
 | 简历同质化 | 基于真实独特经历定制 + LLM Temperature > 0 |
 | 用户数据隐私 | 本地Chroma优先；生产环境自托管；简历数据加密存储 |
@@ -174,8 +183,8 @@ modules/
 
 ## 10. 当前开发进度（每次更新此字段）
 
-**最后更新**: 2026-07-25
-**当前阶段**: Phase 1-5 MVP 全部完成（简历定制 + 职位发现 + 申请准备/提交边界 + 冷外联草稿 + 成长建议）
+**最后更新**: 2026-07-31
+**当前阶段**: Phase 1-7 可用；金线验收脚本已固化（简历上传 → 发现职位 → 定制 → 申请包 → 手动确认提交）
 **已完成**:
 - [x] 项目目录结构搭建
 - [x] AGENT_CONTEXT.md + README.md
@@ -235,9 +244,20 @@ modules/
   - work_authorization 在部分页面不存在（EEO 问题是独立的 gender/disability 等字段）
   - 表单 ID 实为 `application-form`（连字符），但选择器通过 `#first_name` 等 ID 定位，不影响现有功能
   - 建议优化: LinkedIn/Website 等自定义字段可考虑 `label[for^=question_]` 模式匹配，当前 label 回退已够用
-- [ ] 逐站增强 Lever / Ashby / Workday 的真实页面填表 selector
+- [x] JobSpy 超时真正生效（shutdown wait=False）+ 回归测试（2026-07-31）
+- [x] 可演示金线验收：upload → auto-discover → tailor → prepare → manual confirm
+  - `pytest tests/test_golden_path.py`
+  - `python -m scripts.run_golden_path`
+  - 顺带修 auto-discover 从简历 experiences/summary 推导 query；JD 离线 fallback 用首行作 title
+- [x] Greenhouse + Lever 核心字段深挖（2026-07-31）
+  - Greenhouse: first/last/email/phone/resume/cover/linkedin + apply/submit selectors
+  - Lever: name/email/phone/org/urls[LinkedIn|GitHub|Portfolio] + cover textarea + template-btn-submit
+  - QuestionAnswerer 补 phone/org/github/twitter；cover letter 文本/文件双路径
+  - Workday / iCIMS 明确为薄层 fallback（不继续铺开）
+  - `pytest tests/test_ats_core_fields.py`
+- [ ] Ashby 真机 selector 验证（可选，优先级低于 GH/Lever）
 - [ ] 生产级冷外联发送：OAuth/Gmail API、退订/频控/合规、逐封显式确认
-- [ ] 生产部署前迁移 SQLite 到 PostgreSQL + Alembic migrations
+- [ ] 生产部署：确认 PostgreSQL + Alembic migrations 在目标环境跑通
 
 ---
 
