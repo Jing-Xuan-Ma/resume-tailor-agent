@@ -118,7 +118,12 @@ OPENAI_COMPAT_PROVIDERS: list[ProviderInfo] = [
     ProviderInfo(id="zai",            name="ZAI Coding Plan",     api_type="openai",   env_var="ZAI_API_KEY",         base_url="https://api.z.ai/v1",                          default_model="zai-coding"),
     ProviderInfo(id="minimax",        name="MiniMax",             api_type="openai",   env_var="MINIMAX_API_KEY",     base_url="https://api.minimax.chat/v1",                  default_model="MiniMax-Text-01"),
     ProviderInfo(id="moonshotai",     name="Moonshot AI (Kimi)",  api_type="openai",   env_var="MOONSHOT_API_KEY",    base_url="https://api.moonshot.cn/v1",                    default_model="kimi-k2"),
-    ProviderInfo(id="xiaomi",         name="Xiaomi MiMo",         api_type="openai",   env_var="XIAOMI_API_KEY",      base_url="https://api.mimo.xyz/v1",                      default_model="mimo-1"),
+    # Xiaomi MiMo — OpenAI-compatible. Official pay-as-you-go base URL:
+    # https://api.xiaomimimo.com/v1  (models: mimo-v2.5-pro, mimo-v2.5)
+    ProviderInfo(id="xiaomi",         name="Xiaomi MiMo",         api_type="openai",   env_var="XIAOMI_API_KEY",      base_url="https://api.xiaomimimo.com/v1",                 default_model="mimo-v2.5-pro",
+                  base_url_env="XIAOMI_BASE_URL"),
+    ProviderInfo(id="mimo",           name="Xiaomi MiMo",         api_type="openai",   env_var="MIMO_API_KEY",        base_url="https://api.xiaomimimo.com/v1",                 default_model="mimo-v2.5-pro",
+                  base_url_env="MIMO_BASE_URL"),
     ProviderInfo(id="cloudflare",     name="Cloudflare Workers AI",api_type="openai",  env_var="CLOUDFLARE_API_KEY",  base_url=None,                                            default_model="@cf/meta/llama-3.3-70b-instruct-fp8-fast",
                   extra_env_vars={"CLOUDFLARE_ACCOUNT_ID": "Cloudflare Account ID"}),
     ProviderInfo(id="ant-ling",       name="Ant Ling",            api_type="openai",   env_var="ANT_LING_API_KEY",    base_url="https://api.antling.ai/v1",                    default_model="ant-ling-v1"),
@@ -230,7 +235,14 @@ def get_chat_openai(**overrides) -> Any:
     model = overrides.pop("model", None)
     temperature = overrides.pop("temperature", None)
     max_tokens = overrides.pop("max_tokens", None)
-    return get_llm(model=model, temperature=temperature, max_tokens=max_tokens, **overrides)
+    provider = (settings.LLM_PROVIDER or "").strip().lower() or None
+    # Tailor/parser historically pass DEFAULT_*_MODEL (often gpt-*). When the
+    # active provider is MiMo/Xiaomi, ignore incompatible OpenAI model names.
+    if provider in {"mimo", "xiaomi"} and model and (
+        model.startswith(("gpt-", "o1", "o3", "chatgpt")) or model in {"gpt-5.5"}
+    ):
+        model = None
+    return get_llm(provider=provider, model=model, temperature=temperature, max_tokens=max_tokens, **overrides)
 
 
 # ---------------------------------------------------------------------------

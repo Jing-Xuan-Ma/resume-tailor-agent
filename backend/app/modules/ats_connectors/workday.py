@@ -1,3 +1,10 @@
+"""Workday connector — thin overlay / fallback.
+
+Multi-step Workday flows (account gate, Next/Continue, custom widgets) are not
+fully automated yet. Prefer Greenhouse + Lever for reliable core-field filling;
+keep this connector for ATS detection and best-effort selectors only.
+"""
+
 from app.modules.ats_connectors.generic_browser import BaseATSConnector
 
 

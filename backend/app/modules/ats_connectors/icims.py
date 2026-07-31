@@ -1,3 +1,9 @@
+"""iCIMS connector — thin overlay / fallback.
+
+Login walls and iframe-heavy career sites are common; core-field automation is
+not deeply validated here. Prefer Greenhouse + Lever for demoable fills.
+"""
+
 from app.modules.ats_connectors.generic_browser import BaseATSConnector, host
 
 
