@@ -59,9 +59,15 @@ class JDParsingNode:
             parsed.raw_text = jd_text
             return parsed
         except Exception:
-            # Fallback: return basic structure (also used when no API key)
+            # Fallback: return basic structure (also used when no API key).
+            # Prefer the first non-empty line as title so offline/demo flows keep
+            # a usable job title instead of the opaque "Unknown Title" placeholder.
+            first_line = next(
+                (line.strip() for line in (jd_text or "").splitlines() if line.strip()),
+                "Untitled Role",
+            )
             return ParsedJobDescription(
-                title="Unknown Title",
+                title=first_line[:120],
                 raw_text=jd_text,
                 required_skills=[],
                 preferred_skills=[],

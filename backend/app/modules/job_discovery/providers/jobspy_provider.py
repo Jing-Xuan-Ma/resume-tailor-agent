@@ -5,8 +5,13 @@ when a job board blocks the request, this provider returns an empty list so the
 router can fall back to local synthetic leads and keep the product usable.
 """
 
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Any
+
+
+# Hard wall-clock bound for a single scrape_jobs call. Must return promptly even
+# if the underlying scrape is still running (we abandon the worker thread).
+DEFAULT_SCRAPE_TIMEOUT_SECONDS = 10
 
 
 class JobSpyProvider:
@@ -21,6 +26,7 @@ class JobSpyProvider:
         sites: list[str] | None = None,
         hours_old: int | None = None,
         country_indeed: str = "USA",
+        timeout: float = DEFAULT_SCRAPE_TIMEOUT_SECONDS,
     ) -> list[dict[str, Any]]:
         try:
             from jobspy import scrape_jobs
@@ -28,25 +34,35 @@ class JobSpyProvider:
             return []
 
         site_name = sites or ["indeed", "linkedin", "zip_recruiter", "google"]
+        # Do NOT use `with ThreadPoolExecutor(...)`: its __exit__ calls
+        # shutdown(wait=True), which blocks until scrape_jobs finishes and
+        # completely negates fut.result(timeout=...).
+        pool = ThreadPoolExecutor(max_workers=1)
         try:
-            with ThreadPoolExecutor(max_workers=1) as pool:
-                fut = pool.submit(
-                    scrape_jobs,
-                    site_name=site_name,
-                    search_term=query,
-                    google_search_term=f"{query} jobs {location or ''}".strip(),
-                    location=location,
-                    results_wanted=limit,
-                    hours_old=hours_old,
-                    country_indeed=country_indeed,
-                    verbose=0,
-                    description_format="markdown",
-                )
-                frame = fut.result(timeout=10)
-        except TimeoutError:
-            return []
-        except Exception:
-            return []
+            fut = pool.submit(
+                scrape_jobs,
+                site_name=site_name,
+                search_term=query,
+                google_search_term=f"{query} jobs {location or ''}".strip(),
+                location=location,
+                results_wanted=limit,
+                hours_old=hours_old,
+                country_indeed=country_indeed,
+                verbose=0,
+                description_format="markdown",
+            )
+            try:
+                frame = fut.result(timeout=timeout)
+            except FuturesTimeoutError:
+                fut.cancel()
+                return []
+            except Exception:
+                return []
+        finally:
+            # wait=False so a hung scrape does not block the caller. The OS
+            # thread may linger until scrape_jobs returns; that is unavoidable
+            # with CPython threads, but control returns to the API promptly.
+            pool.shutdown(wait=False, cancel_futures=True)
 
         records = frame.to_dict("records") if hasattr(frame, "to_dict") else []
         jobs = []

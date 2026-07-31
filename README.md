@@ -313,7 +313,16 @@ cd D:\resume-agent\backend
 python -m pytest
 ```
 
-Current verified status: `16 passed`.
+Current verified status: basic API + golden-path + JobSpy timeout suites.
+
+Golden-path acceptance (offline, synthetic provider fallback):
+
+```powershell
+cd D:\resume-agent\backend
+.\venv\Scripts\activate
+pytest tests/test_golden_path.py -v
+python -m scripts.run_golden_path
+```
 
 Frontend build:
 

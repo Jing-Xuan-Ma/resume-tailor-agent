@@ -235,6 +235,11 @@ modules/
   - work_authorization 在部分页面不存在（EEO 问题是独立的 gender/disability 等字段）
   - 表单 ID 实为 `application-form`（连字符），但选择器通过 `#first_name` 等 ID 定位，不影响现有功能
   - 建议优化: LinkedIn/Website 等自定义字段可考虑 `label[for^=question_]` 模式匹配，当前 label 回退已够用
+- [x] JobSpy 超时真正生效（shutdown wait=False）+ 回归测试（2026-07-31）
+- [x] 可演示金线验收：upload → auto-discover → tailor → prepare → manual confirm
+  - `pytest tests/test_golden_path.py`
+  - `python -m scripts.run_golden_path`
+  - 顺带修 auto-discover 从简历 experiences/summary 推导 query；JD 离线 fallback 用首行作 title
 - [ ] 逐站增强 Lever / Ashby / Workday 的真实页面填表 selector
 - [ ] 生产级冷外联发送：OAuth/Gmail API、退订/频控/合规、逐封显式确认
 - [ ] 生产部署前迁移 SQLite 到 PostgreSQL + Alembic migrations
