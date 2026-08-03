@@ -53,6 +53,25 @@ class ConfirmResponse(BaseModel):
     position: Optional[str] = None
 
 
+class StartApplyRequest(BaseModel):
+    user_id: str
+    mode: str  # manual | auto
+    company: Optional[str] = None
+    position: Optional[str] = None
+    final_path: Optional[str] = None
+
+
+class StartApplyResponse(BaseModel):
+    apply_id: str
+    mode: str
+    status: str
+    submitted: bool
+    paused_before_submit: bool
+    message: str
+    filled_fields: list[dict] = Field(default_factory=list)
+    final_path: Optional[str] = None
+
+
 class SuggestProjectRequest(BaseModel):
     user_id: str
     keyword: str

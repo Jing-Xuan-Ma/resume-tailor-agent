@@ -14,8 +14,11 @@ from app.modules.resume_workspace.schemas import (
     ListVersionsResponse,
     VersionItem,
     GetVersionResponse,
+    StartApplyRequest,
+    StartApplyResponse,
 )
 from app.modules.resume_workspace.service import ResumeWorkspaceService
+from app.modules.resume_workspace.apply_flow import start_apply, get_apply
 
 router = APIRouter()
 workspace_service = ResumeWorkspaceService()
@@ -69,6 +72,17 @@ async def confirm_version(version_id: str, user_id: str = Query(...)):
     result = workspace_service.confirm_version(version_id, user_id)
     if not result:
         raise HTTPException(status_code=404, detail="Version not found")
+    if result.get("blocked"):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": "blocked_by_evidence_guard",
+                "reason": result.get("reason"),
+                "issues": result.get("issues") or [],
+                "evidence_check": result.get("evidence_check") or {},
+                "format_check": result.get("format_check") or {},
+            },
+        )
     return ConfirmResponse(
         ok=True,
         version_id=version_id,
@@ -76,6 +90,51 @@ async def confirm_version(version_id: str, user_id: str = Query(...)):
         files=result.get("files") or {},
         company=result.get("company"),
         position=result.get("position"),
+    )
+
+
+@router.post("/resume-version/{version_id}/start-apply", response_model=StartApplyResponse)
+async def start_apply_endpoint(version_id: str, request: StartApplyRequest):
+    mode = (request.mode or "").lower().strip()
+    if mode not in {"manual", "auto"}:
+        raise HTTPException(status_code=400, detail="mode must be manual or auto")
+    try:
+        payload = start_apply(
+            user_id=request.user_id,
+            version_id=version_id,
+            mode=mode,  # type: ignore[arg-type]
+            company=request.company,
+            position=request.position,
+            final_path=request.final_path,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return StartApplyResponse(
+        apply_id=payload["id"],
+        mode=payload["mode"],
+        status=payload["status"],
+        submitted=bool(payload.get("submitted")),
+        paused_before_submit=bool(payload.get("paused_before_submit")),
+        message=payload["message"],
+        filled_fields=payload.get("filled_fields") or [],
+        final_path=payload.get("final_path"),
+    )
+
+
+@router.get("/apply/{apply_id}", response_model=StartApplyResponse)
+async def get_apply_endpoint(apply_id: str):
+    payload = get_apply(apply_id)
+    if not payload:
+        raise HTTPException(status_code=404, detail="Apply session not found")
+    return StartApplyResponse(
+        apply_id=payload["id"],
+        mode=payload["mode"],
+        status=payload["status"],
+        submitted=bool(payload.get("submitted")),
+        paused_before_submit=bool(payload.get("paused_before_submit")),
+        message=payload["message"],
+        filled_fields=payload.get("filled_fields") or [],
+        final_path=payload.get("final_path"),
     )
 
 

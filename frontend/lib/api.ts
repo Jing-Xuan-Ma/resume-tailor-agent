@@ -591,6 +591,35 @@ export async function rewriteResume(
   );
 }
 
+export interface StartApplyResponse {
+  apply_id: string;
+  mode: string;
+  status: string;
+  submitted: boolean;
+  paused_before_submit: boolean;
+  message: string;
+  filled_fields: Array<Record<string, unknown>>;
+  final_path?: string;
+}
+
+export async function startApply(
+  version_id: string,
+  user_id: string,
+  mode: "manual" | "auto",
+  opts?: { company?: string; position?: string; final_path?: string }
+): Promise<StartApplyResponse> {
+  return post<StartApplyResponse>(
+    `/api/v1/resume-workspace/resume-version/${version_id}/start-apply`,
+    {
+      user_id,
+      mode,
+      company: opts?.company,
+      position: opts?.position,
+      final_path: opts?.final_path,
+    }
+  );
+}
+
 export async function confirmVersion(
   version_id: string,
   user_id: string

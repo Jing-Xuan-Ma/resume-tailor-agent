@@ -13,12 +13,14 @@ import {
   getVersionPreviewUrl,
   uploadTemplate,
   getActiveTemplate,
+  startApply,
 } from "@/lib/api";
 import JdPanel from "@/components/jd-panel";
 import WorkspaceChat from "@/components/workspace-chat";
 import VersionTabs from "@/components/version-tabs";
 import KeywordGapSection from "@/components/keyword-gap-section";
 import ResumeDiff, { ContentDelta } from "@/components/resume-diff";
+import ApplyModePanel from "@/components/apply-mode-panel";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
@@ -78,6 +80,11 @@ export default function ResumeWorkspace({ userId, initialJobId }: ResumeWorkspac
   const [uploadingTemplate, setUploadingTemplate] = useState(false);
   const [contentDelta, setContentDelta] = useState<ContentDelta | null>(null);
   const [finalSavePath, setFinalSavePath] = useState<string | null>(null);
+  const [confirmedMeta, setConfirmedMeta] = useState<{ company?: string; position?: string } | null>(null);
+  const [applyBusy, setApplyBusy] = useState(false);
+  const [applyStatus, setApplyStatus] = useState<string | null>(null);
+  const [applyMessage, setApplyMessage] = useState<string | null>(null);
+  const [pausedBeforeSubmit, setPausedBeforeSubmit] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const initSession = useCallback(async (text: string) => {
@@ -174,9 +181,36 @@ export default function ResumeWorkspace({ userId, initialJobId }: ResumeWorkspac
       if (result.final_path) {
         setFinalSavePath(result.final_path);
       }
-    } catch {
+      setConfirmedMeta({ company: result.company, position: result.position });
+      setApplyStatus(null);
+      setApplyMessage(null);
+      setPausedBeforeSubmit(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Confirm blocked by evidence/format gate";
+      alert(msg);
     } finally {
       setConfirming(false);
+    }
+  };
+
+  const handleStartApply = async (mode: "manual" | "auto") => {
+    if (!activeVersionId) return;
+    setApplyBusy(true);
+    try {
+      const result = await startApply(activeVersionId, userId, mode, {
+        company: confirmedMeta?.company,
+        position: confirmedMeta?.position,
+        final_path: finalSavePath || undefined,
+      });
+      setApplyStatus(result.status);
+      setApplyMessage(result.message);
+      setPausedBeforeSubmit(Boolean(result.paused_before_submit));
+    } catch (err: unknown) {
+      setApplyStatus("error");
+      setApplyMessage(err instanceof Error ? err.message : "Apply failed");
+      setPausedBeforeSubmit(false);
+    } finally {
+      setApplyBusy(false);
     }
   };
 
@@ -217,6 +251,23 @@ export default function ResumeWorkspace({ userId, initialJobId }: ResumeWorkspac
   };
 
   const activeVersion = versions.find((v) => v.id === activeVersionId);
+  const evidenceCheck = (activeResume?.evidence_check || null) as
+    | { ok?: boolean; passed?: boolean; notes?: string; issues?: string[] }
+    | null;
+  const formatCheck = (activeResume?.format_check || null) as
+    | { fabrication?: boolean }
+    | null;
+  const evidencePassed =
+    evidenceCheck == null
+      ? true
+      : evidenceCheck.passed !== false && evidenceCheck.ok !== false;
+  const canConfirm =
+    evidencePassed && formatCheck?.fabrication !== true && activeResume?.requires_fix !== true;
+  const confirmBlockedReason = !canConfirm
+    ? evidenceCheck?.notes ||
+      (Array.isArray(evidenceCheck?.issues) && evidenceCheck.issues[0]) ||
+      "Evidence/format gate blocked confirm"
+    : null;
 
   return (
     <div className="flex min-w-0 flex-1 flex-col bg-[#eef2f7]">
@@ -253,6 +304,8 @@ export default function ResumeWorkspace({ userId, initialJobId }: ResumeWorkspac
                 onSelect={handleSelectVersion}
                 onConfirm={handleConfirm}
                 loading={confirming}
+                canConfirm={canConfirm}
+                confirmBlockedReason={confirmBlockedReason}
               />
               {finalSavePath ? (
                 <div
@@ -262,6 +315,15 @@ export default function ResumeWorkspace({ userId, initialJobId }: ResumeWorkspac
                   Final resume saved to: {finalSavePath}
                 </div>
               ) : null}
+              <ApplyModePanel
+                visible={Boolean(activeVersion?.is_confirmed)}
+                busy={applyBusy}
+                status={applyStatus}
+                message={applyMessage}
+                pausedBeforeSubmit={pausedBeforeSubmit}
+                onManual={() => handleStartApply("manual")}
+                onAuto={() => handleStartApply("auto")}
+              />
               <ResumeDiff delta={contentDelta} />
               <ResumePreviewSection
                 pdfPreviewUrl={pdfPreviewUrl}
