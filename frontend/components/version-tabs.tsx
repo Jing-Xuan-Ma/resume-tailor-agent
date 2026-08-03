@@ -8,6 +8,9 @@ interface VersionTabsProps {
   onSelect: (versionId: string) => void;
   onConfirm: (versionId: string) => void;
   loading?: boolean;
+  /** When false, Confirm is disabled (evidence/format gate). */
+  canConfirm?: boolean;
+  confirmBlockedReason?: string | null;
 }
 
 export default function VersionTabs({
@@ -16,6 +19,8 @@ export default function VersionTabs({
   onSelect,
   onConfirm,
   loading,
+  canConfirm = true,
+  confirmBlockedReason = null,
 }: VersionTabsProps) {
   if (!versions.length) {
     return (
@@ -51,18 +56,27 @@ export default function VersionTabs({
         );
       })}
 
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-2">
         {activeVersionId && (() => {
           const active = versions.find((v) => v.id === activeVersionId);
           if (!active || active.is_confirmed) return null;
           return (
-            <button
-              onClick={() => onConfirm(activeVersionId)}
-              disabled={loading}
-              className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50"
-            >
-              Confirm v{active.version_index}
-            </button>
+            <>
+              {!canConfirm && confirmBlockedReason ? (
+                <span className="max-w-[220px] truncate text-[11px] text-amber-700" title={confirmBlockedReason}>
+                  {confirmBlockedReason}
+                </span>
+              ) : null}
+              <button
+                type="button"
+                data-testid="confirm-version"
+                onClick={() => onConfirm(activeVersionId)}
+                disabled={loading || !canConfirm}
+                className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50"
+              >
+                Confirm v{active.version_index}
+              </button>
+            </>
           );
         })()}
       </div>

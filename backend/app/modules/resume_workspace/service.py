@@ -2,6 +2,7 @@ from pathlib import Path
 from copy import deepcopy
 
 from app import db
+from app.modules.resume_tailor.nodes.evidence_guard import EvidenceGuardNode
 from app.modules.resume_workspace.schemas import KeywordMatchItem
 from app.modules.resume_workspace.template_editor import ResumeTemplateEditor
 from app.modules.resume_workspace.diff import compute_resume_diff
@@ -173,6 +174,7 @@ class ResumeWorkspaceService:
 
     def __init__(self):
         self.template_editor = ResumeTemplateEditor()
+        self.evidence_guard = EvidenceGuardNode()
 
     def create_session(self, user_id: str, jd_text: str, job_id: str | None = None) -> dict:
         return db.create_jd_session(user_id=user_id, job_id=job_id, jd_text=jd_text)
@@ -290,6 +292,8 @@ class ResumeWorkspaceService:
         tailored = self._content_only_tailor(projected, instruction, jd_text)
         tailored["hidden_entries"] = projected.get("hidden_entries") or []
         gate = run_quality_gate(tailored, jd_text)
+        evidence = await self.evidence_guard.verify(source_master, tailored)
+        evidence_ok = bool(evidence.get("passed"))
         tailored["format_check"] = {
             "single_page": "content likely exceeds one page" not in gate["errors"],
             "section_order_ok": True,
@@ -297,15 +301,23 @@ class ResumeWorkspaceService:
             "quality_gate": gate,
         }
         tailored["evidence_check"] = {
-            "ok": not any("evidence_from" in e for e in gate["errors"]),
-            "notes": "; ".join(gate["errors"][:3]) if gate["errors"] else "ok",
+            "ok": evidence_ok,
+            "passed": evidence_ok,
+            "issues": evidence.get("issues") or [],
+            "confidence": evidence.get("confidence"),
+            "notes": (
+                "; ".join((evidence.get("issues") or [])[:3])
+                if evidence.get("issues")
+                else "ok"
+            ),
         }
-        if not gate["ok"]:
-            # Soft-block: still create version but mark requires_fix for UI
+        if not gate["ok"] or not evidence_ok:
+            # Soft-block: still create version but mark requires_fix for UI / confirm gate
             tailored["requires_fix"] = True
         content_delta = compute_resume_diff(source_master, tailored)
         content_delta["instruction"] = instruction
         content_delta["quality_gate"] = gate
+        content_delta["evidence_check"] = tailored["evidence_check"]
 
         self._trim_versions(session_id, user_id)
         version_index = db.get_latest_version_index(session_id, user_id) + 1
@@ -386,12 +398,30 @@ class ResumeWorkspaceService:
         version = db.get_resume_version(version_id, user_id)
         if not version:
             return None
+
+        full_resume = version.get("full_resume") or {}
+        evidence = full_resume.get("evidence_check") or {}
+        format_check = full_resume.get("format_check") or {}
+        evidence_ok = evidence.get("passed")
+        if evidence_ok is None:
+            evidence_ok = evidence.get("ok", True)
+        if evidence_ok is False or format_check.get("fabrication") is True:
+            return {
+                "ok": False,
+                "blocked": True,
+                "version_id": version_id,
+                "reason": "evidence_or_format_gate",
+                "issues": evidence.get("issues") or [],
+                "evidence_check": evidence,
+                "format_check": format_check,
+            }
+
         ok = db.confirm_resume_version(version_id, user_id)
         if not ok:
             return None
 
         session = db.get_jd_session(version["session_id"]) or {}
-        company, position = extract_company_position(version["full_resume"], session)
+        company, position = extract_company_position(full_resume, session)
         docx_bytes = self._get_version_file(version_id, "docx")
         pdf_bytes = self._get_version_file(version_id, "pdf")
         if not docx_bytes:
@@ -405,7 +435,7 @@ class ResumeWorkspaceService:
             position=position,
             version_id=version_id,
             markdown=version.get("markdown") or "",
-            full_resume=version["full_resume"],
+            full_resume=full_resume,
             docx_bytes=docx_bytes,
             pdf_bytes=pdf_bytes,
         )

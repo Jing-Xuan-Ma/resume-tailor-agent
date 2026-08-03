@@ -85,12 +85,30 @@ def main() -> None:
         payload = {}
 
     status = (payload.get("status") or "").lower()
-    # Only auto-continue clean completions; respect user abort.
-    if status and status not in {"completed", "success", ""}:
+    mode = (
+        payload.get("composer_mode")
+        or payload.get("mode")
+        or payload.get("chat_mode")
+        or ""
+    ).lower()
+    # Never auto-continue Ask/Edit chats (prevents cross-agent mission loops).
+    if mode in {"ask", "edit"}:
         print(json.dumps({}))
         return
 
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
+    # Stop button / abort → disarm auto-continue (no manual PAUSE file needed).
+    if status and status not in {"completed", "success", ""}:
+        pause = ARTIFACTS / "AUTONOMOUS_PAUSE"
+        if not pause.exists():
+            pause.write_text(
+                f"Auto-paused on agent stop (status={status or 'unknown'}).\n"
+                "Delete this file and say go to resume.\n",
+                encoding="utf-8",
+            )
+        print(json.dumps({}))
+        return
+
     if (ARTIFACTS / "AUTONOMOUS_PAUSE").exists():
         print(json.dumps({}))
         return
