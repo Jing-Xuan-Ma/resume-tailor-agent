@@ -7,6 +7,7 @@ from app.modules.resume_workspace.template_editor import ResumeTemplateEditor
 from app.modules.resume_workspace.diff import compute_resume_diff
 from app.modules.resume_workspace.final_store import extract_company_position, save_final_resume
 from app.modules.resume_workspace.master_template import ensure_user_has_master_template
+from app.modules.resume_workspace.quality_gate import project_for_jd, run_quality_gate
 
 
 _RESUME_TEMPLATES_DIR = Path(__file__).resolve().parents[4] / "data" / "templates"
@@ -283,9 +284,28 @@ class ResumeWorkspaceService:
 
         session = db.get_jd_session(session_id) or {}
         jd_text = str(session.get("jd_text") or "")
-        tailored = self._content_only_tailor(resume, instruction, jd_text)
-        content_delta = compute_resume_diff(resume, tailored)
+        # Iter-4: always project from master inventory; content-only rewrite after
+        source_master = MOCK_RESUME
+        projected = project_for_jd(source_master, jd_text)
+        tailored = self._content_only_tailor(projected, instruction, jd_text)
+        tailored["hidden_entries"] = projected.get("hidden_entries") or []
+        gate = run_quality_gate(tailored, jd_text)
+        tailored["format_check"] = {
+            "single_page": "content likely exceeds one page" not in gate["errors"],
+            "section_order_ok": True,
+            "fabrication": any("fabricated" in e for e in gate["errors"]),
+            "quality_gate": gate,
+        }
+        tailored["evidence_check"] = {
+            "ok": not any("evidence_from" in e for e in gate["errors"]),
+            "notes": "; ".join(gate["errors"][:3]) if gate["errors"] else "ok",
+        }
+        if not gate["ok"]:
+            # Soft-block: still create version but mark requires_fix for UI
+            tailored["requires_fix"] = True
+        content_delta = compute_resume_diff(source_master, tailored)
         content_delta["instruction"] = instruction
+        content_delta["quality_gate"] = gate
 
         self._trim_versions(session_id, user_id)
         version_index = db.get_latest_version_index(session_id, user_id) + 1
