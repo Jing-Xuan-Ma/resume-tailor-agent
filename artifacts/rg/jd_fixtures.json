@@ -1,0 +1,62 @@
+[
+  {
+    "id": "jd01_da_sql_tableau",
+    "title": "Data Analyst",
+    "company": "Contoso Insights",
+    "jd_text": "Data Analyst\nCompany: Contoso Insights\nRequirements: advanced SQL, Tableau dashboards, Python data cleaning, stakeholder reporting, ETL pipelines, Excel.\nResponsibilities: build dashboards, clean datasets, present insights to business stakeholders."
+  },
+  {
+    "id": "jd02_analytics_engineer",
+    "title": "Analytics Engineer",
+    "company": "Streamly",
+    "jd_text": "Analytics Engineer\nCompany: Streamly\nRequirements: Python, SQL, Apache Airflow, ETL, data modeling, Tableau, technical documentation.\nBuild reliable pipelines and analytics-ready tables."
+  },
+  {
+    "id": "jd03_risk_analyst",
+    "title": "Risk Analyst Intern",
+    "company": "Harbor Insurance",
+    "jd_text": "Risk Analyst Intern\nCompany: Harbor Insurance\nRequirements: credit risk, Monte Carlo, Python, R, claims modeling, statistical modeling, SQL, probability.\nSupport pricing and reserving analytics."
+  },
+  {
+    "id": "jd04_quant_analytics",
+    "title": "Quantitative Analytics Intern",
+    "company": "Shen Capital Desk",
+    "jd_text": "Quantitative Analytics Intern\nRequirements: Python, C++, Monte Carlo simulation, pricing models, performance benchmarking, SQL.\nEvaluate computational approaches for pricing libraries."
+  },
+  {
+    "id": "jd05_bi_analyst",
+    "title": "Business Intelligence Analyst",
+    "company": "Northwind Retail",
+    "jd_text": "BI Analyst\nRequirements: Tableau, SQL, Excel, stakeholder communication, dashboard development, KPI reporting.\nTranslate metrics into narratives for marketing and ops."
+  },
+  {
+    "id": "jd06_junior_ds",
+    "title": "Junior Data Scientist",
+    "company": "ModelWorks",
+    "jd_text": "Junior Data Scientist\nRequirements: Python, scikit-learn, XGBoost, feature engineering, model evaluation, SQL, ROC-AUC.\nDo not invent cloud experience if not present."
+  },
+  {
+    "id": "jd07_short_jd",
+    "title": "Data Analyst",
+    "company": "BriefCo",
+    "jd_text": "Data Analyst. SQL and Python required. Remote."
+  },
+  {
+    "id": "jd08_long_jd",
+    "title": "Senior Data Analyst",
+    "company": "OmniCorp",
+    "jd_text": "Senior Data Analyst\nMust have: SQL, Python, R, Tableau, Airflow, ETL, data cleaning, feature engineering, A/B testing, statistics, hypothesis testing, stakeholder management, documentation, Excel, Spark, dbt, BigQuery, Looker, Power BI, machine learning, XGBoost, scikit-learn, Monte Carlo, credit risk, claims, financial modeling, optimization, NLP, LLMs, AWS, Azure, GCP.\nPrefer 5+ years experience."
+  },
+  {
+    "id": "jd09_weak_match",
+    "title": "Frontend Engineer",
+    "company": "Pixel Labs",
+    "jd_text": "Frontend Engineer\nRequirements: React, TypeScript, CSS, accessibility, design systems.\nNo data stack required."
+  },
+  {
+    "id": "jd10_ops_analytics",
+    "title": "Operations Analyst",
+    "company": "FleetMetrics",
+    "jd_text": "Operations Analyst\nRequirements: SQL, Python, dashboarding, stakeholder reporting, process automation, Excel, quality risk indicators.\nExperience with large operational datasets preferred."
+  }
+]

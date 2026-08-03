@@ -7,8 +7,10 @@ from app.modules.resume_workspace.schemas import KeywordMatchItem
 from app.modules.resume_workspace.template_editor import ResumeTemplateEditor
 from app.modules.resume_workspace.diff import compute_resume_diff
 from app.modules.resume_workspace.final_store import extract_company_position, save_final_resume
-from app.modules.resume_workspace.master_template import ensure_user_has_master_template
+from app.modules.resume_workspace.master_template import ensure_user_has_master_template, ensure_master_template_bytes
+from app.modules.resume_workspace.master_inject import inject_content
 from app.modules.resume_workspace.quality_gate import project_for_jd, run_quality_gate
+from app.modules.resume_workspace.format_lock import fingerprint_docx, compare_fingerprints
 
 
 _RESUME_TEMPLATES_DIR = Path(__file__).resolve().parents[4] / "data" / "templates"
@@ -94,6 +96,52 @@ MOCK_RESUME = {
     ],
     "projects": [
         {
+            "name": "Credit Risk Prediction Model",
+            "tools": ["Python", "SQL", "scikit-learn", "XGBoost", "R"],
+            "context": "Independent Project",
+            "date_range": "",
+            "bullets": [
+                {
+                    "text": "To build and adapt algorithms for complex risk use cases, designed an end-to-end predictive pipeline integrating SQL-style extraction, missing-value treatment, feature engineering, and statistical modeling to estimate expected claim costs and credit default behavior",
+                    "evidence_from": "credit_proj_1",
+                    "original_text": "To build and adapt algorithms for complex risk use cases, designed an end-to-end predictive pipeline integrating SQL-style extraction, missing-value treatment, feature engineering, and statistical modeling to estimate expected claim costs and credit default behavior",
+                },
+                {
+                    "text": "Applied advanced statistics and machine learning libraries (scikit-learn, XGBoost) to train, evaluate, and benchmark regression and tree-based models, leveraging ROC-AUC, F1-score, and cost drivers to balance predictive accuracy with business interpretability.",
+                    "evidence_from": "credit_proj_2",
+                    "original_text": "Applied advanced statistics and machine learning libraries (scikit-learn, XGBoost) to train, evaluate, and benchmark regression and tree-based models, leveraging ROC-AUC, F1-score, and cost drivers to balance predictive accuracy with business interpretability.",
+                },
+                {
+                    "text": "Extended the framework with stochastic modeling via Monte Carlo simulations to analyze skewed loss distributions, interpreting error patterns to translate quantitative outputs into risk-monitoring thresholds and optimized decision-making insights.",
+                    "evidence_from": "credit_proj_3",
+                    "original_text": "Extended the framework with stochastic modeling via Monte Carlo simulations to analyze skewed loss distributions, interpreting error patterns to translate quantitative outputs into risk-monitoring thresholds and optimized decision-making insights.",
+                },
+            ],
+        },
+        {
+            "name": "Insurance Claims Severity Modeling",
+            "tools": ["Python", "R", "pandas", "scikit-learn", "Monte Carlo Simulation"],
+            "context": "Independent Project",
+            "date_range": "",
+            "bullets": [
+                {
+                    "text": "To estimate claim severity across heterogeneous policy segments, collected and cleaned historical claims data and engineered exposure- and policy-level features to support distributional analysis of loss costs",
+                    "evidence_from": "claims_proj_1",
+                    "original_text": "To estimate claim severity across heterogeneous policy segments, collected and cleaned historical claims data and engineered exposure- and policy-level features to support distributional analysis of loss costs",
+                },
+                {
+                    "text": "Analyzed skewed loss distributions, outliers, and cost drivers; compared regression and tree-based approaches to evaluate trade-offs among predictive accuracy, robustness, and business interpretability for underwriting and reserving use cases",
+                    "evidence_from": "claims_proj_2",
+                    "original_text": "Analyzed skewed loss distributions, outliers, and cost drivers; compared regression and tree-based approaches to evaluate trade-offs among predictive accuracy, robustness, and business interpretability for underwriting and reserving use cases",
+                },
+                {
+                    "text": "Extended the modeling framework with Monte Carlo simulation and performance-benchmarking concepts to evaluate scalable pricing workflows, translating model outputs into risk segmentation, pricing review, and portfolio-level reporting insights",
+                    "evidence_from": "claims_proj_3",
+                    "original_text": "Extended the modeling framework with Monte Carlo simulation and performance-benchmarking concepts to evaluate scalable pricing workflows, translating model outputs into risk segmentation, pricing review, and portfolio-level reporting insights",
+                },
+            ],
+        },
+        {
             "name": "Tesla Vehicle Quality & Risk Analytics Pipeline",
             "tools": ["Python", "Apache Airflow", "SQL", "Tableau", "NHTSA API"],
             "context": "Independent Project",
@@ -115,7 +163,7 @@ MOCK_RESUME = {
                     "original_text": "Built and published an interactive Tableau dashboard visualizing component-level risk rankings and recall-lag trends (first complaint to official recall), translating 11,349 complaint records into decision-ready risk insights for quality and safety stakeholders.",
                 },
             ],
-        }
+        },
     ],
     "skills_certifications": (
         "Python, R, SQL, Tableau, Apache Airflow, data cleaning, feature engineering, "
@@ -218,21 +266,26 @@ class ResumeWorkspaceService:
         instr = (instruction or "").lower()
         jd_l = (jd_text or "").lower()
 
-        # Summary: re-emphasize DA keywords already in inventory (no fabrication)
+        # Summary: re-emphasize inventory keywords only when JD is analytics-related
         base_summary = str(resume.get("summary") or "")
+        analytics_signal = any(
+            k in jd_l for k in ("sql", "python", "tableau", "analyst", "data", "etl", "airflow", "risk", "statistic")
+)
         boosts = []
-        for kw in ("SQL", "Tableau", "Python", "ETL", "Airflow", "stakeholder", "risk", "dashboard"):
-            if kw.lower() in jd_l or kw.lower() in instr:
-                if kw.lower() in base_summary.lower() or kw.lower() in str(resume.get("skills_certifications", "")).lower():
-                    boosts.append(kw)
+        if analytics_signal:
+            for kw in ("SQL", "Tableau", "Python", "ETL", "Airflow", "stakeholder", "risk", "dashboard"):
+                if kw.lower() in jd_l or kw.lower() in instr:
+                    if kw.lower() in base_summary.lower() or kw.lower() in str(resume.get("skills_certifications", "")).lower():
+                        boosts.append(kw)
         if boosts:
             tailored["summary"] = (
                 f"Data Analyst candidate (JHU Data Science M.S.) focused on {', '.join(boosts[:4])}. "
                 + base_summary
             )
-            # Keep roughly one paragraph; constitution ≤3 lines — trim hard if huge
             if len(tailored["summary"]) > 420:
                 tailored["summary"] = tailored["summary"][:417].rstrip() + "..."
+        else:
+            tailored["summary"] = base_summary
 
         # Reorder skills: JD-mentioned inventory skills first
         skills_raw = str(resume.get("skills_certifications") or "")
@@ -328,7 +381,20 @@ class ResumeWorkspaceService:
         template_docx: bytes | None = None
         template_replacements: dict[str, str] = {}
 
-        if template_record and template_record.get("docx_bytes"):
+        # Prefer master DOCX content-only injection (format lock)
+        master_bytes = ensure_master_template_bytes()
+        if master_bytes:
+            try:
+                template_docx = inject_content(master_bytes, tailored, MOCK_RESUME)
+                fp_m = fingerprint_docx(master_bytes)
+                fp_g = fingerprint_docx(template_docx)
+                fmt_cmp = compare_fingerprints(fp_m, fp_g)
+                content_delta["format_lock"] = fmt_cmp
+            except Exception as exc:
+                content_delta["format_lock_error"] = str(exc)
+                template_docx = None
+
+        if template_docx is None and template_record and template_record.get("docx_bytes"):
             template_docx = template_record["docx_bytes"]
             try:
                 self.template_editor.load_template(template_docx)
