@@ -1,0 +1,16 @@
+---
+description: Enforce RESUME_CONSTITUTION.md for all resume tailor/export work
+globs: backend/app/modules/resume_tailor/**/*.{py,txt,md}
+alwaysApply: true
+---
+
+# Resume Constitution Binding
+
+When creating, editing, tailoring, exporting, or reviewing resumes:
+
+1. Read and obey `RESUME_CONSTITUTION.md` as the highest policy.
+2. Never fabricate. Every bullet needs evidence.
+3. Never alter the visual master template layout; content-only via structured JSON + template slot replacement.
+4. One-page projection: show/hide experiences by JD relevance; keep last 3 versions; final save only after user confirm to `data/final_resumes/{Company}_{Position}/`.
+5. Master file `d:\Jingxuan's Resumes\Jingxuan_Resume_Data Analyst.docx` is read-only.
+6. If implementation drifts from the constitution, fix the code/prompts to match the constitution — do not weaken the constitution.

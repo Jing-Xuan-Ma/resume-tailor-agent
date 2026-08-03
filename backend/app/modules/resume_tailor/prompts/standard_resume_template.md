@@ -34,13 +34,15 @@ Python, R, SQL, C, C++, SPSS; data cleaning, feature engineering, exploratory an
 
 ## Strict Rules
 
+Canonical policy: repository root `RESUME_CONSTITUTION.md` (wins on conflict).
+
 1. Single-page layout. Header is centered: bold name, then one contact line separated by ` | `.
 2. Summary is a paragraph of no more than 3 lines. It has no section title and appears immediately after contact.
 3. Section order is fixed: EDUCATION, PROFESSIONAL EXPERIENCE, PROJECTS, COMPETITIONS, SKILLS & CERTIFICATIONS. Omit empty sections, but never reorder.
 4. Section headings are uppercase and bold.
 5. Entry heading format: `[Name] | [Tools/Company] — [City/Context] — [Date]`. In Word/PDF, the date should visually align right when possible.
-6. Each professional experience/project must have exactly 3 bullets when the source/reference entry has 3 bullets. Preserve the original bullet count and section count unless the user explicitly asks to shorten or expand.
+6. Master inventory entries default to 3 bullets. Delivery projections may hide whole entries or compress to 2 bullets to fit one page and match the JD; never invent new entries.
 7. Each bullet follows situation-action-result: start with context/goal, describe concrete action with a strong verb, end with evidence-backed result/impact when the source supports it.
-8. Skills are a comma/semicolon-separated keyword string, never bullet points.
+8. Skills are a comma/semicolon-separated keyword string, never bullet points. Reorder/subset by JD; do not dump the full inventory every time.
 9. Do not fabricate tools, numbers, companies, titles, dates, degrees, certifications, project scope, or outcomes.
-10. Before final output, self-check whether the result fits one page, avoids fabrication, and follows every format rule above.
+10. Before final output, self-check whether the result fits one page, avoids fabrication, and follows every format rule above and `RESUME_CONSTITUTION.md`.

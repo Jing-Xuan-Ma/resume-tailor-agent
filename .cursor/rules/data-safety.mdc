@@ -1,0 +1,31 @@
+---
+description: Never delete important user data; safe autonomous cleanup only
+alwaysApply: true
+---
+
+# Data Safety (Autonomous Mode)
+
+## Never delete or overwrite
+
+- User personal files outside this repo (especially `d:\Jingxuan's Resumes\`, Desktop, Documents, Downloads)
+- `.env`, credentials, API keys, tokens, browser profiles with login state
+- Git history via `push --force`, `git clean -fdx` on unknown paths, or wiping unrelated drives
+- Production databases or anything outside `d:\resume-agent`
+- The master resume templates in `d:\Jingxuan's Resumes\` (read-only reference; copy into repo if needed)
+
+## Allowed cleanup (project-local only)
+
+- `artifacts/` old screenshots/reports when regenerating the same iter
+- `__pycache__/`, `.next/`, `node_modules/.cache/`, pytest caches inside the repo
+- Generated files under `data/` that the app itself creates (drafts, artifacts), except do not wipe all of `data/` blindly
+- Temp scripts you created in the repo (e.g. `_tmp_*.py`)
+
+## Destructive git
+
+- `git reset --hard` only to a known `checkpoint/iter-*-pass` tag **in this repo** after a failed iteration
+- Never delete remote branches or force-push to `main`
+
+## Auto-apply boundary
+
+- Browser automation may fill forms and upload files for testing
+- **Must stop before Submit**; never confirm real job applications unless the user later overrides this rule explicitly

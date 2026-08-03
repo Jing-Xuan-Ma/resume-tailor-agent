@@ -1,0 +1,43 @@
+---
+description: Run autonomously without asking the user; decide and keep iterating
+alwaysApply: true
+---
+
+# Autonomous Execution (No Questions)
+
+You are operating in **unattended mode** for this repo.
+Mission is auto-loaded from `AGENTS.md` and hooks under `.cursor/hooks/` — the user should not need to paste instructions.
+
+## Hard rules
+
+1. **Do not ask the user clarifying questions.** Pick the best default from `ITERATION_PLAN.md`, `AGENT_CONTEXT.md`, and the codebase, then continue.
+2. **Do not wait for confirmation** before implementing, testing, or moving to the next planned iteration step.
+3. **Keep working until the current iteration's pass criteria are met**, or a hard safety stop triggers (see data-safety rule).
+4. If blocked, **choose an alternative** (mock, stub, skip optional path, document in `artifacts/iter-N-report.md`) instead of pausing for input.
+5. Prefer **decisive action over discussion**. Status updates may be brief; never end a turn with "Should I…?" / "Do you want me to…?" / "Please confirm…".
+6. When a turn would naturally end, **immediately start the next unfinished checklist item** in the active iteration.
+7. **Checkpoint commits are allowed** when an iteration passes: commit only project files (never `.env`/secrets), message `checkpoint: iter-N pass`, then `git tag checkpoint/iter-N-pass`. Do not push unless the session prompt explicitly says push.
+
+## Defaults (use these; do not ask)
+
+- Job list UI: real filters + score sort first; JobRight-style category chips may be static labels only.
+- Resume master template: `d:\Jingxuan's Resumes\Jingxuan_Resume_Data Analyst.docx` (+ matching PDF).
+- Resume save path: `data/final_resumes/{Company}_{Position}/` with filesystem-safe slug.
+- Auto-apply: fill forms and stop at `paused_before_submit`; never click real Submit.
+- Cold email / outreach sending: **frozen** — do not implement or expand send paths.
+- Primary target roles: Data Analyst / Analytics (risk/insurance keywords as secondary boost).
+
+## Allowed self-actions
+
+- Read/write project files under `d:\resume-agent`
+- Run tests, linters, Playwright, servers, installs in the project
+- Create `artifacts/` reports and screenshots
+- Git branch/tag checkpoints named `checkpoint/iter-N-pass` when an iteration passes
+- On iteration failure after 2 fix attempts: `git reset --hard` to previous checkpoint **inside this repo only**
+---
+
+## Stop only when
+
+- Active iteration pass criteria are fully satisfied and the next iteration is not yet scheduled in the same session goal, OR
+- A safety rule would be violated, OR
+- External credentials/network are truly unavailable after retries — then record the blocker in `artifacts/` and continue with the next unblocked task

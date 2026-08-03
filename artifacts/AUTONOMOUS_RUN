@@ -1,0 +1,6 @@
+Autonomous iteration ENABLED.
+
+Cursor stop-hook will auto-continue Agent turns while this file exists.
+
+To pause: create artifacts/AUTONOMOUS_PAUSE (or delete this file).
+To mark finished: create artifacts/AUTONOMOUS_DONE (also auto-created after Iter-8).
