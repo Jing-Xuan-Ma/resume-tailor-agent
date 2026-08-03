@@ -60,15 +60,23 @@ async def rewrite_resume(session_id: str, request: RewriteRequest):
         full_resume=result["full_resume"],
         markdown=result["markdown"],
         keyword_matches=[KeywordMatchItem(**m) for m in result["keyword_matches"]],
+        content_delta=result.get("content_delta") or {},
     )
 
 
 @router.post("/resume-version/{version_id}/confirm", response_model=ConfirmResponse)
 async def confirm_version(version_id: str, user_id: str = Query(...)):
-    ok = workspace_service.confirm_version(version_id, user_id)
-    if not ok:
+    result = workspace_service.confirm_version(version_id, user_id)
+    if not result:
         raise HTTPException(status_code=404, detail="Version not found")
-    return ConfirmResponse(ok=True, version_id=version_id)
+    return ConfirmResponse(
+        ok=True,
+        version_id=version_id,
+        final_path=result.get("final_path"),
+        files=result.get("files") or {},
+        company=result.get("company"),
+        position=result.get("position"),
+    )
 
 
 @router.post("/resume-version/{version_id}/suggest-project", response_model=SuggestProjectResponse)

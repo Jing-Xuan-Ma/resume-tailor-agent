@@ -512,6 +512,18 @@ export interface AnalyzeResponse {
   keyword_matches: KeywordMatchItem[];
 }
 
+export interface ContentDelta {
+  changed_fields?: string[];
+  changes?: Array<{
+    path: string;
+    kind: string;
+    before?: string;
+    after?: string;
+  }>;
+  change_count?: number;
+  instruction?: string;
+}
+
 export interface RewriteResponse {
   new_version_id: string;
   session_id: string;
@@ -519,6 +531,7 @@ export interface RewriteResponse {
   full_resume: unknown;
   markdown: string;
   keyword_matches: KeywordMatchItem[];
+  content_delta?: ContentDelta;
 }
 
 export interface VersionItem {
@@ -581,7 +594,14 @@ export async function rewriteResume(
 export async function confirmVersion(
   version_id: string,
   user_id: string
-): Promise<{ ok: boolean; version_id: string }> {
+): Promise<{
+  ok: boolean;
+  version_id: string;
+  final_path?: string;
+  files?: Record<string, string>;
+  company?: string;
+  position?: string;
+}> {
   const params = new URLSearchParams({ user_id });
   const res = await fetch(
     `${API_BASE}/api/v1/resume-workspace/resume-version/${version_id}/confirm?${params}`,

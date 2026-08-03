@@ -41,11 +41,16 @@ class RewriteResponse(BaseModel):
     full_resume: dict
     markdown: str
     keyword_matches: list[KeywordMatchItem]
+    content_delta: dict = Field(default_factory=dict)
 
 
 class ConfirmResponse(BaseModel):
     ok: bool
     version_id: str
+    final_path: Optional[str] = None
+    files: dict = Field(default_factory=dict)
+    company: Optional[str] = None
+    position: Optional[str] = None
 
 
 class SuggestProjectRequest(BaseModel):

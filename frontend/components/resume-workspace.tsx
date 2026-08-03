@@ -18,6 +18,7 @@ import JdPanel from "@/components/jd-panel";
 import WorkspaceChat from "@/components/workspace-chat";
 import VersionTabs from "@/components/version-tabs";
 import KeywordGapSection from "@/components/keyword-gap-section";
+import ResumeDiff, { ContentDelta } from "@/components/resume-diff";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
@@ -75,6 +76,8 @@ export default function ResumeWorkspace({ userId, initialJobId }: ResumeWorkspac
   const [initialized, setInitialized] = useState(false);
   const [templateInfo, setTemplateInfo] = useState<{ filename: string; block_count: number } | null>(null);
   const [uploadingTemplate, setUploadingTemplate] = useState(false);
+  const [contentDelta, setContentDelta] = useState<ContentDelta | null>(null);
+  const [finalSavePath, setFinalSavePath] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const initSession = useCallback(async (text: string) => {
@@ -122,6 +125,8 @@ export default function ResumeWorkspace({ userId, initialJobId }: ResumeWorkspac
       setKeywordMatches(result.keyword_matches);
       const resumeData = result.full_resume as Record<string, unknown>;
       setActiveResume(resumeData);
+      setContentDelta((result.content_delta as ContentDelta) || null);
+      setFinalSavePath(null);
 
       const v: VersionItem = {
         id: result.new_version_id,
@@ -133,8 +138,9 @@ export default function ResumeWorkspace({ userId, initialJobId }: ResumeWorkspac
       setVersions((prev) => {
         const existing = prev.find((x) => x.id === v.id);
         if (existing) return prev;
+        // current + 3 previous
         const updated = [...prev, v].sort((a, b) => a.version_index - b.version_index);
-        if (updated.length > 5) updated.shift();
+        while (updated.length > 4) updated.shift();
         return updated;
       });
 
@@ -152,6 +158,7 @@ export default function ResumeWorkspace({ userId, initialJobId }: ResumeWorkspac
     try {
       const v = await getVersion(versionId, userId);
       setActiveResume(v.full_resume as Record<string, unknown>);
+      setContentDelta((v.content_delta as ContentDelta) || null);
     } catch {
       setPdfPreviewUrl(null);
     }
@@ -160,10 +167,13 @@ export default function ResumeWorkspace({ userId, initialJobId }: ResumeWorkspac
   const handleConfirm = async (versionId: string) => {
     setConfirming(true);
     try {
-      await confirmVersion(versionId, userId);
+      const result = await confirmVersion(versionId, userId);
       setVersions((prev) =>
         prev.map((v) => (v.id === versionId ? { ...v, is_confirmed: true } : v))
       );
+      if (result.final_path) {
+        setFinalSavePath(result.final_path);
+      }
     } catch {
     } finally {
       setConfirming(false);
@@ -244,6 +254,15 @@ export default function ResumeWorkspace({ userId, initialJobId }: ResumeWorkspac
                 onConfirm={handleConfirm}
                 loading={confirming}
               />
+              {finalSavePath ? (
+                <div
+                  data-testid="final-save-banner"
+                  className="rounded-xl bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200"
+                >
+                  Final resume saved to: {finalSavePath}
+                </div>
+              ) : null}
+              <ResumeDiff delta={contentDelta} />
               <ResumePreviewSection
                 pdfPreviewUrl={pdfPreviewUrl}
                 numPages={numPages}
