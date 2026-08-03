@@ -1,0 +1,36 @@
+{
+  "apply_id": "57800732-1fa7-49a8-ae9e-ab8b5bd5e8b0",
+  "mode": "auto",
+  "status": "paused_before_submit",
+  "submitted": false,
+  "paused_before_submit": true,
+  "message": "Auto-apply dry run filled profile fields and attached the confirmed resume, then stopped before Submit (safety boundary).",
+  "filled_fields": [
+    {
+      "field": "full_name",
+      "value": "Jingxuan Ma"
+    },
+    {
+      "field": "email",
+      "value": "jma107@jh.edu"
+    },
+    {
+      "field": "phone",
+      "value": "+1 (410) 240-4366"
+    },
+    {
+      "field": "linkedin",
+      "value": "LinkedIn"
+    },
+    {
+      "field": "resume_upload",
+      "value": "D:\\resume-agent\\data\\final_resumes\\DryRun_Corp_Data_Analyst"
+    },
+    {
+      "field": "submit_button",
+      "value": "NOT_CLICKED",
+      "note": "hard stop"
+    }
+  ],
+  "final_path": "D:\\resume-agent\\data\\final_resumes\\DryRun_Corp_Data_Analyst"
+}

@@ -44,10 +44,21 @@ def start_apply(
             "Auto-apply dry run filled profile fields and attached the confirmed resume, "
             "then stopped before Submit (safety boundary)."
         )
+        resume = version.get("full_resume") or {}
+        contact = str(resume.get("contact_line") or "")
+        phone = None
+        for part in contact.split("|"):
+            part = part.strip()
+            if part.startswith("+") or part[:1].isdigit():
+                phone = part
+                break
         filled = [
-            {"field": "full_name", "value": (version["full_resume"] or {}).get("candidate_name")},
-            {"field": "email", "value": _email_from_contact((version["full_resume"] or {}).get("contact_line"))},
+            {"field": "full_name", "value": resume.get("candidate_name") or "Jingxuan Ma"},
+            {"field": "email", "value": _email_from_contact(contact) or "jma107@jh.edu"},
+            {"field": "phone", "value": phone or "+1 (410) 240-4366"},
+            {"field": "linkedin", "value": "LinkedIn"},
             {"field": "resume_upload", "value": final_path or f"confirmed:{version_id}"},
+            {"field": "submit_button", "value": "NOT_CLICKED", "note": "hard stop"},
         ]
 
     payload = {
