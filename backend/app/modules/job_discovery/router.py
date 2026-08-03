@@ -270,6 +270,15 @@ async def job_summary(job_id: str):
     return summary
 
 
+@router.get("/{job_id}/detail", response_model=dict)
+async def job_detail(job_id: str):
+    job = job_list_service.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    summary = job_list_service.get_summary(job_id) or {}
+    return {"job": job, "summary": summary}
+
+
 @router.post("/{job_id}/score", response_model=dict)
 async def score_job_endpoint(job_id: str):
     result = job_list_service.trigger_scoring(job_id)

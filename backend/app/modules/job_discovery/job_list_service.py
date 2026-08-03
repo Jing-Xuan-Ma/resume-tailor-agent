@@ -4,6 +4,25 @@ from datetime import UTC, datetime
 from app import db
 
 
+_META = {
+    "mock_job_001": {"location": "Mountain View, CA", "workModel": "Hybrid", "salary": "$180k - $260k"},
+    "mock_job_002": {"location": "Menlo Park, CA", "workModel": "Remote", "salary": "$170k - $240k"},
+    "mock_job_003": {"location": "Seattle, WA", "workModel": "On Site", "salary": "$160k - $220k"},
+    "mock_job_004": {"location": "San Francisco, CA", "workModel": "Hybrid", "salary": "$190k - $280k"},
+    "mock_job_005": {"location": "New York, NY", "workModel": "Remote", "salary": "$165k - $230k"},
+    "mock_job_006": {"location": "Remote", "workModel": "Remote", "salary": "N/A"},
+    "mock_job_007": {"location": "Redmond, WA", "workModel": "Hybrid", "salary": "$200k - $300k"},
+    "mock_job_008": {"location": "San Francisco, CA", "workModel": "On Site", "salary": "$220k - $320k"},
+    "mock_job_009": {"location": "Cupertino, CA", "workModel": "On Site", "salary": "$150k - $210k"},
+    "mock_job_010": {"location": "Los Gatos, CA", "workModel": "Hybrid", "salary": "$210k - $310k"},
+}
+
+
+def _enrich(job: dict[str, Any]) -> dict[str, Any]:
+    meta = _META.get(job["id"], {"location": "N/A", "workModel": "Remote", "salary": "N/A"})
+    return {**job, **meta}
+
+
 MOCK_JOBS: list[dict[str, Any]] = [
     {
         "id": "mock_job_001",
@@ -171,7 +190,7 @@ class JobListService:
 
     def list_jobs(self, threshold: float = 0, sort_by: str = "score",
                   top_n: int = 0, source: str = "", search: str = "") -> dict:
-        filtered = list(MOCK_JOBS)
+        filtered = [_enrich(j) for j in MOCK_JOBS]
 
         # Source filter
         if source and source != "all":
@@ -210,22 +229,35 @@ class JobListService:
             "filtered_total": len(scored_above),
         }
 
-    def get_summary(self, job_id: str) -> dict | None:
+    def get_job(self, job_id: str) -> dict | None:
         for job in MOCK_JOBS:
             if job["id"] == job_id:
-                s3 = job.get("stage3Result") or {}
-                return {
-                    "title": job["title"],
-                    "company": job["company"],
-                    "atsScore": s3.get("atsScore", 0),
-                    "semanticScore": s3.get("semanticScore", 0),
-                    "finalScore": s3.get("finalScore", 0),
-                    "coveredKeywords": s3.get("coveredKeywords", []),
-                    "missingKeywords": s3.get("missingKeywords", []),
-                    "hasHardConditionIssues": not s3.get("hardConditionsPassed", True),
-                    "status": job["status"],
-                }
+                return _enrich(job)
         return None
+
+    def get_summary(self, job_id: str) -> dict | None:
+        job = self.get_job(job_id)
+        if not job:
+            return None
+        s3 = job.get("stage3Result") or {}
+        return {
+            "id": job["id"],
+            "title": job["title"],
+            "company": job["company"],
+            "source": job["source"],
+            "originalUrl": job.get("originalUrl", ""),
+            "location": job.get("location", "N/A"),
+            "workModel": job.get("workModel", "Remote"),
+            "salary": job.get("salary", "N/A"),
+            "scrapedAt": job.get("scrapedAt", ""),
+            "atsScore": s3.get("atsScore", 0),
+            "semanticScore": s3.get("semanticScore", 0),
+            "finalScore": s3.get("finalScore", 0),
+            "coveredKeywords": s3.get("coveredKeywords", []),
+            "missingKeywords": s3.get("missingKeywords", []),
+            "hasHardConditionIssues": not s3.get("hardConditionsPassed", True),
+            "status": job["status"],
+        }
 
     def trigger_scoring(self, job_id: str) -> dict | None:
         for job in MOCK_JOBS:

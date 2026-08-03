@@ -45,6 +45,12 @@ function WorkspaceShell({ user, onLogout }: { user: CurrentUser; onLogout: () =>
             >
               Resume
             </button>
+            <a
+              href="/jobs"
+              className="rounded-full px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-white hover:shadow-sm"
+            >
+              Ranked
+            </a>
             <button
               onClick={() => setWorkspaceView("jobs")}
               className={`rounded-full px-3 py-1.5 text-xs font-semibold ${workspaceView === "jobs" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
