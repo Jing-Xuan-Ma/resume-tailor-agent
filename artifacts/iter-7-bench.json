@@ -1,0 +1,8 @@
+{
+  "discover_jobs": 5,
+  "discover_ms": 10306.0,
+  "list_ms": 2.7,
+  "llm_calls_estimate": 0,
+  "notes": "List/scoring uses local mock scores; discover uses providers with local fallback (low/zero LLM).",
+  "pass": true
+}

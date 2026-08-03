@@ -91,8 +91,18 @@ modules/
 ├── application_engine/      ✅ Phase 3 — 申请计划 + 手动确认 + auto-submit 边界
 ├── ats_connectors/          ✅ Phase 3 — Greenhouse/Lever/Ashby/Workday/iCIMS/Generic connector
 ├── cold_outreach/           ✅ Phase 4 — 冷外联草稿生成 + sent_by_user 记录（不自动发送）
-└── growth_advisor/          ✅ Phase 5 — 技能差距分析 + 推荐 + 4周路线图
+├── growth_advisor/          ✅ Phase 5 — 技能差距分析 + 推荐 + 4周路线图
+└── resume_workspace/        ✅ Phase 6+ — JD会话、版本、diff、确认定稿、投递分流
 ```
+
+### Autonomous iteration status (2026-08-03)
+
+- Policy: `RESUME_CONSTITUTION.md`, `ITERATION_PLAN.md`, `AGENTS.md`, `.cursor/rules/*`
+- UI: `/jobs` ranked list + `/jobs/[id]` keyword detail
+- Resume loop: content-only rewrite, diff UI, 3+current versions, confirm → `data/final_resumes/{Company}_{Position}/`
+- Apply: manual vs auto dry-run → `paused_before_submit` (never real Submit)
+- Cold email: still frozen (draft/mark-sent only)
+- Git tags: `checkpoint/baseline` … `checkpoint/iter-8-pass`
 
 ---
 
