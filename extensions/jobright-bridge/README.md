@@ -1,21 +1,28 @@
-# Resume Agent ↔ Jobright Bridge Extension
-
-Chrome/Edge extension: read the current Jobright job page (no copy-paste), then open Resume Agent **Tailor** in a full window. **No Side Panel** — Tailor / Apply / Outreach live in the main Resume Agent UI.
+# Resume Agent ↔ Jobright Bridge Extension
 
-## Install (Load unpacked)
-
-1. Start backend (`:8000`) and frontend (`:3000`).
-2. Chrome → `chrome://extensions` → Developer mode → **Load unpacked**.
-3. Select this folder: `extensions/jobright-bridge`.
-4. Open a Jobright job detail **or** local mock:  
-   `http://localhost:3000/fixtures/jobright-mock.html`
-5. Click the green **Open Tailor** FAB (or the extension toolbar icon) — imports JD and opens Tailor in a **1440×900** window.
-
-After code updates: click **Reload** on the extension card (required when `manifest.json` changes). Close any old Side Panel tab if Chrome still shows one from a previous version.
-
-Default token: `dev-extension-token` (matches backend `EXTENSION_BRIDGE_TOKEN`).
-
-## Safety
-
-- Apply stays `paused_before_submit` in the main app.
-- Outreach is draft / user-send only.
+Chrome/Edge extension (one folder): Jobright entry **and** ATS form-fill co-pilot.
+
+## Install (Load unpacked)
+
+1. Start backend (`:8000`) and frontend (`:3000`).
+2. Chrome → `chrome://extensions` → Developer mode → **Load unpacked**.
+3. Select this folder only: `extensions/jobright-bridge`.
+4. After code updates: click **Reload** on the extension card.
+
+## What it does
+
+### A) Jobright → Resume Agent
+- Open a Jobright job detail **or** local mock: `http://localhost:3000/fixtures/jobright-mock.html`
+- Green **Open Tailor** FAB on the page, **or** toolbar popup → **Open Tailor**
+- Imports JD and opens Tailor / Apply / Outreach in a full window
+
+### B) Auto apply (form-fill)
+- Toolbar popup → paste **Apply URL** → **打开并填表**
+- Opens the ATS tab, calls Decision Engine (`POST /engine/step`), fills fields
+- Always **paused_before_submit** — never auto-clicks Submit
+
+Default token: `dev-extension-token` (matches backend `EXTENSION_BRIDGE_TOKEN`).
+
+## Note
+
+Older docs pointed at `entrypoints/jobright_extension/`. That code now lives **here**. Use this directory only.

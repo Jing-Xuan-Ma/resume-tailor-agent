@@ -9,8 +9,70 @@ function isJobrightUrl(url) {
   return /jobright\.ai/i.test(u) || /jobright-mock\.html/i.test(u);
 }
 
+/** Pending ATS tabs waiting for form-fill inject after load. */
+const pendingJobs = {}; // { tabId: { jobId, resumePath, profile } }
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (!msg || !msg.type) return false;
+  if (!msg) return false;
+
+  // Form-fill co-pilot (merged from entrypoints/jobright_extension)
+  if (msg.action === "openAndFill") {
+    chrome.tabs.create({ url: msg.url }, (newTab) => {
+      if (!newTab?.id) {
+        sendResponse({ ok: false, error: "tab_create_failed" });
+        return;
+      }
+      pendingJobs[newTab.id] = {
+        jobId: msg.jobId,
+        resumePath: msg.tailoredResumePath,
+        profile: msg.profile || {},
+      };
+      sendResponse({ ok: true, tabId: newTab.id });
+    });
+    return true;
+  }
+
+  if (msg.type === "SHOW_REVIEW_PANEL") {
+    chrome.storage.local.set({
+      lastReview: {
+        summary: msg.summary,
+        stage: msg.stage,
+        at: Date.now(),
+        tabId: sender.tab?.id,
+      },
+    });
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  if (msg.type === "UPLOAD_MANUAL_FALLBACK") {
+    chrome.storage.local.set({
+      lastUploadHint: { reason: msg.reason, at: Date.now() },
+    });
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  if (msg.type === "SUBMISSION_LOGGED") {
+    console.info("submission signal (not auto-confirmed)", msg.jobId);
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  if (msg.type === "ENGINE_ERROR") {
+    chrome.storage.local.set({
+      lastReview: {
+        summary: String(msg.error || "engine_error"),
+        stage: "error",
+        at: Date.now(),
+        tabId: sender.tab?.id,
+      },
+    });
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  if (!msg.type) return false;
 
   if (msg.type === "ra_job_extracted") {
     chrome.storage.session.set({ lastJob: msg.job || null });
@@ -86,9 +148,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return false;
 });
 
-/** Toolbar icon → one-click Tailor (no Side Panel). */
-chrome.action.onClicked.addListener(() => {
-  void openTailorFromJobright(false);
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status !== "complete" || !pendingJobs[tabId]) return;
+  const jobData = pendingJobs[tabId];
+  delete pendingJobs[tabId];
+
+  chrome.scripting
+    .executeScript({
+      target: { tabId },
+      files: ["content/form_fill.js"],
+    })
+    .then(() =>
+      chrome.tabs.sendMessage(tabId, {
+        type: "START_FILL",
+        jobData,
+      })
+    )
+    .catch((err) => console.warn("form_fill inject failed", err));
 });
 
 async function findJobrightTab() {

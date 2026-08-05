@@ -22,6 +22,7 @@ from app.modules.profile.router import router as profile_router
 from app.modules.resume_tailor.router import router as resume_tailor_router
 from app.modules.resume_workspace.router import router as resume_workspace_router
 from app.modules.llm.router import router as llm_router
+from app.modules.form_fill_engine.api import router as form_fill_engine_router
 
 logger = structlog.get_logger()
 
@@ -80,6 +81,9 @@ app.include_router(commercial_router, prefix="/api/v1/commercial", tags=["Commer
 app.include_router(growth_advisor_router, prefix="/api/v1/growth", tags=["Growth Advisor"])
 app.include_router(resume_workspace_router, prefix="/api/v1/resume-workspace", tags=["Resume Workspace"])
 app.include_router(llm_router, prefix="/api/v1/llm", tags=["LLM"])
+# Form-Fill Decision Engine — shared by Playwright + Chrome extension drivers
+app.include_router(form_fill_engine_router, prefix="/engine", tags=["Form-Fill Engine"])
+app.include_router(form_fill_engine_router, prefix="/api/v1/engine", tags=["Form-Fill Engine"])
 
 
 if __name__ == "__main__":

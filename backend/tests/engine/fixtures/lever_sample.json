@@ -1,0 +1,55 @@
+{
+  "url": "https://jobs.lever.co/example/abc-def",
+  "page_title": "Data Analyst - Lever",
+  "elements": [
+    {
+      "index": 0,
+      "tag": "input",
+      "element_type": "text",
+      "label": "Full name",
+      "required": true,
+      "visible": true
+    },
+    {
+      "index": 1,
+      "tag": "input",
+      "element_type": "email",
+      "label": "Email",
+      "required": true,
+      "visible": true
+    },
+    {
+      "index": 2,
+      "tag": "input",
+      "element_type": "tel",
+      "label": "Phone",
+      "required": false,
+      "visible": true
+    },
+    {
+      "index": 3,
+      "tag": "input",
+      "element_type": "text",
+      "label": "Current location",
+      "required": false,
+      "visible": true
+    },
+    {
+      "index": 4,
+      "tag": "input",
+      "element_type": "file",
+      "label": "Resume",
+      "required": true,
+      "visible": true
+    },
+    {
+      "index": 5,
+      "tag": "select",
+      "element_type": "select",
+      "label": "Are you legally authorized to work in the United States?",
+      "options": ["Yes", "No"],
+      "required": true,
+      "visible": true
+    }
+  ]
+}

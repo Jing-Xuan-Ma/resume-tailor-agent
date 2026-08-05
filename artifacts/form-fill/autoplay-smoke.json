@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "filled_ok": true,
+  "paused_before_submit": true,
+  "dom_values": {
+    "first": "Jingxuan",
+    "last": "Ma",
+    "email": "jma107@jh.edu",
+    "phone": "+1 (410) 240-4366",
+    "linkedin": "https://linkedin.com/in/example"
+  },
+  "stage": "awaiting_human_review",
+  "ats": {
+    "ats_type": "workday",
+    "confidence": 0.9,
+    "detection_method": "domain_pattern"
+  },
+  "instruction_actions": [
+    "fill",
+    "fill",
+    "fill",
+    "fill",
+    "fill",
+    "pause_for_human"
+  ],
+  "summary": "即将执行的表单操作：\n1. [fill] #0: Jingxuan\n   — 匹配到 first_name（rule，置信度 90%）\n2. [fill] #1: Ma\n   — 匹配到 last_name（rule，置信度 90%）\n3. [fill] #2: jma107@jh.edu\n   — 匹配到 email（rule，置信度 90%）\n4. [fill] #3: +1 (410) 240-4366\n   — 匹配到 phone（rule，置信度 90%）\n5. [fill] #4: https://linkedin.com/in/example\n   — 匹配到 linkedin（rule，置信度 90%）\n\n需人工确认：1 项（证据不足或敏感字段）。\n\n已停在人工复核闸门（paused_before_submit）。"
+}
