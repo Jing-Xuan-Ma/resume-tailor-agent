@@ -1,0 +1,36 @@
+{
+  "ok": true,
+  "iframe_filled": true,
+  "dynamic_step2": true,
+  "file_upload": true,
+  "linkedin_filled": true,
+  "paused_before_submit": true,
+  "dom_values": {
+    "first": "Jingxuan",
+    "last": "Ma",
+    "email": "jma107@jh.edu",
+    "phone": "+1 (410) 240-4366",
+    "step2_visible": 1,
+    "linkedin": "https://linkedin.com/in/example",
+    "resume_files": 1,
+    "work_auth": "Yes",
+    "status": "STEP2_VISIBLE"
+  },
+  "stage": "awaiting_human_review",
+  "ats": {
+    "ats_type": "workday",
+    "confidence": 0.9,
+    "detection_method": "domain_pattern"
+  },
+  "instruction_actions": [
+    "fill",
+    "upload_file",
+    "select",
+    "pause_for_human"
+  ],
+  "frame_meta_hint": {
+    "element_count": 4,
+    "allow_submit": false
+  },
+  "summary": "即将执行的表单操作：\n1. [fill] #0: https://linkedin.com/in/example\n   — 匹配到 linkedin（rule，置信度 90%）\n2. [upload_file] #1: D:\\resume-agent\\backend\\tests\\engine\\fixtures\\sample_resume.pdf\n   — 匹配到 resume_path（rule，置信度 90%）\n3. [select] #2: Yes\n   — 匹配到 work_authorized（rule，置信度 90%）\n\n需人工确认：1 项（证据不足或敏感字段）。\n\n已停在人工复核闸门（paused_before_submit）。"
+}

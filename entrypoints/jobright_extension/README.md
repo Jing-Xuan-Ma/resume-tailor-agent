@@ -1,7 +1,9 @@
 # Moved
 
-Form-Fill Co-pilot was **merged into** `extensions/jobright-bridge`.
+This Form-Fill Co-pilot extension was **merged into**:
 
-Load that folder only in Chrome (`chrome://extensions` → Load unpacked).
+`extensions/jobright-bridge`
 
-Do not use this directory for installs.
+Load that folder in Chrome (`chrome://extensions` → Load unpacked).
+
+Do not use this directory for loading the extension anymore.

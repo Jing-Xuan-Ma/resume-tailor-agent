@@ -109,10 +109,10 @@ _CAPTURE_JS = r"""
 
 
 def _frame_for_index(page, frame_index: int):
-    frames = list(page.frames)
-    if 0 <= int(frame_index) < len(frames):
+    frames = list(getattr(page, "frames", None) or [])
+    if frames and 0 <= int(frame_index) < len(frames):
         return frames[int(frame_index)]
-    return page.main_frame
+    return getattr(page, "main_frame", page)
 
 
 async def capture_dom_snapshot(page, *, include_screenshot: bool = False) -> DOMSnapshot:
