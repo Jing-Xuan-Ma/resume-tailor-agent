@@ -235,13 +235,23 @@ async def upsert_index_lead(
     jobright_url = (request.jobright_url or meta.get("jobright_url") or meta.get("page_url") or "").strip() or None
     page_url = (meta.get("page_url") or jobright_url or "").strip() or None
     apply_url = (meta.get("apply_url") or "").strip() or None
-    # Jobright Apply = company ATS. Prefer that link verbatim (do not downgrade to Jobright page).
-    from app.modules.job_discovery.apply_url import prefer_official_apply_url
+    # Jobright Apply = company ATS when usable; thin Workday roots fall back to board.
+    from app.modules.job_discovery.apply_url import (
+        is_usable_job_apply_url,
+        normalize_apply_url,
+        prefer_official_apply_url,
+    )
 
+    apply_url = normalize_apply_url(apply_url)
     platform = (request.source_platform or "jobright_extension").strip()
-    if apply_url and "jobright" in platform.lower() and "jobright.ai" not in apply_url.lower():
-        source_url = apply_url
-    elif apply_url and "utm_source=jobright" in apply_url.lower():
+    if (
+        apply_url
+        and is_usable_job_apply_url(apply_url)
+        and (
+            ("jobright" in platform.lower() and "jobright.ai" not in apply_url.lower())
+            or "utm_source=jobright" in apply_url.lower()
+        )
+    ):
         source_url = apply_url
     else:
         source_url = prefer_official_apply_url(

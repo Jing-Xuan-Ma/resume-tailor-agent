@@ -100,6 +100,9 @@ async def agent_turn(session_id: str, request: AgentTurnRequest):
         content_delta=result.get("content_delta") or {},
         llm_provider=result.get("llm_provider"),
         llm_model=result.get("llm_model"),
+        profile_updated=bool(result.get("profile_updated")),
+        changed_apply=list(result.get("changed_apply") or []),
+        changed_inventory=list(result.get("changed_inventory") or []),
     )
 
 
@@ -171,6 +174,7 @@ async def start_apply_endpoint(version_id: str, request: StartApplyRequest):
         ats_type=payload.get("ats_type"),
         source_url=payload.get("source_url"),
         board_url=payload.get("board_url"),
+        apply_resolve=payload.get("apply_resolve"),
         browser_fill=payload.get("browser_fill"),
         final_path=payload.get("final_path"),
         confirmed_submit_at=payload.get("confirmed_submit_at"),
@@ -217,6 +221,8 @@ async def get_apply_endpoint(apply_id: str):
         ats_fields=payload.get("ats_fields") or [],
         ats_type=payload.get("ats_type"),
         source_url=payload.get("source_url"),
+        board_url=payload.get("board_url"),
+        apply_resolve=payload.get("apply_resolve"),
         browser_fill=payload.get("browser_fill"),
         final_path=payload.get("final_path"),
         confirmed_submit_at=payload.get("confirmed_submit_at"),

@@ -40,7 +40,7 @@ export default function ResumeDiff({ delta }: ResumeDiffProps) {
             <p className="mb-1 font-semibold text-slate-700">{c.path}</p>
             {c.before ? (
               <p className="mb-1 rounded-lg bg-red-50 px-2 py-1 text-red-700 ring-1 ring-red-100">
-                <span className="mr-1 font-bold">−</span>
+                <span className="mr-1 font-bold">{c.kind === "hide" ? "hidden" : "−"}</span>
                 {c.before}
               </p>
             ) : null}

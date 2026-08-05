@@ -2,6 +2,7 @@ from pathlib import Path
 from copy import deepcopy
 import json
 import re
+from typing import Any
 
 from app import db
 from app.config import settings
@@ -43,15 +44,25 @@ def _extract_json(text: str) -> dict:
 MAX_VERSIONS = 4
 
 _REWRITE_HINTS = re.compile(
-    r"\b(emphasize|highlight|shorten|rewrite|tailor|update|change|revise|focus|"
-    r"make\s+the|add\s+|remove|bullet|summary|skills?|tableau|sql|one[\s-]?page|"
-    r"da-focused|more\s+|less\s+|cut\s+|trim|project|experience|keyword)\b|"
-    r"(改|强调|缩短|突出|聚焦|改写|删|加|摘要|技能)",
+    r"\b(emphasize|highlight|shorten|rewrite|tailor|change|revise|focus|"
+    r"make\s+the|add\s+(a\s+)?(bullet|skill|project)|remove|bullet|summary|skills?|tableau|sql|one[\s-]?page|"
+    r"da-focused|more\s+|less\s+|cut\s+|trim|keyword)\b|"
+    r"(改写|强调|缩短|突出|聚焦|删掉|摘要|技能|一页)",
     re.I,
 )
 _CHAT_HINTS = re.compile(
     r"^(hi|hello|hey|thanks|thank you|ok|okay|how are you|what can you|"
     r"who are you|help|你好|谢谢|在吗|怎么样)[\s!.?1]*$",
+    re.I,
+)
+_PROFILE_HINTS = re.compile(
+    r"\b(save\s+to\s+(my\s+)?profile|update\s+(my\s+)?profile|remember\s+my|"
+    r"my\s+(phone|email|linkedin|github|name|address|location|visa)|"
+    r"phone\s*(number)?\s*(is|=|:)|email\s*(is|=|:)|linkedin\s*(is|=|:|url)|"
+    r"work\s+auth|need(s)?\s+sponsorship|earliest\s+start|preferred\s+name)\b|"
+    r"(写入|存到|更新|改一下).{0,12}(profile|档案|资料|个人信息)|"
+    r"我的(电话|手机|邮箱|领英|linkedin|github|住址|地址)|"
+    r"(电话|手机号|邮箱).{0,6}(是|改成|换成)|linkedin.{0,8}(是|改成)",
     re.I,
 )
 
@@ -501,10 +512,12 @@ class ResumeWorkspaceService:
         from app.modules.profile.library_service import get_master_inventory
 
         source_master = get_master_inventory(user_id) or MOCK_RESUME
+        before_for_diff = source_master
         if base_version_id:
             base = db.get_resume_version(base_version_id, user_id)
-            # Still project from inventory for show/hide; version is only a content hint
-            _ = base
+            # Prefer previous version as diff baseline so highlights show this turn's edits
+            if base and isinstance(base.get("full_resume"), dict) and base["full_resume"]:
+                before_for_diff = base["full_resume"]
         projected = project_for_jd(source_master, jd_text)
         tailored = self._content_only_tailor(projected, instruction, jd_text)
         tailored["experiences"] = projected.get("experiences") or []
@@ -541,10 +554,13 @@ class ResumeWorkspaceService:
             tailored["requires_fix"] = True
         if issues and evidence_hard_ok:
             tailored["evidence_warnings"] = issues
-        content_delta = compute_resume_diff(source_master, tailored)
+        content_delta = compute_resume_diff(before_for_diff, tailored)
         content_delta["instruction"] = instruction
         content_delta["quality_gate"] = gate
         content_delta["evidence_check"] = tailored["evidence_check"]
+        content_delta["diff_baseline"] = (
+            "previous_version" if before_for_diff is not source_master else "master_inventory"
+        )
 
         self._trim_versions(session_id, user_id)
         version_index = db.get_latest_version_index(session_id, user_id) + 1
@@ -622,6 +638,15 @@ class ResumeWorkspaceService:
         text = (message or "").strip()
         if not text:
             return "chat"
+        if _PROFILE_HINTS.search(text):
+            return "update_profile"
+        # Bare contact facts (email/phone/url) without resume-edit verbs → profile
+        if (
+            re.search(r"[\w.+-]+@[\w.-]+\.\w{2,}", text)
+            or re.search(r"\+?\d[\d\s().-]{8,}\d", text)
+            or re.search(r"https?://(www\.)?(linkedin\.com|github\.com)/\S+", text, re.I)
+        ) and not _REWRITE_HINTS.search(text):
+            return "update_profile"
         if _CHAT_HINTS.search(text) and not _REWRITE_HINTS.search(text):
             return "chat"
         if _REWRITE_HINTS.search(text):
@@ -630,6 +655,223 @@ class ResumeWorkspaceService:
         if len(text) >= 24 and any(w in text.lower() for w in ("resume", "jd", "bullet", "page", "简历")):
             return "rewrite"
         return "chat"
+
+    def _regex_profile_patch(self, message: str) -> dict[str, Any]:
+        """Best-effort extract without LLM for common contact facts."""
+        apply: dict[str, Any] = {}
+        inventory: dict[str, Any] = {}
+        text = message or ""
+
+        email = re.search(r"[\w.+-]+@[\w.-]+\.\w{2,}", text)
+        if email:
+            apply["email"] = email.group(0)
+
+        phone = re.search(
+            r"(?:phone|tel|手机|电话)[^\d+]{0,8}(\+?[\d\s().-]{8,}\d)",
+            text,
+            re.I,
+        ) or re.search(r"(\+1[\s().-]?\d{3}[\s().-]?\d{3}[\s().-]?\d{4})", text)
+        if phone:
+            apply["phone"] = re.sub(r"\s+", " ", phone.group(1)).strip()
+
+        linkedin = re.search(r"https?://(?:www\.)?linkedin\.com/\S+", text, re.I)
+        if linkedin:
+            apply["linkedin_url"] = linkedin.group(0).rstrip(".,)")
+
+        github = re.search(r"https?://(?:www\.)?github\.com/\S+", text, re.I)
+        if github:
+            apply["github_url"] = github.group(0).rstrip(".,)")
+            inventory["github_url"] = apply["github_url"]
+
+        name = re.search(
+            r"(?:full\s+name|my\s+name|姓名)(?:\s+is|\s*[:=])\s*([A-Za-z\u4e00-\u9fff][A-Za-z\u4e00-\u9fff .'-]{1,60})",
+            text,
+            re.I,
+        )
+        if name:
+            apply["full_name"] = name.group(1).strip()
+            inventory["candidate_name"] = apply["full_name"]
+
+        loc = re.search(
+            r"(?:location|based\s+in|address|地址|住址)"
+            r"(?:\s+is|\s*[:=：]|为|是)?\s*"
+            r"([^\n]{2,120})",
+            text,
+            re.I,
+        )
+        if loc:
+            apply["location"] = loc.group(1).strip().rstrip("。.")
+
+        return {"apply": apply, "inventory": inventory}
+
+    async def _llm_extract_profile_patch(
+        self,
+        message: str,
+        chat_history: list[dict] | None = None,
+        current_apply: dict | None = None,
+    ) -> dict[str, Any]:
+        """Ask LLM for a structured Profile patch; merge with regex fallback."""
+        fallback = self._regex_profile_patch(message)
+        text_l = (message or "").lower()
+        data: dict[str, Any] = {}
+        try:
+            llm = get_chat_openai(
+                model=settings.DEFAULT_PARSER_MODEL or settings.DEFAULT_TAILOR_MODEL,
+                temperature=0.0,
+                max_tokens=600,
+            )
+            history_snip = []
+            for item in (chat_history or [])[-4:]:
+                role = str(item.get("role") or "")
+                content = str(item.get("content") or "").strip()
+                if role in {"user", "assistant"} and content:
+                    history_snip.append(f"{role}: {content[:240]}")
+            prompt = (
+                "Extract ONLY personal Profile fields the user explicitly stated in THIS message. "
+                "Return ONLY JSON: "
+                '{"apply":{},"inventory":{},"append_experiences":[],"append_education":[],'
+                '"append_projects":[],"ack":""}. '
+                "Allowed apply keys: full_name, preferred_name, email, phone, location, "
+                "linkedin_url, portfolio_url, github_url, visa_status, earliest_start, "
+                "work_authorized, needs_sponsorship, willing_to_relocate, salary_expectation. "
+                "Allowed inventory keys: candidate_name, contact_line, summary, "
+                "skills_certifications, github_url. "
+                "Do NOT copy existing profile values. Do NOT invent fields. "
+                "Omit keys not clearly stated. Empty objects if nothing to save.\n"
+                f"Recent chat:\n{chr(10).join(history_snip)}\n"
+                f"User message: {message}"
+            )
+            response = await llm.ainvoke(
+                [
+                    {
+                        "role": "system",
+                        "content": constitution_system_block()
+                        + "\nYou extract user-stated Profile facts only. Never fabricate.",
+                    },
+                    {"role": "user", "content": prompt},
+                ]
+            )
+            raw = str(response.content or "").strip()
+            parsed = _extract_json(raw) if raw else {}
+            if isinstance(parsed, dict):
+                data = parsed
+        except Exception:
+            data = {}
+
+        apply = dict(fallback.get("apply") or {})
+        inventory = dict(fallback.get("inventory") or {})
+        llm_apply = data.get("apply") if isinstance(data.get("apply"), dict) else {}
+        llm_inv = data.get("inventory") if isinstance(data.get("inventory"), dict) else {}
+
+        def _stated(value: Any) -> bool:
+            if value is None or value == "":
+                return False
+            token = str(value).strip().lower()
+            if len(token) < 3:
+                return token in text_l
+            # phone digits / email / url fragments
+            digits = re.sub(r"\D", "", token)
+            if len(digits) >= 7 and digits[-7:] in re.sub(r"\D", "", text_l):
+                return True
+            return token in text_l or token.split("@")[0] in text_l
+
+        for key, value in llm_apply.items():
+            if value in (None, ""):
+                continue
+            if key in {"work_authorized", "needs_sponsorship", "willing_to_relocate"}:
+                # booleans only if user mentioned the topic
+                topic = {
+                    "work_authorized": r"work\s+auth|authorized\s+to\s+work|有工卡|工作许可",
+                    "needs_sponsorship": r"sponsor|签证|visa|h-?1b|opt",
+                    "willing_to_relocate": r"relocati|搬|愿意去",
+                }.get(key, "")
+                if topic and re.search(topic, message or "", re.I):
+                    apply[key] = bool(value)
+                continue
+            if key == "answers":
+                continue
+            if _stated(value) or key in apply:
+                # allow LLM to normalize a value we already regex-caught
+                if key in apply or _stated(value):
+                    apply[key] = value
+
+        for key, value in llm_inv.items():
+            if value in (None, ""):
+                continue
+            if _stated(value) or key in inventory:
+                inventory[key] = value
+
+        def _norm_rows(rows: Any) -> list[dict]:
+            if not isinstance(rows, list):
+                return []
+            out = []
+            for row in rows:
+                if isinstance(row, dict) and row:
+                    # require at least one identifying field present in message
+                    blob = " ".join(str(v) for v in row.values() if not isinstance(v, (list, dict)))
+                    if _stated(blob) or any(_stated(v) for v in row.values() if isinstance(v, str)):
+                        out.append(row)
+            return out
+
+        return {
+            "apply": apply,
+            "inventory": inventory,
+            "append_experiences": _norm_rows(data.get("append_experiences")),
+            "append_education": _norm_rows(data.get("append_education")),
+            "append_projects": _norm_rows(data.get("append_projects")),
+            "ack": str(data.get("ack") or "").strip(),
+        }
+
+    async def _handle_update_profile(
+        self,
+        user_id: str,
+        message: str,
+        chat_history: list[dict] | None = None,
+    ) -> dict[str, Any]:
+        from app.modules.profile import library_service
+
+        current_apply = library_service.get_apply_profile(user_id)
+        patch = await self._llm_extract_profile_patch(message, chat_history, current_apply)
+        result = library_service.patch_library(
+            user_id,
+            apply_patch=patch.get("apply") or None,
+            inventory_patch=patch.get("inventory") or None,
+            append_education=patch.get("append_education") or None,
+            append_experiences=patch.get("append_experiences") or None,
+            append_projects=patch.get("append_projects") or None,
+        )
+        changed_apply = result.get("changed_apply") or []
+        changed_inv = result.get("changed_inventory") or []
+        if not changed_apply and not changed_inv:
+            agent_message = (
+                patch.get("ack")
+                or "I didn't find clear personal details to save. "
+                "Try: “Save my phone +1… and email … to Profile.”"
+            )
+            return {
+                "agent_message": agent_message,
+                "profile_updated": False,
+                "changed_apply": [],
+                "changed_inventory": [],
+            }
+
+        labels = []
+        for k in changed_apply:
+            labels.append(k.replace("_", " "))
+        for k in changed_inv:
+            labels.append(k.replace("_", " ").replace("+", " (added)"))
+        ack = patch.get("ack") or (
+            "Saved to Profile: " + ", ".join(labels[:8]) + ". "
+            "Open the Profile tab to review; Tailor/Apply will use the updated library."
+        )
+        if "Profile" not in ack and "profile" not in ack.lower():
+            ack = ack.rstrip(".") + ". Open Profile to review."
+        return {
+            "agent_message": ack,
+            "profile_updated": True,
+            "changed_apply": changed_apply,
+            "changed_inventory": changed_inv,
+        }
 
     async def _llm_chat_reply(
         self,
@@ -649,8 +891,10 @@ class ResumeWorkspaceService:
                 "content": (
                     constitution_system_block()
                     + "\nYou are Resume Agent for Jingxuan Ma (Data Analyst / Analytics). "
-                    "You can chat normally and also rewrite the resume on the locked master DOCX template "
-                    f"({MASTER_TEMPLATE_LABEL}, content-only injection). "
+                    "You can chat normally, rewrite the resume on the locked master DOCX template "
+                    f"({MASTER_TEMPLATE_LABEL}, content-only injection), "
+                    "and save personal facts the user states into their Profile library "
+                    "(phone, email, LinkedIn, location, visa, new experience rows). "
                     "Be concise and helpful. Do not claim you changed the resume unless a rewrite just ran. "
                     "Never invent employers, metrics, or skills."
                 ),
@@ -724,80 +968,166 @@ class ResumeWorkspaceService:
         base_version_id: str | None = None,
         chat_history: list[dict] | None = None,
     ) -> dict:
-        provider = (settings.LLM_PROVIDER or "openai").strip().lower()
+        from app.core.llm_client import get_runtime_preference
+        from app.modules.resume_workspace.agent_loop import run_tool_agent
+        from app.modules.resume_workspace.agent_tools import AgentToolContext
+
+        prefs = get_runtime_preference()
+        provider = prefs.get("preferred_provider") or (settings.LLM_PROVIDER or "openai").strip().lower()
         model = settings.DEFAULT_PARSER_MODEL or settings.DEFAULT_TAILOR_MODEL
-        intent = self._classify_intent(message)
-        session = db.get_jd_session(session_id) or {}
-        jd_text = str(session.get("jd_text") or "")
-        try:
-            from app.modules.profile.library_service import evidence_context_for_jd
 
-            evidence = evidence_context_for_jd(user_id, jd_text)
-        except Exception:
-            evidence = {"resume_tailor_github": "https://github.com/Jing-Xuan-Ma/resume-tailor-agent"}
-        context = {
-            "has_jd": bool(jd_text),
-            "job_id": session.get("job_id"),
-            "master_template": "Jingxuan_Resume_Data Analyst.docx",
-            "intent_guess": intent,
-            "evidence": evidence,
-            "guidance": (
-                "When the JD involves agents, FastAPI, Next.js, OOXML, JD matching, or resume tooling, "
-                "prefer Yiling AI Agent Intern facts and cite evidence from resume_tailor_github. "
-                "Do not invent repo features beyond inventory bullets."
-            ),
-        }
+        def _usage() -> tuple[str | None, str | None]:
+            u = get_runtime_preference()
+            return u.get("last_provider") or provider, u.get("last_model") or model
 
-        if intent == "rewrite":
-            result = await self.rewrite(
-                user_id=user_id,
-                session_id=session_id,
-                instruction=message,
-                base_version_id=base_version_id,
-            )
-            try:
-                agent_message = await self._llm_rewrite_ack(
-                    message, result["version_index"], result.get("content_delta") or {}
-                )
-            except Exception:
-                agent_message = (
-                    f"Updated to v{result['version_index']}. "
-                    "Check the resume preview on the right."
-                )
+        def _pack(
+            *,
+            agent_message: str,
+            intent: str = "chat",
+            did_rewrite: bool = False,
+            new_version_id: str | None = None,
+            version_index: int | None = None,
+            full_resume: dict | None = None,
+            keyword_matches: list | None = None,
+            content_delta: dict | None = None,
+            profile_updated: bool = False,
+            changed_apply: list | None = None,
+            changed_inventory: list | None = None,
+        ) -> dict:
+            used_provider, used_model = _usage()
             return {
                 "session_id": session_id,
                 "agent_message": agent_message,
-                "intent": "rewrite",
-                "did_rewrite": True,
-                "new_version_id": result["new_version_id"],
-                "version_index": result["version_index"],
-                "full_resume": result["full_resume"],
-                "keyword_matches": result.get("keyword_matches") or [],
-                "content_delta": result.get("content_delta") or {},
-                "llm_provider": provider,
-                "llm_model": model,
+                "intent": intent,
+                "did_rewrite": did_rewrite,
+                "new_version_id": new_version_id,
+                "version_index": version_index,
+                "full_resume": full_resume,
+                "keyword_matches": keyword_matches or [],
+                "content_delta": content_delta or {},
+                "llm_provider": used_provider,
+                "llm_model": used_model,
+                "profile_updated": profile_updated,
+                "changed_apply": changed_apply or [],
+                "changed_inventory": changed_inventory or [],
             }
 
+        ctx = AgentToolContext(
+            user_id=user_id,
+            session_id=session_id,
+            workspace=self,
+            base_version_id=base_version_id,
+        )
+
+        # Fast deterministic save for clear contact/location facts (no extra LLM)
+        if _PROFILE_HINTS.search(message or "") or re.search(
+            r"(住址|地址|location|address)\s*[:=：]", message or "", re.I
+        ):
+            try:
+                from app.modules.profile import library_service as _lib
+
+                fallback = self._regex_profile_patch(message)
+                if fallback.get("apply") or fallback.get("inventory"):
+                    result = _lib.patch_library(
+                        user_id,
+                        apply_patch=fallback.get("apply") or None,
+                        inventory_patch=fallback.get("inventory") or None,
+                    )
+                    changed_a = result.get("changed_apply") or []
+                    changed_i = result.get("changed_inventory") or []
+                    if changed_a or changed_i:
+                        ctx.state.profile_updated = True
+                        ctx.state.intent = "update_profile"
+                        ctx.state.changed_apply = list(changed_a)
+                        ctx.state.changed_inventory = list(changed_i)
+            except Exception:
+                pass
+
         try:
-            agent_message = await self._llm_chat_reply(message, chat_history, context)
-        except Exception as exc:
-            agent_message = (
-                "I can help chat about this role or rewrite the resume on your locked master template. "
-                f"(LLM temporarily unavailable: {exc})"
+            agent_message, ctx = await run_tool_agent(
+                ctx=ctx,
+                message=message,
+                chat_history=chat_history,
             )
-        return {
-            "session_id": session_id,
-            "agent_message": agent_message,
-            "intent": "chat",
-            "did_rewrite": False,
-            "new_version_id": None,
-            "version_index": None,
-            "full_resume": None,
-            "keyword_matches": [],
-            "content_delta": {},
-            "llm_provider": provider,
-            "llm_model": model,
-        }
+        except Exception as exc:
+            # Fallback to legacy intent router if tool loop fails entirely
+            intent = self._classify_intent(message)
+            if intent == "update_profile":
+                try:
+                    profile_result = await self._handle_update_profile(user_id, message, chat_history)
+                except Exception as profile_exc:
+                    profile_result = {
+                        "agent_message": (
+                            f"Could not save to Profile ({profile_exc}). "
+                            "Try again or edit the Profile tab."
+                        ),
+                        "profile_updated": False,
+                        "changed_apply": [],
+                        "changed_inventory": [],
+                    }
+                return _pack(
+                    agent_message=profile_result["agent_message"],
+                    intent="update_profile",
+                    profile_updated=bool(profile_result.get("profile_updated")),
+                    changed_apply=profile_result.get("changed_apply") or [],
+                    changed_inventory=profile_result.get("changed_inventory") or [],
+                )
+            if intent == "rewrite":
+                result = await self.rewrite(
+                    user_id=user_id,
+                    session_id=session_id,
+                    instruction=message,
+                    base_version_id=base_version_id,
+                )
+                try:
+                    agent_message = await self._llm_rewrite_ack(
+                        message, result["version_index"], result.get("content_delta") or {}
+                    )
+                except Exception:
+                    agent_message = (
+                        f"Updated to v{result['version_index']}. "
+                        "Check the resume preview on the right."
+                    )
+                return _pack(
+                    agent_message=agent_message,
+                    intent="rewrite",
+                    did_rewrite=True,
+                    new_version_id=result["new_version_id"],
+                    version_index=result["version_index"],
+                    full_resume=result["full_resume"],
+                    keyword_matches=result.get("keyword_matches") or [],
+                    content_delta=result.get("content_delta") or {},
+                )
+            agent_message = (
+                "I can save Profile facts, match inventory to this JD, "
+                f"or project a one-page resume. (Agent tools unavailable: {exc})"
+            )
+            return _pack(agent_message=agent_message, intent="chat")
+
+        st = ctx.state
+        # If tools didn't save but regex path did earlier, keep that ack
+        if st.profile_updated and not st.did_rewrite and "Saved" not in agent_message and "Profile" not in agent_message:
+            labels = st.changed_apply + st.changed_inventory
+            if labels:
+                agent_message = (
+                    "Saved to Profile: "
+                    + ", ".join(labels[:8])
+                    + ". Open the Profile tab to review."
+                )
+
+        return _pack(
+            agent_message=agent_message,
+            intent=st.intent if (st.did_rewrite or st.profile_updated) else "chat",
+            did_rewrite=st.did_rewrite,
+            new_version_id=st.new_version_id,
+            version_index=st.version_index,
+            full_resume=st.full_resume,
+            keyword_matches=st.keyword_matches,
+            content_delta=st.content_delta,
+            profile_updated=st.profile_updated,
+            changed_apply=st.changed_apply,
+            changed_inventory=st.changed_inventory,
+        )
 
     def _store_version_file(self, version_id: str, ext: str, data: bytes) -> Path:
         version_dir = _RESUME_TEMPLATES_DIR / version_id

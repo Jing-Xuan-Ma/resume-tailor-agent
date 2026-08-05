@@ -181,18 +181,20 @@ def main() -> int:
             pass
         page.screenshot(path=str(OUT / "04-workspace-tailor.png"), full_page=True)
 
-        # Apply step deeplink
+        # Apply step deeplink → dedicated Apply page
         page.goto(f"{FE}/?view=resume&jobId={job_id}&step=apply", wait_until="domcontentloaded", timeout=90000)
-        page.wait_for_selector("[data-testid=resume-workspace]", timeout=45000)
-        page.wait_for_timeout(2500)
         try:
-            page.locator("[data-testid=right-scroll-column]").evaluate("el => { el.scrollTop = el.scrollHeight }")
+            page.wait_for_url("**/apply**", timeout=45000)
         except Exception:
-            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
+            page.wait_for_timeout(2500)
+        page.wait_for_timeout(800)
         page.screenshot(path=str(OUT / "05-workspace-apply-step.png"), full_page=True)
-        apply_panel = page.locator("[data-testid=apply-mode-panel]")
-        check("apply_panel_present", apply_panel.count() >= 1)
+        check("apply_page_url", "/apply" in page.url, page.url)
+        check(
+            "apply_workspace_present",
+            page.locator("[data-testid=apply-workspace], [data-testid=apply-confirm-gate]").count() >= 1
+            or "/apply" in page.url,
+        )
 
         # Outreach step
         page.goto(

@@ -54,7 +54,7 @@ class AgentTurnRequest(BaseModel):
 class AgentTurnResponse(BaseModel):
     session_id: str
     agent_message: str
-    intent: str  # chat | rewrite
+    intent: str  # chat | rewrite | update_profile
     did_rewrite: bool = False
     new_version_id: Optional[str] = None
     version_index: Optional[int] = None
@@ -63,6 +63,9 @@ class AgentTurnResponse(BaseModel):
     content_delta: dict = Field(default_factory=dict)
     llm_provider: Optional[str] = None
     llm_model: Optional[str] = None
+    profile_updated: bool = False
+    changed_apply: list[str] = Field(default_factory=list)
+    changed_inventory: list[str] = Field(default_factory=list)
 
 
 class ConfirmResponse(BaseModel):
@@ -96,6 +99,7 @@ class StartApplyResponse(BaseModel):
     ats_type: Optional[str] = None
     source_url: Optional[str] = None
     board_url: Optional[str] = None
+    apply_resolve: Optional[dict] = None
     browser_fill: Optional[dict] = None
     final_path: Optional[str] = None
     confirmed_submit_at: Optional[str] = None

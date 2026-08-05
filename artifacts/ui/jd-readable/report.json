@@ -1,0 +1,60 @@
+{
+  "checks": [
+    {
+      "name": "has_title",
+      "ok": true,
+      "detail": "Analytics Admin - Dodger Stadium"
+    },
+    {
+      "name": "meta_row",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "pay_chip",
+      "ok": true,
+      "detail": "PAY\n$26.00 to $35.00"
+    },
+    {
+      "name": "responsibilities_section",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "qualification_section",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "skill_tags",
+      "ok": true,
+      "detail": "count=8"
+    },
+    {
+      "name": "skill_has_excel_or_sql",
+      "ok": true,
+      "detail": "['Excel', 'Google Sheets', 'Google Suite', 'MS Office', 'SQL', 'Python', 'R', 'Tableau']"
+    },
+    {
+      "name": "benefits_section",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no_raw_markdown_stars",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no_duplicate_url_wall",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "no_sms_apply_noise",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "ok": true
+}

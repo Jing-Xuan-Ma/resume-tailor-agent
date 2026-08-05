@@ -33,6 +33,11 @@ def _resolve_job(job_id: str | None) -> dict[str, Any] | None:
             "board_url": listing_board_url(listing),
             "raw_text": listing.get("raw_text"),
             "metadata": listing.get("metadata") if isinstance(listing.get("metadata"), dict) else {},
+            "apply_resolve": (
+                (listing.get("metadata") or {}).get("apply_resolve")
+                if isinstance(listing.get("metadata"), dict)
+                else None
+            ),
         }
     return db.get_job(job_id)
 
@@ -239,18 +244,24 @@ def _start_apply_impl(
     job = _resolve_job(job_id)
     from app.modules.job_discovery.apply_url import (
         is_aggregator_url,
+        normalize_apply_url,
         prefer_official_apply_url,
     )
 
-    board_url = (job or {}).get("board_url")
+    board_url = normalize_apply_url((job or {}).get("board_url"))
     # Always prefer company/ATS apply URL over Indeed/LinkedIn board links —
     # but skip unusable Workday career roots (see is_usable_job_apply_url).
     source_url = prefer_official_apply_url(
-        source_url,
-        (job or {}).get("source_url"),
-        board_fallback=board_url or source_url or ((job or {}).get("source_url")),
+        normalize_apply_url(source_url),
+        normalize_apply_url((job or {}).get("source_url")),
+        board_fallback=board_url
+        or normalize_apply_url(source_url)
+        or normalize_apply_url((job or {}).get("source_url")),
     )
     if not board_url and source_url and is_aggregator_url(source_url):
+        board_url = source_url
+    # If we opened a board link because ATS was unusable, keep board_url populated.
+    if source_url and is_aggregator_url(source_url) and not board_url:
         board_url = source_url
     if job and not company:
         company = job.get("company")
@@ -545,6 +556,7 @@ def _start_apply_impl(
         "job_id": job_id,
         "source_url": source_url,
         "board_url": board_url,
+        "apply_resolve": (job or {}).get("apply_resolve"),
         "ats_type": ats_type if mode == "auto" else None,
         "mode": mode,
         "status": status,

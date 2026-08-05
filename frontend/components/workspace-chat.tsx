@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import LlmModelPicker from "@/components/llm-model-picker";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -10,6 +11,11 @@ interface ChatMessage {
 export interface AgentSendResult {
   agent_message: string;
   did_rewrite?: boolean;
+  profile_updated?: boolean;
+  changed_apply?: string[];
+  changed_inventory?: string[];
+  llm_provider?: string | null;
+  llm_model?: string | null;
 }
 
 interface WorkspaceChatProps {
@@ -23,9 +29,9 @@ interface WorkspaceChatProps {
 }
 
 const SUGGESTIONS = [
+  "Match my Profile to this JD",
+  "Save my location: Baltimore, MD to Profile",
   "Emphasize SQL and Tableau in my bullets",
-  "Make the summary more DA-focused",
-  "Shorten experience bullets to fit one page",
 ];
 
 export default function WorkspaceChat({ onSend, loading, bootNotice }: WorkspaceChatProps) {
@@ -33,11 +39,14 @@ export default function WorkspaceChat({ onSend, loading, bootNotice }: Workspace
     {
       role: "assistant",
       content:
-        "I am your resume tailor agent. Every rewrite follows RESUME_CONSTITUTION.md: no fabrication, evidence-backed bullets, locked master DOCX layout, one page. When you open a job I draft automatically — ask me to refine.",
+        "I am your resume tailor agent with Profile tools. I can save facts you state (including location/住址), match your inventory to this JD, and project a one-page resume on the locked master DOCX — no fabrication, evidence-backed only.",
     },
   ]);
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [lastLlm, setLastLlm] = useState<{ provider?: string | null; model?: string | null } | null>(
+    null
+  );
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const seenBootNotice = useRef<string | null>(null);
@@ -61,11 +70,29 @@ export default function WorkspaceChat({ onSend, loading, bootNotice }: Workspace
     setInput("");
     try {
       const result = await onSend(userMsg, history);
+      let content = result.agent_message || "Done.";
+      if (result.llm_provider || result.llm_model) {
+        setLastLlm({ provider: result.llm_provider, model: result.llm_model });
+      }
+      if (result.profile_updated) {
+        try {
+          window.dispatchEvent(
+            new CustomEvent("ra-profile-updated", {
+              detail: {
+                changed_apply: result.changed_apply || [],
+                changed_inventory: result.changed_inventory || [],
+              },
+            })
+          );
+        } catch {
+          /* ignore */
+        }
+      }
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: result.agent_message || "Done.",
+          content,
         },
       ]);
     } catch (err) {
@@ -88,10 +115,19 @@ export default function WorkspaceChat({ onSend, loading, bootNotice }: Workspace
       data-testid="workspace-chat"
     >
       <div className="shrink-0 border-b border-slate-100 px-5 py-3">
-        <h3 className="text-sm font-bold text-slate-950">Resume Agent</h3>
-        <p className="text-[12px] text-slate-500">
-          Chat normally, or ask for edits — rewrite updates the locked master-template PDF.
-          No job yet? Use <span className="font-semibold text-slate-700">Paste JD</span> in the header.
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white"
+            data-testid="agent-badge"
+          >
+            <span aria-hidden>∞</span>
+            Agent
+          </div>
+          <LlmModelPicker lastUsed={lastLlm} />
+        </div>
+        <p className="mt-2 text-[12px] text-slate-500">
+          Chat to edit the resume, save Profile facts, or ask me to match inventory to this JD.
+          Model shows what actually answered (Auto can fail over).
         </p>
         <p className="mt-0.5 text-[10px] text-slate-400" data-testid="chat-send-hint">
           Enter to send · Shift+Enter for newline
@@ -115,7 +151,7 @@ export default function WorkspaceChat({ onSend, loading, bootNotice }: Workspace
         {loading && (
           <div className="flex justify-start">
             <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3.5 py-2.5 text-[13px] text-slate-400">
-              {loading ? "Working…" : "Thinking…"}
+              Working…
             </div>
           </div>
         )}

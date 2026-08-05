@@ -44,6 +44,8 @@ class Settings(BaseSettings):
 
     # LLM — primary provider selection
     LLM_PROVIDER: str = "openai"
+    # When preferred provider fails (503/429/timeout), try other configured keys.
+    LLM_FAILOVER: bool = True
 
     # ── OpenAI-compatible providers ──────────────────────────
     OPENAI_API_KEY: str = ""
@@ -65,12 +67,16 @@ class Settings(BaseSettings):
     MINIMAX_API_KEY: str = ""
     MOONSHOT_API_KEY: str = ""
     XIAOMI_API_KEY: str = ""
+    MIMO_API_KEY: str = ""
     CLOUDFLARE_API_KEY: str = ""
     CLOUDFLARE_ACCOUNT_ID: str = ""
     ANT_LING_API_KEY: str = ""
     KIMI_API_KEY: str = ""
     QWEN_TOKEN_PLAN_API_KEY: str = ""
     RADIUS_API_KEY: str = ""
+    # Zhipu / BigModel (智谱) — OpenAI-compatible paas/v4
+    BIGMODEL_API_KEY: str = ""
+    ZHIPU_API_KEY: str = ""
 
     # ── Native protocol providers ────────────────────────────
     ANTHROPIC_API_KEY: str = ""
@@ -138,6 +144,8 @@ class Settings(BaseSettings):
     """Min hours between outreach emails to the same company"""
     APP_HOST_URL: str = "http://localhost:8000"
     """Public-facing host URL for unsubscribe links"""
+    # Optional Hunter.io key for single-person email finder (user-click only).
+    HUNTER_API_KEY: str = ""
 
     # Rate limits
     MAX_DAILY_APPLICATIONS: int = 20

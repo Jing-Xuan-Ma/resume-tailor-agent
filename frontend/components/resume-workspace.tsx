@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import type { KeywordMatchItem, StartApplyResponse, VersionItem } from "@/lib/api";
+import type { VersionItem, ContentDelta } from "@/lib/api";
 import {
   createJdSession,
   analyzeJd,
@@ -14,13 +14,9 @@ import {
   getVersionPreviewUrl,
   previewVersionPdf,
   getActiveTemplate,
-  startApply,
-  confirmApplySubmit,
 } from "@/lib/api";
-import ApplyModePanel from "@/components/apply-mode-panel";
 import FlowStepper from "@/components/flow-stepper";
 import JdPanel from "@/components/jd-panel";
-import KeywordGapSection from "@/components/keyword-gap-section";
 import WorkspaceChat from "@/components/workspace-chat";
 import type { AgentSendResult } from "@/components/workspace-chat";
 interface ResumeWorkspaceProps {
@@ -78,6 +74,8 @@ export default function ResumeWorkspace({
   const [versions, setVersions] = useState<VersionItem[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [activeResume, setActiveResume] = useState<Record<string, unknown> | null>(null);
+  const [contentDelta, setContentDelta] = useState<ContentDelta | null>(null);
+  const [previewMode, setPreviewMode] = useState<"changes" | "master">("changes");
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [pdfReady, setPdfReady] = useState(false);
   const [pdfPending, setPdfPending] = useState(false);
@@ -86,15 +84,11 @@ export default function ResumeWorkspace({
   const [rewriting, setRewriting] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [exporting, setExporting] = useState<"pdf" | "docx" | "text" | null>(null);
-  const [keywordMatches, setKeywordMatches] = useState<KeywordMatchItem[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [finalSavePath, setFinalSavePath] = useState<string | null>(null);
   const [jobLabel, setJobLabel] = useState<string | null>(null);
   const [bootNotice, setBootNotice] = useState<string | null>(null);
   const [returnToUrl, setReturnToUrl] = useState<string | null>(initialReturnTo || null);
-  const [applyBusy, setApplyBusy] = useState(false);
-  const [applyResult, setApplyResult] = useState<StartApplyResponse | null>(null);
-  const [confirmSubmitBusy, setConfirmSubmitBusy] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [confirmedMeta, setConfirmedMeta] = useState<{
     company?: string;
@@ -168,13 +162,14 @@ export default function ResumeWorkspace({
       new_version_id?: string | null;
       version_index?: number | null;
       full_resume?: Record<string, unknown> | null;
-      keyword_matches?: KeywordMatchItem[];
+      content_delta?: ContentDelta | Record<string, unknown> | null;
     }) => {
-      if (result.keyword_matches?.length) {
-        setKeywordMatches(result.keyword_matches);
-      }
       if (!result.did_rewrite || !result.new_version_id) return;
       if (result.full_resume) setActiveResume(result.full_resume);
+      if (result.content_delta) {
+        setContentDelta(result.content_delta as ContentDelta);
+        setPreviewMode("changes");
+      }
       setFinalSavePath(null);
       const v: VersionItem = {
         id: result.new_version_id,
@@ -194,7 +189,7 @@ export default function ResumeWorkspace({
       setBootNotice((prev) =>
         prev && prev.startsWith("Could not")
           ? prev
-          : `Draft v${result.version_index || "?"} ready — structured preview first, master PDF rendering…`
+          : `Draft v${result.version_index || "?"} ready — changed lines highlighted; master PDF rendering…`
       );
       loadPdfWhenReady(result.new_version_id);
     },
@@ -231,8 +226,7 @@ export default function ResumeWorkspace({
         const session = await createJdSession(userId, text, initialJobId);
         setSessionId(session.session_id);
         setJdText(text);
-        const analysis = await analyzeJd(session.session_id);
-        setKeywordMatches(analysis.keyword_matches || []);
+        await analyzeJd(session.session_id);
         if (opts?.autoTailor) {
           await runAutoTailor(session.session_id, opts.label);
         }
@@ -262,6 +256,8 @@ export default function ResumeWorkspace({
             sid = v.session_id || sid;
             setActiveVersionId(v.id);
             setActiveResume(v.full_resume as Record<string, unknown>);
+            setContentDelta((v.content_delta as ContentDelta) || null);
+            setPreviewMode("changes");
             loadPdfWhenReady(v.id);
           }
           if (!sid) {
@@ -284,6 +280,8 @@ export default function ResumeWorkspace({
             setActiveVersionId(vid);
             const v = await getVersion(vid, userId);
             setActiveResume(v.full_resume as Record<string, unknown>);
+            setContentDelta((v.content_delta as ContentDelta) || null);
+            setPreviewMode("changes");
             loadPdfWhenReady(vid);
           } else if (vid) {
             // refresh confirm flags from getVersion
@@ -344,8 +342,7 @@ export default function ResumeWorkspace({
             .trim()
         );
         try {
-          const analysis = await analyzeJd(handoff.session_id);
-          setKeywordMatches(analysis.keyword_matches || []);
+          await analyzeJd(handoff.session_id);
         } catch {
           setBootNotice("JD loaded, but analysis failed — you can still tailor.");
         }
@@ -369,25 +366,19 @@ export default function ResumeWorkspace({
     void bootstrap();
   }, [initialized, initSession, userId, initialJobId, initialVersionId, initialSessionId, runAutoTailor, initialReturnTo]);
 
-  // Extension / deeplink: open Tailor panel and scroll to confirm | apply.
+  // Extension / deeplink: open Tailor panel and scroll to Confirm under PDF.
   useEffect(() => {
     const step = (initialStep || "").toLowerCase().trim();
-    if (!step || step === "jd" || step === "outreach") return;
-    if (step === "tailor" || step === "confirm" || step === "apply") {
+    if (!step || step === "jd" || step === "outreach" || step === "apply") return;
+    if (step === "tailor" || step === "confirm") {
       setWorkspacePanel("tailor");
-      setFocusStep(step === "confirm" ? "tailor" : (step as "tailor" | "apply"));
+      setFocusStep("tailor");
     }
-    if (step === "tailor") return;
-    const map: Record<string, string> = {
-      confirm: "confirm-version",
-      apply: "apply-mode-panel",
-    };
-    const testId = map[step];
-    if (!testId) return;
+    if (step !== "confirm") return;
     let tries = 0;
     const timer = window.setInterval(() => {
       tries += 1;
-      const el = document.querySelector(`[data-testid=${testId}]`);
+      const el = document.querySelector("[data-testid=confirm-version]");
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "nearest" });
         window.clearInterval(timer);
@@ -406,13 +397,11 @@ export default function ResumeWorkspace({
     setVersions([]);
     setActiveVersionId(null);
     setActiveResume(null);
+    setContentDelta(null);
+    setPreviewMode("changes");
     setPdfPreviewUrl(null);
     setBootNotice(null);
     await initSession(pasteInput.trim(), { autoTailor: true, label: "the pasted JD" });
-  };
-
-  const handleSuggestProject = (_keyword: string) => {
-    // KeywordGapSection also calls suggestProject API when versionId is set.
   };
 
   const handleAgent = async (
@@ -432,14 +421,52 @@ export default function ResumeWorkspace({
       return {
         agent_message: result.agent_message,
         did_rewrite: result.did_rewrite,
+        profile_updated: !!result.profile_updated,
+        changed_apply: result.changed_apply || [],
+        changed_inventory: result.changed_inventory || [],
+        llm_provider: result.llm_provider,
+        llm_model: result.llm_model,
       };
     } finally {
       setRewriting(false);
     }
   };
 
+  const buildApplyHref = (meta?: {
+    company?: string;
+    position?: string;
+    final_path?: string;
+  }) => {
+    if (!activeVersionId) return null;
+    const company =
+      meta?.company ||
+      confirmedMeta?.company ||
+      jobLabel?.split("·")[0]?.trim() ||
+      "";
+    const position =
+      meta?.position ||
+      confirmedMeta?.position ||
+      jobLabel?.split("·").slice(1).join(" · ").trim() ||
+      "";
+    const q = new URLSearchParams({ versionId: activeVersionId });
+    if (sessionId) q.set("sessionId", sessionId);
+    if (initialJobId) q.set("jobId", initialJobId);
+    if (company) q.set("company", company);
+    if (position) q.set("position", position);
+    if (returnToUrl) q.set("returnTo", returnToUrl);
+    const finalPath = meta?.final_path || confirmedMeta?.final_path || finalSavePath;
+    if (finalPath) q.set("finalPath", finalPath);
+    return `/apply?${q.toString()}`;
+  };
+
   const handleConfirm = async () => {
     if (!activeVersionId) return;
+    const alreadyConfirmed = versions.some((v) => v.id === activeVersionId && v.is_confirmed);
+    if (alreadyConfirmed) {
+      const href = buildApplyHref();
+      if (href) window.location.assign(href);
+      return;
+    }
     setConfirming(true);
     setConfirmError(null);
     try {
@@ -453,15 +480,15 @@ export default function ResumeWorkspace({
         position: result.position,
         final_path: result.final_path,
       });
-      setApplyResult(null);
-      // Cue Apply after Confirm — never auto-submit; dedicated page via "Open Apply workspace".
-      setWorkspacePanel("tailor");
-      requestAnimationFrame(() => {
-        document.querySelector("[data-testid=open-apply-workspace], [data-testid=apply-mode-panel]")?.scrollIntoView({
-          behavior: "smooth",
-          block: "nearest",
-        });
+      const href = buildApplyHref({
+        company: result.company,
+        position: result.position,
+        final_path: result.final_path,
       });
+      if (href) {
+        window.location.assign(href);
+        return;
+      }
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Confirm blocked by evidence/format gate";
       // Prefer readable detail from API 409 JSON when present
@@ -486,89 +513,6 @@ export default function ResumeWorkspace({
     }
   };
 
-  const handleStartApply = async (mode: "manual" | "auto") => {
-    if (!activeVersionId) return;
-    setApplyBusy(true);
-    try {
-      // Sync confirmation flag from server (DB may have been confirmed outside this tab).
-      // Server startApply is the real gate — do not block on stale FE state.
-      try {
-        const v = await getVersion(activeVersionId, userId);
-        if (v.is_confirmed) {
-          setVersions((prev) =>
-            prev.map((x) => (x.id === activeVersionId ? { ...x, is_confirmed: true } : x))
-          );
-        }
-      } catch {
-        /* best-effort */
-      }
-      const result = await startApply(activeVersionId, userId, mode, {
-        company: confirmedMeta?.company || jobLabel?.split("·")[0]?.trim() || jobLabel || undefined,
-        position: confirmedMeta?.position || jobLabel?.split("·")[1]?.trim() || undefined,
-        final_path: confirmedMeta?.final_path || finalSavePath || undefined,
-        job_id: initialJobId || undefined,
-      });
-      setApplyResult(result);
-      // Manual apply: open a usable posting URL immediately (official ATS, or board fallback).
-      if (mode === "manual") {
-        const openUrl = result.source_url || result.board_url;
-        if (openUrl) {
-          window.open(openUrl, "_blank", "noopener,noreferrer");
-        }
-      }
-      setConfirmedMeta((prev) => {
-        const parts = (jobLabel || "").split("·").map((s) => s.trim()).filter(Boolean);
-        return {
-          company: prev?.company || parts[0],
-          position: prev?.position || (parts.length > 1 ? parts.slice(1).join(" · ") : undefined),
-          final_path: result.final_path || prev?.final_path,
-        };
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Apply start failed";
-      setApplyResult({
-        apply_id: "",
-        mode,
-        status: "error",
-        submitted: false,
-        paused_before_submit: false,
-        message: msg,
-        filled_fields: [],
-      });
-    } finally {
-      setApplyBusy(false);
-    }
-  };
-
-  const handleConfirmSubmit = async () => {
-    if (!applyResult?.apply_id || confirmSubmitBusy) return;
-    setConfirmSubmitBusy(true);
-    try {
-      const res = await confirmApplySubmit(applyResult.apply_id, userId, true);
-      setApplyResult((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: res.status,
-              submitted: res.submitted,
-              paused_before_submit: res.paused_before_submit,
-              message: res.message,
-            }
-          : prev
-      );
-      if (res.source_url) {
-        window.open(res.source_url, "_blank", "noopener,noreferrer");
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Confirm submit failed";
-      setApplyResult((prev) =>
-        prev ? { ...prev, message: msg, status: prev.status || "error" } : prev
-      );
-    } finally {
-      setConfirmSubmitBusy(false);
-    }
-  };
-
   const handleOpenOutreach = () => {
     const company =
       confirmedMeta?.company || jobLabel?.split("·")[0]?.trim() || "";
@@ -586,30 +530,10 @@ export default function ResumeWorkspace({
     window.location.assign(href);
   };
 
-  const applyWorkspaceHref = (() => {
-    if (!activeVersionId) return null;
-    const company =
-      confirmedMeta?.company || jobLabel?.split("·")[0]?.trim() || "";
-    const position =
-      confirmedMeta?.position ||
-      jobLabel?.split("·").slice(1).join(" · ").trim() ||
-      "";
-    const q = new URLSearchParams({ versionId: activeVersionId });
-    if (sessionId) q.set("sessionId", sessionId);
-    if (initialJobId) q.set("jobId", initialJobId);
-    if (company) q.set("company", company);
-    if (position) q.set("position", position);
-    if (returnToUrl) q.set("returnTo", returnToUrl);
-    if (confirmedMeta?.final_path || finalSavePath) {
-      q.set("finalPath", confirmedMeta?.final_path || finalSavePath || "");
-    }
-    return `/apply?${q.toString()}`;
-  })();
-
   const handleOpenApplyWorkspace = () => {
-    if (!applyWorkspaceHref) return;
-    // Same tab keeps flow context; Apply page links back with versionId+sessionId.
-    window.location.assign(applyWorkspaceHref);
+    const href = buildApplyHref();
+    if (!href) return;
+    window.location.assign(href);
   };
 
   // Deeplink step=outreach → dedicated tab (never embed beside PDF).
@@ -648,6 +572,8 @@ export default function ResumeWorkspace({
     try {
       const v = await getVersion(versionId, userId);
       setActiveResume(v.full_resume as Record<string, unknown>);
+      setContentDelta((v.content_delta as ContentDelta) || null);
+      setPreviewMode("changes");
       setVersions((prev) =>
         prev.map((x) =>
           x.id === versionId ? { ...x, is_confirmed: !!v.is_confirmed } : x
@@ -665,15 +591,9 @@ export default function ResumeWorkspace({
   const derivedFlowStep =
     workspacePanel === "jd"
       ? "jd"
-      : applyResult &&
-          (applyResult.status === "paused_before_submit" ||
-            applyResult.status === "ready_for_manual_apply")
-        ? "outreach"
-        : applyResult && applyResult.status !== "error" && applyResult.status !== "waiting_confirm"
-          ? "apply"
-          : activeVersion?.is_confirmed
-            ? "apply"
-            : "tailor";
+      : activeVersion?.is_confirmed
+        ? "apply"
+        : "tailor";
   const flowStep = focusStep || derivedFlowStep;
   const evidenceCheck = (activeResume?.evidence_check || null) as
     | {
@@ -706,7 +626,8 @@ export default function ResumeWorkspace({
       if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || e.key !== "Enter") return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT" || t.isContentEditable)) return;
-      if (!activeVersionId || activeVersion?.is_confirmed || confirming || !canConfirm) return;
+      if (!activeVersionId || confirming) return;
+      if (!activeVersion?.is_confirmed && !canConfirm) return;
       e.preventDefault();
       void handleConfirm();
     };
@@ -776,22 +697,15 @@ export default function ResumeWorkspace({
                 setWorkspacePanel("jd");
                 return;
               }
-              if (step === "tailor" || step === "apply") {
-                setFocusStep(step);
+              if (step === "apply") {
+                setFocusStep("apply");
+                handleOpenApplyWorkspace();
+                return;
+              }
+              if (step === "tailor") {
+                setFocusStep("tailor");
                 setWorkspacePanel("tailor");
               }
-              const map: Record<string, string> = {
-                apply: "apply-mode-panel",
-                tailor: "resume-workspace",
-              };
-              const id = map[step];
-              if (!id) return;
-              window.setTimeout(() => {
-                document.querySelector(`[data-testid=${id}]`)?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "nearest",
-                });
-              }, 50);
             }}
           />
           {jobLabel ? (
@@ -884,22 +798,6 @@ export default function ResumeWorkspace({
           ) : null}
           <button
             type="button"
-            data-testid="confirm-version"
-            onClick={() => void handleConfirm()}
-            disabled={!activeVersionId || activeVersion?.is_confirmed || confirming || !canConfirm}
-            title={
-              softEvidenceWarnings.length && canConfirm
-                ? "Soft evidence notes only — Confirm is allowed (Ctrl+Shift+Enter). * = soft notes present"
-                : !canConfirm
-                  ? "Blocked by hard evidence / format gate"
-                  : "Confirm and save final DOCX + PDF (Ctrl+Shift+Enter)"
-            }
-            className="h-8 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
-          >
-            {confirming ? "…" : activeVersion?.is_confirmed ? "Confirmed" : softEvidenceWarnings.length && canConfirm ? "Confirm*" : "Confirm"}
-          </button>
-          <button
-            type="button"
             onClick={() => void handleExport("docx")}
             disabled={!activeVersion?.is_confirmed || !!exporting}
             title={!activeVersion?.is_confirmed ? "Confirm first to export final DOCX" : "Download confirmed DOCX"}
@@ -973,7 +871,7 @@ export default function ResumeWorkspace({
         >
           Confirmed → {finalSavePath} (docx + pdf + meta.json)
           <span className="ml-2 font-normal text-emerald-700" data-testid="confirm-next-apply">
-            Next: Apply below (fill only — never Submit)
+            Opening Apply…
           </span>
         </div>
       ) : null}
@@ -1002,7 +900,7 @@ export default function ResumeWorkspace({
               Go to Tailor →
             </button>
           </div>
-          <JdPanel jdText={jdText} loading={analyzing} expandContent />
+          <JdPanel jdText={jdText} loading={analyzing} expandContent jobLabel={jobLabel} />
         </div>
       ) : (
         <div
@@ -1021,7 +919,7 @@ export default function ResumeWorkspace({
             className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto overscroll-contain [scrollbar-gutter:stable] lg:h-full"
             data-testid="right-scroll-column"
           >
-            <div className="min-h-[640px] shrink-0 pb-3" data-testid="resume-preview">
+            <div className="min-h-[640px] shrink-0 pb-1" data-testid="resume-preview">
               <ResumePreviewSection
                 pdfPreviewUrl={pdfPreviewUrl}
                 pdfReady={pdfReady}
@@ -1029,73 +927,84 @@ export default function ResumeWorkspace({
                 numPages={numPages}
                 onLoadSuccess={({ numPages: n }) => setNumPages(n)}
                 resume={activeResume}
+                contentDelta={contentDelta}
+                previewMode={previewMode}
+                onPreviewModeChange={setPreviewMode}
                 wide
                 busy={analyzing || rewriting}
               />
             </div>
-            <ApplyModePanel
-              visible
-              busy={applyBusy || !activeVersionId || confirming}
-              status={
-                !activeVersionId
-                  ? "waiting_version"
-                  : applyResult?.status
-                    || (!activeVersion?.is_confirmed ? "waiting_confirm" : null)
-              }
-              message={
-                !activeVersionId
-                  ? "Open a job or Paste JD so a tailored version exists, then Confirm → Apply."
-                  : applyResult?.message
-                    || (!activeVersion?.is_confirmed
-                      ? "Use the Confirm button below (or the header Confirm). Then open Apply workspace."
-                      : null)
-              }
-              pausedBeforeSubmit={!!applyResult?.paused_before_submit}
-              filledFields={applyResult?.filled_fields || []}
-              fillPlan={applyResult?.fill_plan || []}
-              mapProvider={applyResult?.map_provider}
-              atsType={applyResult?.ats_type}
-              sourceUrl={applyResult?.source_url}
-              boardUrl={applyResult?.board_url}
-              browserFill={applyResult?.browser_fill || null}
-              onManual={() => void handleStartApply("manual")}
-              onAuto={() => void handleStartApply("auto")}
-              onConfirmSubmit={() => void handleConfirmSubmit()}
-              confirmSubmitBusy={confirmSubmitBusy}
-              applyId={applyResult?.apply_id || null}
-              onConfirm={() => void handleConfirm()}
-              confirming={confirming}
-              canConfirm={canConfirm}
-              applyWorkspaceHref={applyWorkspaceHref}
-            />
-            <KeywordGapSection
-              keywordMatches={keywordMatches}
-              onSuggest={handleSuggestProject}
-              userId={userId}
-              versionId={activeVersionId}
-            />
             <div
-              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-              data-testid="outreach-open-card"
+              className="shrink-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+              data-testid="tailor-confirm-card"
             >
-              <h3 className="text-sm font-bold text-slate-950">Step 6 · Cold outreach</h3>
-              <p className="mt-1 text-xs text-slate-500">
-                Opens in a <strong>new tab</strong> so it does not share space with the PDF preview.
-              </p>
               <button
                 type="button"
-                onClick={handleOpenOutreach}
-                className="mt-3 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
-                data-testid="open-outreach-tab"
+                data-testid="confirm-version"
+                onClick={() => void handleConfirm()}
+                disabled={
+                  !activeVersionId ||
+                  confirming ||
+                  (!activeVersion?.is_confirmed && !canConfirm)
+                }
+                title={
+                  activeVersion?.is_confirmed
+                    ? "Open Apply workspace"
+                    : softEvidenceWarnings.length && canConfirm
+                      ? "Soft evidence notes only — Confirm is allowed (Ctrl+Shift+Enter)"
+                      : !canConfirm
+                        ? "Blocked by hard evidence / format gate"
+                        : "Confirm resume, then open Apply (Ctrl+Shift+Enter)"
+                }
+                className="w-full rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
               >
-                Open outreach in new tab →
+                {confirming
+                  ? "Confirming…"
+                  : activeVersion?.is_confirmed
+                    ? "Go to Apply →"
+                    : softEvidenceWarnings.length && canConfirm
+                      ? "Confirm → Apply*"
+                      : "Confirm → Apply"}
               </button>
+              <p className="mt-2 text-center text-[11px] text-slate-500">
+                Saves final DOCX + PDF, then opens the Apply page. Auto-apply never clicks Submit.
+              </p>
             </div>
           </div>
         </div>
       )}
     </div>
   );
+}
+
+function pathStatus(
+  path: string,
+  delta: ContentDelta | null
+): "changed" | "unchanged" | "unknown" {
+  if (!delta) return "unknown";
+  const changes = delta.changes || [];
+  if (changes.some((c) => c.path === path || c.path.startsWith(path + ".") || c.path.startsWith(path + "["))) {
+    return "changed";
+  }
+  // parent section changed via any bullet
+  if (changes.some((c) => c.path.startsWith(path))) {
+    return "changed";
+  }
+  const unchanged = delta.unchanged_paths || [];
+  if (unchanged.includes(path) || unchanged.some((p) => p.startsWith(path))) {
+    return "unchanged";
+  }
+  return "unknown";
+}
+
+function highlightClass(status: "changed" | "unchanged" | "unknown"): string {
+  if (status === "changed") {
+    return "rounded-md bg-amber-100 ring-1 ring-amber-300 px-1 -mx-1";
+  }
+  if (status === "unchanged") {
+    return "opacity-45";
+  }
+  return "";
 }
 
 function ResumePreviewSection({
@@ -1105,6 +1014,9 @@ function ResumePreviewSection({
   numPages,
   onLoadSuccess,
   resume,
+  contentDelta = null,
+  previewMode = "changes",
+  onPreviewModeChange,
   wide = false,
   busy = false,
 }: {
@@ -1114,18 +1026,71 @@ function ResumePreviewSection({
   numPages: number | null;
   onLoadSuccess: (info: { numPages: number }) => void;
   resume: Record<string, unknown> | null;
+  contentDelta?: ContentDelta | null;
+  previewMode?: "changes" | "master";
+  onPreviewModeChange?: (mode: "changes" | "master") => void;
   wide?: boolean;
   busy?: boolean;
 }) {
   void numPages;
   void onLoadSuccess;
   void wide;
-  // HTML first-paint while Word PDF generates (or during rewrite).
-  const showHtmlFirst = !!resume && (!pdfReady || pdfPending || busy);
+  const hasDelta = !!(contentDelta?.changes && contentDelta.changes.length > 0);
+  const showChanges = previewMode === "changes" && !!resume && (hasDelta || busy || pdfPending || !pdfReady);
+  const showHtmlFirst = !!resume && (!pdfReady || pdfPending || busy) && previewMode !== "master";
 
-  if (showHtmlFirst && resume) {
+  const modeToggle =
+    resume && (hasDelta || pdfReady) ? (
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2" data-testid="preview-mode-toggle">
+        <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white p-0.5 text-[11px]">
+          <button
+            type="button"
+            onClick={() => onPreviewModeChange?.("changes")}
+            className={`rounded-full px-2.5 py-1 font-semibold ${
+              previewMode === "changes" ? "bg-amber-500 text-white" : "text-slate-600"
+            }`}
+            data-testid="preview-mode-changes"
+          >
+            Highlight changes
+          </button>
+          <button
+            type="button"
+            onClick={() => onPreviewModeChange?.("master")}
+            disabled={!pdfPreviewUrl}
+            className={`rounded-full px-2.5 py-1 font-semibold disabled:opacity-40 ${
+              previewMode === "master" ? "bg-emerald-600 text-white" : "text-slate-600"
+            }`}
+            data-testid="preview-mode-master"
+          >
+            Master PDF
+          </button>
+        </div>
+        {previewMode === "changes" && hasDelta ? (
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500" data-testid="preview-legend">
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-300 ring-1 ring-amber-400" />
+              Changed
+            </span>
+            <span className="inline-flex items-center gap-1 opacity-60">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-slate-300" />
+              Unchanged
+            </span>
+            <span className="inline-flex items-center gap-1 text-rose-600">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-300" />
+              Hidden
+            </span>
+            <span className="font-semibold text-slate-600">
+              {contentDelta?.change_count ?? contentDelta?.changes?.length ?? 0} edits
+            </span>
+          </div>
+        ) : null}
+      </div>
+    ) : null;
+
+  if ((showChanges || showHtmlFirst) && resume && previewMode !== "master") {
     return (
       <div className="relative" data-testid="preview-first-paint">
+        {modeToggle}
         {(busy || pdfPending) && (
           <div
             className="mb-2 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5"
@@ -1135,19 +1100,49 @@ function ResumePreviewSection({
               {busy ? "Tailoring…" : "Rendering locked master PDF…"}
             </span>
             <span className="text-[10px] text-amber-700" data-testid="preview-html-first-note">
-              HTML first-paint — PDF swaps in when ready
+              Highlights show what changed — switch to Master PDF when ready
             </span>
           </div>
         )}
         <div data-testid="html-preview-fallback">
-          <ResumeHtmlPreview resume={resume} />
+          <ResumeHtmlPreview resume={resume} delta={contentDelta} highlight />
         </div>
       </div>
     );
   }
 
   // Native browser PDF viewer — avoids react-pdf worker crashes on large Word PDFs.
-  if (pdfPreviewUrl) {
+  if (pdfPreviewUrl && previewMode === "master") {
+    return (
+      <div
+        className="flex min-h-[780px] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        data-testid="master-pdf-preview"
+      >
+        <div className="border-b border-slate-100 px-4 py-2">{modeToggle}</div>
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-2">
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+              Master template preview
+            </span>
+            <p className="text-[10px] text-slate-400">
+              Clean OOXML → Word PDF (Confirm export). No highlight overlays — switch to Highlight changes.
+            </p>
+          </div>
+          <span className="text-[11px] font-semibold text-emerald-700" data-testid="preview-page-count">
+            template PDF
+          </span>
+        </div>
+        <iframe
+          title="Master resume PDF preview"
+          src={pdfPreviewUrl}
+          className="min-h-[740px] w-full flex-1 bg-slate-100"
+          data-testid="master-pdf-iframe"
+        />
+      </div>
+    );
+  }
+
+  if (pdfPreviewUrl && !hasDelta) {
     return (
       <div
         className="flex min-h-[780px] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
@@ -1199,15 +1194,24 @@ function ResumePreviewSection({
 
   return (
     <div data-testid="html-preview-fallback">
+      {modeToggle}
       <p className="mb-2 text-center text-[10px] text-amber-700">
         Master PDF unavailable — structured fallback (Confirm DOCX still uses locked master)
       </p>
-      <ResumeHtmlPreview resume={resume} />
+      <ResumeHtmlPreview resume={resume} delta={contentDelta} highlight={hasDelta} />
     </div>
   );
 }
 
-function ResumeHtmlPreview({ resume }: { resume: Record<string, unknown> }) {
+function ResumeHtmlPreview({
+  resume,
+  delta = null,
+  highlight = false,
+}: {
+  resume: Record<string, unknown>;
+  delta?: ContentDelta | null;
+  highlight?: boolean;
+}) {
   const r = resume;
   const candidateName = r.candidate_name as string | undefined;
   const contactLine = r.contact_line as string | undefined;
@@ -1216,11 +1220,18 @@ function ResumeHtmlPreview({ resume }: { resume: Record<string, unknown> }) {
   const experiences = r.experiences as Array<Record<string, unknown>> | undefined;
   const projects = r.projects as Array<Record<string, unknown>> | undefined;
   const skillsCerts = r.skills_certifications as string | undefined;
+  const hidden = (delta?.hidden_entries ||
+    (r.hidden_entries as Array<Record<string, unknown>> | undefined) ||
+    []) as Array<Record<string, unknown> | string>;
+
+  const mark = (path: string) => (highlight ? pathStatus(path, delta) : ("unknown" as const));
 
   return (
     <div className="h-full w-full overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-3">
       <p className="mb-2 text-center text-[10px] text-slate-400">
-        Structured preview (Confirm → DOCX uses locked master template)
+        {highlight
+          ? "Change highlight preview (Confirm still exports clean master PDF)"
+          : "Structured preview (Confirm → DOCX uses locked master template)"}
       </p>
       <div className="mx-auto min-h-[900px] w-full max-w-[640px] bg-white px-10 py-8 text-slate-950 shadow-sm ring-1 ring-slate-200">
         {(candidateName || contactLine) && (
@@ -1228,10 +1239,18 @@ function ResumeHtmlPreview({ resume }: { resume: Record<string, unknown> }) {
             {candidateName && (
               <h1 className="text-[14pt] font-bold uppercase tracking-wide">{candidateName}</h1>
             )}
-            {contactLine && <p className="mt-1 text-[10pt] text-slate-700">{contactLine}</p>}
+            {contactLine && (
+              <p className={`mt-1 text-[10pt] text-slate-700 ${highlightClass(mark("contact_line"))}`}>
+                {contactLine}
+              </p>
+            )}
           </header>
         )}
-        {summary && <p className="mb-3 text-[10pt] leading-5 text-slate-800">{summary}</p>}
+        {summary && (
+          <p className={`mb-3 text-[10pt] leading-5 text-slate-800 ${highlightClass(mark("summary"))}`}>
+            {summary}
+          </p>
+        )}
         {education && education.length > 0 && (
           <section className="mb-3">
             <h4 className="mb-1 border-b border-slate-300 pb-0.5 text-[10pt] font-bold uppercase">Education</h4>
@@ -1251,13 +1270,25 @@ function ResumeHtmlPreview({ resume }: { resume: Record<string, unknown> }) {
               Professional Experience
             </h4>
             {experiences.map((exp, i) => (
-              <div key={i} className="mb-2">
+              <div key={i} className={`mb-2 ${highlightClass(mark(`experiences[${i}]`))}`}>
                 <p className="text-[10pt] font-bold">
                   {[exp.title, exp.company].filter(Boolean).join(" | ")}
                 </p>
                 <ul className="ml-3 text-[10pt] leading-5">
                   {(exp.bullets as Array<{ text: string }> | undefined)?.slice(0, 3).map((b, j) => (
-                    <li key={j}>• {b.text}</li>
+                    <li
+                      key={j}
+                      className={highlightClass(mark(`experiences[${i}].bullets[${j}]`))}
+                      data-testid={
+                        mark(`experiences[${i}].bullets[${j}]`) === "changed"
+                          ? "resume-line-changed"
+                          : mark(`experiences[${i}].bullets[${j}]`) === "unchanged"
+                            ? "resume-line-unchanged"
+                            : undefined
+                      }
+                    >
+                      • {b.text}
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -1268,8 +1299,15 @@ function ResumeHtmlPreview({ resume }: { resume: Record<string, unknown> }) {
           <section className="mb-3">
             <h4 className="mb-1 border-b border-slate-300 pb-0.5 text-[10pt] font-bold uppercase">Projects</h4>
             {projects.map((proj, i) => (
-              <div key={i} className="mb-1.5 text-[10pt]">
+              <div key={i} className={`mb-1.5 text-[10pt] ${highlightClass(mark(`projects[${i}]`))}`}>
                 <p className="font-bold">{proj.name as string}</p>
+                <ul className="ml-3 leading-5">
+                  {(proj.bullets as Array<{ text: string }> | undefined)?.slice(0, 3).map((b, j) => (
+                    <li key={j} className={highlightClass(mark(`projects[${i}].bullets[${j}]`))}>
+                      • {b.text}
+                    </li>
+                  ))}
+                </ul>
               </div>
             ))}
           </section>
@@ -1279,9 +1317,30 @@ function ResumeHtmlPreview({ resume }: { resume: Record<string, unknown> }) {
             <h4 className="mb-1 border-b border-slate-300 pb-0.5 text-[10pt] font-bold uppercase">
               Skills & Certifications
             </h4>
-            <p className="text-[10pt] leading-5">{skillsCerts}</p>
+            <p className={`text-[10pt] leading-5 ${highlightClass(mark("skills_certifications"))}`}>
+              {skillsCerts}
+            </p>
           </section>
         )}
+        {highlight && hidden.length > 0 ? (
+          <section className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2" data-testid="resume-hidden-block">
+            <h4 className="mb-1 text-[10pt] font-bold uppercase text-rose-800">Hidden this page</h4>
+            <ul className="space-y-1 text-[10pt] text-rose-700">
+              {hidden.map((h, i) => {
+                const label =
+                  typeof h === "string"
+                    ? h
+                    : String(
+                        (h as Record<string, unknown>).key ||
+                          (h as Record<string, unknown>).name ||
+                          (h as Record<string, unknown>).company ||
+                          JSON.stringify(h)
+                      );
+                return <li key={i}>− {label}</li>;
+              })}
+            </ul>
+          </section>
+        ) : null}
       </div>
     </div>
   );

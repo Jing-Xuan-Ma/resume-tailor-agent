@@ -14,15 +14,25 @@ from app.core.email_sender import (
     verify_unsubscribe_token,
 )
 from app.core.rate_limit import rate_limiter
+from app.modules.cold_outreach.candidate_scorer import extract_jd_signals, rank_candidates
 from app.modules.cold_outreach.crm_store import export_contacts_csv, list_contacts, upsert_contact
+from app.modules.cold_outreach.email_finder import find_emails
+from app.modules.cold_outreach.jd_ingest import ingest_jd_url
 from app.modules.cold_outreach.schemas import (
     OutreachContactListResponse,
     OutreachContactRequest,
     OutreachContactResponse,
     OutreachDraftRequest,
+    OutreachEmailFindRequest,
+    OutreachEmailFindResponse,
+    OutreachJdIngestRequest,
+    OutreachJdIngestResponse,
     OutreachListResponse,
     OutreachMarkSentRequest,
     OutreachMessageResponse,
+    OutreachRankRequest,
+    OutreachRankResponse,
+    OutreachRankedCandidate,
     OutreachSendRequest,
     OutreachSendResponse,
     UnsubscribeResponse,
@@ -76,7 +86,16 @@ def _compose_message(request: OutreachDraftRequest, job: dict | None, resume_sig
         greeting = f"Hi {contact},"
         close = "Best,"
 
-    if template == "coffee_chat":
+    if template == "linkedin_connect":
+        # LinkedIn connection notes are ~300 chars; keep subject unused in UI.
+        subject = f"LinkedIn connect — {role} at {company}"
+        body = (
+            f"Hi {contact} — I applied for {role} at {company}. "
+            f"Background in {resume_signal}. Would value connecting; happy to share a short note on fit."
+        )
+        if len(body) > 280:
+            body = body[:277] + "…"
+    elif template == "coffee_chat":
         slots = (request.coffee_availability or "").strip()
         slot_line = (
             f"I am generally free {slots} — happy to adjust to your calendar."
@@ -131,6 +150,72 @@ def _compose_message(request: OutreachDraftRequest, job: dict | None, resume_sig
         "linkedin_search_hint": f"{company} {contact_role}",
     }
     return subject, body, metadata
+
+
+@router.post("/jd-ingest", response_model=OutreachJdIngestResponse)
+async def outreach_jd_ingest(request: OutreachJdIngestRequest):
+    """Paste Greenhouse/Lever/LinkedIn Jobs URL → company, position, JD snippet."""
+    result = await ingest_jd_url(request.url, jd_text_override=request.jd_text_override)
+    audit(
+        str(request.user_id),
+        "outreach_jd_ingest",
+        {"ok": result.get("ok"), "platform": result.get("platform"), "url": result.get("source_url")},
+        application_run_id=None,
+    )
+    return OutreachJdIngestResponse(**result)
+
+
+@router.post("/rank-candidates", response_model=OutreachRankResponse)
+async def outreach_rank_candidates(request: OutreachRankRequest):
+    """Score pasted LinkedIn-public candidate rows (no email lookup)."""
+    if not request.candidates:
+        return OutreachRankResponse(candidates=[], jd_signals=extract_jd_signals(request.jd_text, request.position))
+    raw = [c.model_dump() for c in request.candidates]
+    ranked = rank_candidates(
+        raw,
+        jd_text=request.jd_text,
+        position=request.position,
+        company_size=request.company_size,
+    )
+    signals = extract_jd_signals(request.jd_text, request.position)
+    audit(
+        str(request.user_id),
+        "outreach_candidates_ranked",
+        {"count": len(ranked), "company": request.company, "top_score": ranked[0]["score"] if ranked else 0},
+        application_run_id=None,
+    )
+    return OutreachRankResponse(
+        candidates=[OutreachRankedCandidate(**row) for row in ranked],
+        jd_signals=signals,
+    )
+
+
+@router.post("/find-email", response_model=OutreachEmailFindResponse)
+async def outreach_find_email(request: OutreachEmailFindRequest):
+    """User-click single-person email lookup (Hunter if keyed, else format inference)."""
+    if not (request.name or "").strip():
+        raise HTTPException(status_code=400, detail="name required")
+    # Soft rate limit: reuse cold_outreach bucket so enrichment cannot be spammed.
+    rate_limiter.check(str(request.user_id), "cold_outreach", settings.MAX_DAILY_EMAILS)
+    result = await find_emails(
+        name=request.name.strip(),
+        company=request.company,
+        domain=request.domain,
+        website=request.website,
+        use_hunter=request.use_hunter,
+    )
+    audit(
+        str(request.user_id),
+        "outreach_email_lookup",
+        {
+            "name": request.name,
+            "domain": result.get("domain"),
+            "hunter": result.get("hunter_used"),
+            "hits": len(result.get("candidates") or []),
+        },
+        application_run_id=None,
+    )
+    return OutreachEmailFindResponse(**result)
 
 
 @router.post("/draft", response_model=OutreachMessageResponse)

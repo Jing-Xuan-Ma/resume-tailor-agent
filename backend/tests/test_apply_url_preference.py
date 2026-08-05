@@ -2,6 +2,8 @@
 
 from app.modules.job_discovery.apply_url import (
     is_aggregator_url,
+    is_usable_job_apply_url,
+    normalize_apply_url,
     prefer_official_apply_url,
     resolve_listing_apply_url,
 )
@@ -45,8 +47,6 @@ def test_resolve_listing_extracts_ats_from_jd_body():
 
 
 def test_reject_thin_workday_career_root():
-    from app.modules.job_discovery.apply_url import is_usable_job_apply_url
-
     thin = "https://rb.wd5.myworkdayjobs.com/FRS"
     assert not is_usable_job_apply_url(thin)
     got = prefer_official_apply_url(
@@ -57,21 +57,29 @@ def test_reject_thin_workday_career_root():
     assert "indeed.com" in (got or "")
 
 
-def test_jobright_apply_url_trusted_even_if_thin_workday():
-    """Jobright Apply href is authoritative — do not replace with Indeed."""
-    listing = {
-        "source_platform": "jobright_extension",
-        "source_url": "https://rb.wd5.myworkdayjobs.com/FRS",
-        "metadata": {
-            "apply_url": "https://rb.wd5.myworkdayjobs.com/FRS",
-            "has_external_apply": True,
-        },
-        "raw_text": "",
-    }
-    assert resolve_listing_apply_url(listing) == "https://rb.wd5.myworkdayjobs.com/FRS"
+def test_normalize_markdown_escaped_workday():
+    raw = r"https://rb.wd5\.myworkdayjobs.com/FRS"
+    cleaned = normalize_apply_url(raw)
+    assert cleaned == "https://rb.wd5.myworkdayjobs.com/FRS"
+    assert not is_usable_job_apply_url(raw)
+    assert not is_usable_job_apply_url(cleaned)
 
 
-def test_jobright_utm_greenhouse_preferred():
+def test_indeed_jd_with_escaped_workday_falls_back_to_board():
+    """Without live network, thin Workday clue alone must not be returned as source.
+
+    Live resolve is covered by test_apply_resolver (network). Here we only assert
+    the thin root itself is never treated as usable.
+    """
+    from app.modules.job_discovery.apply_url import is_usable_job_apply_url, normalize_apply_url
+
+    raw = r"https://rb.wd5\.myworkdayjobs.com/FRS"
+    cleaned = normalize_apply_url(raw)
+    assert cleaned == "https://rb.wd5.myworkdayjobs.com/FRS"
+    assert not is_usable_job_apply_url(cleaned)
+
+
+def test_jobright_usable_greenhouse_still_preferred():
     listing = {
         "source_platform": "jobright_extension",
         "source_url": "https://www.indeed.com/viewjob?jk=x",
@@ -85,3 +93,11 @@ def test_jobright_utm_greenhouse_preferred():
     got = resolve_listing_apply_url(listing) or ""
     assert "greenhouse.io" in got
     assert "utm_source=jobright" in got
+
+
+def test_prefer_never_returns_unusable_workday_as_last_resort():
+    got = prefer_official_apply_url(
+        r"https://rb.wd5\.myworkdayjobs.com/FRS",
+        board_fallback=None,
+    )
+    assert got is None

@@ -381,6 +381,16 @@ def init_db() -> None:
             conn.execute(
                 "ALTER TABLE job_listings ADD COLUMN category TEXT NOT NULL DEFAULT 'other'"
             )
+        outreach_cols = {row[1] for row in conn.execute("PRAGMA table_info(outreach_messages)").fetchall()}
+        if outreach_cols:
+            if "unsubscribe_token" not in outreach_cols:
+                conn.execute("ALTER TABLE outreach_messages ADD COLUMN unsubscribe_token TEXT")
+            if "sent_at" not in outreach_cols:
+                conn.execute("ALTER TABLE outreach_messages ADD COLUMN sent_at TEXT")
+            if "delivery_status" not in outreach_cols:
+                conn.execute("ALTER TABLE outreach_messages ADD COLUMN delivery_status TEXT")
+            if "delivery_error" not in outreach_cols:
+                conn.execute("ALTER TABLE outreach_messages ADD COLUMN delivery_error TEXT")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS application_queue (

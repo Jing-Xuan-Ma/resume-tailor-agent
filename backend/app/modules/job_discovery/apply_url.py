@@ -41,9 +41,34 @@ _ATS_HOST_PARTS = (
 )
 
 
-def _host(url: str | None) -> str:
+def normalize_apply_url(url: str | None) -> str | None:
+    """Clean markdown/Indeed escapes so URLs parse and open correctly.
+
+    Indeed JD bodies often contain ``https://rb.wd5\\.myworkdayjobs.com/FRS`` —
+    the backslash breaks the host (browser may show ``rb.wd5/.myworkdayjobs...``)
+    and causes ERR_CONNECTION_CLOSED.
+    """
     raw = (url or "").strip()
-    if not raw or not raw.lower().startswith(("http://", "https://")):
+    if not raw:
+        return None
+    # Markdown / JobSpy escapes: \. \- \_
+    cleaned = re.sub(r"\\([.\-_])", r"\1", raw)
+    cleaned = cleaned.strip().rstrip(".,;)")
+    if not cleaned.lower().startswith(("http://", "https://")):
+        return None
+    # Reject obviously broken hosts (backslash leftovers)
+    try:
+        host = urlparse(cleaned).hostname or ""
+    except Exception:
+        return None
+    if not host or "\\" in host or "\\" in cleaned.split("://", 1)[-1].split("/", 1)[0]:
+        return None
+    return cleaned
+
+
+def _host(url: str | None) -> str:
+    raw = normalize_apply_url(url) or ""
+    if not raw:
         return ""
     try:
         return urlparse(raw).hostname.lower() or ""
@@ -52,7 +77,7 @@ def _host(url: str | None) -> str:
 
 
 def _path_parts(url: str | None) -> list[str]:
-    raw = (url or "").strip()
+    raw = normalize_apply_url(url) or ""
     if not raw:
         return []
     try:
@@ -71,8 +96,8 @@ def is_aggregator_url(url: str | None) -> bool:
 
 def is_usable_job_apply_url(url: str | None) -> bool:
     """True if URL looks like a real job apply page (not a dead career-site root)."""
-    raw = (url or "").strip()
-    if not raw or not raw.lower().startswith(("http://", "https://")):
+    raw = normalize_apply_url(url)
+    if not raw:
         return False
     host = _host(raw)
     if not host:
@@ -128,10 +153,8 @@ def prefer_official_apply_url(
     seen: set[str] = set()
     ordered: list[str] = []
     for raw in candidates:
-        u = (raw or "").strip()
-        if not u or not u.lower().startswith(("http://", "https://")):
-            continue
-        if u in seen:
+        u = normalize_apply_url(raw)
+        if not u or u in seen:
             continue
         seen.add(u)
         ordered.append(u)
@@ -151,81 +174,178 @@ def prefer_official_apply_url(
             return u
 
     # 3) Board / aggregator fallback (Indeed etc. — usually opens even when Workday blocks)
-    fb = (board_fallback or "").strip()
-    if fb and fb.lower().startswith(("http://", "https://")):
+    fb = normalize_apply_url(board_fallback)
+    if fb and (is_aggregator_url(fb) or is_usable_job_apply_url(fb)):
         return fb
     for u in ordered:
         if is_aggregator_url(u):
             return u
+    # Never return thin Workday / other unusable ATS as a last resort — caller
+    # should show "no link" rather than open a known-dead page.
     for u in ordered:
-        return u
-    return None
+        if is_usable_job_apply_url(u):
+            return u
+    return fb if fb and is_aggregator_url(fb) else None
 
 
 def listing_board_url(listing: dict | None) -> str | None:
     if not listing:
         return None
     meta = listing.get("metadata") if isinstance(listing.get("metadata"), dict) else {}
-    for key in ("board_url", "job_url"):
-        u = str(meta.get(key) or "").strip()
-        if u.lower().startswith(("http://", "https://")) and is_aggregator_url(u):
+    for key in ("board_url", "job_url", "jobright_url", "page_url"):
+        u = normalize_apply_url(str(meta.get(key) or ""))
+        if u and is_aggregator_url(u):
             return u
-    source = str(listing.get("source_url") or "").strip()
+    source = normalize_apply_url(str(listing.get("source_url") or ""))
     if source and is_aggregator_url(source):
         return source
     return None
 
 
+def _thin_or_hint_ats_urls(listing: dict) -> list[str]:
+    """Collect ATS clues (including thin Workday roots) for the resolver."""
+    meta = listing.get("metadata") if isinstance(listing.get("metadata"), dict) else {}
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in (
+        meta.get("apply_url"),
+        meta.get("job_url_direct"),
+        listing.get("source_url"),
+        meta.get("career_url"),
+    ):
+        u = normalize_apply_url(str(raw or ""))
+        if not u or u in seen:
+            continue
+        host = _host(u)
+        if any(p in host for p in _ATS_HOST_PARTS) or "myworkdayjobs" in host:
+            seen.add(u)
+            out.append(u)
+    # Markdown-escaped career roots in JD body
+    scan = re.sub(r"\\([.\-_])", r"\1", str(listing.get("raw_text") or ""))
+    for m in re.finditer(
+        r"https?://[^\s)\"']*(?:myworkdayjobs\.com|greenhouse\.io|lever\.co)/[^\s)\"']*",
+        scan,
+        re.I,
+    ):
+        u = normalize_apply_url(m.group(0))
+        if u and u not in seen:
+            seen.add(u)
+            out.append(u)
+    return out
+
+
+def _try_resolve_deep_link(listing: dict) -> tuple[str | None, dict | None]:
+    """Run Apply URL Resolver when no usable deep link is on file.
+
+    Returns (url, resolve_meta) where resolve_meta is stored into listing metadata
+    by callers that persist; here we only return it for apply_flow / tests.
+    """
+    from app.modules.job_discovery.apply_resolver import resolve_apply_url
+    from app.modules.job_discovery.apply_resolver.models import ResolveStatus
+
+    hints: dict = {}
+    thin_list = _thin_or_hint_ats_urls(listing)
+    if thin_list:
+        hints["thin_workday_url"] = thin_list[0]
+        hints["apply_url"] = thin_list[0]
+        hints["career_url"] = thin_list[0]
+    meta = listing.get("metadata") if isinstance(listing.get("metadata"), dict) else {}
+    for k in ("ats_platform", "ats_org", "platform", "tenant", "site", "host", "wd"):
+        if meta.get(k):
+            hints[k] = meta.get(k)
+    if meta.get("ats_platform"):
+        hints["platform"] = meta.get("ats_platform")
+    if meta.get("ats_org"):
+        hints.setdefault("tenant", meta.get("ats_org"))
+
+    result = resolve_apply_url(
+        company=str(listing.get("company") or "") or None,
+        title=str(listing.get("title") or "") or None,
+        location=str(listing.get("location") or "") or None,
+        raw_text=str(listing.get("raw_text") or "") or None,
+        hints=hints,
+        verify=True,
+    )
+    info = result.to_dict()
+    if result.status in {ResolveStatus.VERIFIED, ResolveStatus.UNVERIFIED} and result.url:
+        if is_usable_job_apply_url(result.url):
+            return result.url, info
+    return None, info
+
+
 def resolve_listing_apply_url(listing: dict | None) -> str | None:
     """From a job_listings row (or handoff-shaped dict), prefer official apply URL.
 
-    Jobright-imported jobs: trust metadata.apply_url verbatim — that is the same
-    company Apply link Jobright opens (Greenhouse / Workday / …).
+    Order:
+      1) Usable deep link already on file (Jobright Apply / JobSpy direct / JD)
+      2) Apply URL Resolver (Workday/Greenhouse/Lever JSON APIs)
+      3) Board / aggregator fallback
     """
     if not listing:
         return None
     meta = listing.get("metadata") if isinstance(listing.get("metadata"), dict) else {}
     platform = str(listing.get("source_platform") or meta.get("source_platform") or "").lower()
-    apply = str(meta.get("apply_url") or "").strip()
-    source = listing.get("source_url")
+    apply = normalize_apply_url(str(meta.get("apply_url") or ""))
+    source = normalize_apply_url(str(listing.get("source_url") or ""))
     board = listing_board_url(listing)
+    direct = normalize_apply_url(str(meta.get("job_url_direct") or ""))
+    from_jd = _extract_ats_url_from_text(str(listing.get("raw_text") or ""))
 
-    # Jobright already resolved the company Apply destination — use it as-is.
-    if apply.lower().startswith(("http://", "https://")) and (
+    # --- 1) Existing usable deep links ---
+    if apply and (
         "jobright" in platform
         or meta.get("has_external_apply")
         or "utm_source=jobright" in apply.lower()
     ):
-        return apply
+        if is_usable_job_apply_url(apply):
+            return apply
 
-    # Also trust a non-Jobright source_url that was stamped from Jobright Apply.
-    src = str(source or "").strip()
     if (
         "jobright" in platform
-        and src.lower().startswith(("http://", "https://"))
-        and "jobright.ai" not in src.lower()
+        and source
+        and "jobright.ai" not in source.lower()
+        and is_usable_job_apply_url(source)
     ):
-        return src
+        return source
 
-    from_jd = _extract_ats_url_from_text(str(listing.get("raw_text") or ""))
-    return prefer_official_apply_url(
-        meta.get("apply_url"),
-        meta.get("job_url_direct"),
+    preferred = prefer_official_apply_url(
+        apply if apply and is_usable_job_apply_url(apply) else None,
+        direct if direct and is_usable_job_apply_url(direct) else None,
         from_jd,
-        source if not is_aggregator_url(source) else None,
+        source if source and not is_aggregator_url(source) and is_usable_job_apply_url(source) else None,
+        board_fallback=None,  # hold board until after resolver
+    )
+    if preferred and is_usable_job_apply_url(preferred) and not is_aggregator_url(preferred):
+        return preferred
+
+    # --- 2) Resolver (only when deep link missing / unusable) ---
+    resolved, resolve_info = _try_resolve_deep_link(listing)
+    if isinstance(meta, dict) and resolve_info:
+        # Annotate in-memory only; persist happens if upsert path copies metadata
+        meta["apply_resolve"] = resolve_info
+    if resolved:
+        return resolved
+
+    # --- 3) Board fallback ---
+    return prefer_official_apply_url(
+        preferred,
+        apply,
+        direct,
+        from_jd,
+        source if source and not is_aggregator_url(source) else None,
         board,
         source,
         board_fallback=board or source,
     )
 
 
-
 _ATS_IN_TEXT = re.compile(
-    r"https?://(?:(?:boards(?:-api)?|job-boards)\.)?greenhouse\.io/[^\s)\"']+"
-    r"|https?://jobs\.lever\.co/[^\s)\"']+"
-    r"|https?://(?:jobs|apply)\.ashbyhq\.com/[^\s)\"']+"
-    r"|https?://[^\s)\"']*myworkdayjobs\.com/[^\s)\"'/]+(?:/[^\s)\"']+)+"
-    r"|https?://[^\s)\"']+\.icims\.com/[^\s)\"']+",
+    r"https?://(?:(?:boards(?:-api)?|job-boards)\.)?greenhouse\.io/[^\s)\"'\\]+"
+    r"|https?://jobs\.lever\.co/[^\s)\"'\\]+"
+    r"|https?://(?:jobs|apply)\.ashbyhq\.com/[^\s)\"'\\]+"
+    # Allow markdown-escaped dots in host (Indeed JobSpy bodies); normalize later.
+    r"|https?://[^\s)\"']*myworkdayjobs(?:\\)?\.(?:com)/[^\s)\"'/\\]+(?:/[^\s)\"'\\]+)+"
+    r"|https?://[^\s)\"'\\]+\.icims\.com/[^\s)\"'\\]+",
     re.I,
 )
 
@@ -233,8 +353,10 @@ _ATS_IN_TEXT = re.compile(
 def _extract_ats_url_from_text(text: str) -> str | None:
     if not text:
         return None
-    for m in _ATS_IN_TEXT.finditer(text):
-        u = m.group(0).rstrip(".,;")
-        if is_usable_job_apply_url(u):
+    # Normalize common markdown escapes before scanning so hosts parse cleanly.
+    scan = re.sub(r"\\([.\-_])", r"\1", text)
+    for m in _ATS_IN_TEXT.finditer(scan):
+        u = normalize_apply_url(m.group(0))
+        if u and is_usable_job_apply_url(u):
             return u
     return None

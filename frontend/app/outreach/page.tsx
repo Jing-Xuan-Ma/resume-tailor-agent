@@ -76,7 +76,7 @@ function OutreachBody({
         </div>
       </header>
 
-      <div className="mx-auto max-w-3xl px-4 py-6">
+      <div className="mx-auto max-w-5xl px-4 py-6">
         <OutreachStepPanel
           visible
           userId={userId}

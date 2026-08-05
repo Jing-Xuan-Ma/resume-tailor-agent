@@ -31,6 +31,7 @@ def _default_apply_from_inventory(inventory: dict[str, Any]) -> dict[str, Any]:
         "willing_to_relocate": True,
         "earliest_start": "",
         "salary_expectation": "",
+        "custom_fields": {},
         "answers": {
             "why_this_role": "",
             "additional_info": "",
@@ -184,6 +185,131 @@ def update_library(
         if bits:
             next_inventory = {**next_inventory, "contact_line": " | ".join(bits)}
     return db.save_candidate_library(user_id, next_inventory, next_apply)
+
+
+_APPLY_SCALAR_KEYS = {
+    "full_name",
+    "preferred_name",
+    "email",
+    "phone",
+    "location",
+    "linkedin_url",
+    "portfolio_url",
+    "github_url",
+    "resume_tailor_github",
+    "visa_status",
+    "earliest_start",
+    "salary_expectation",
+    "work_authorized",
+    "needs_sponsorship",
+    "willing_to_relocate",
+}
+
+_INVENTORY_SCALAR_KEYS = {
+    "candidate_name",
+    "contact_line",
+    "summary",
+    "skills_certifications",
+    "github_url",
+}
+
+
+def _deep_merge_dict(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+    out = dict(base)
+    for key, value in patch.items():
+        if value is None:
+            continue
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _deep_merge_dict(out[key], value)
+        else:
+            out[key] = value
+    return out
+
+
+def patch_library(
+    user_id: str,
+    *,
+    apply_patch: dict[str, Any] | None = None,
+    inventory_patch: dict[str, Any] | None = None,
+    append_education: list[dict[str, Any]] | None = None,
+    append_experiences: list[dict[str, Any]] | None = None,
+    append_projects: list[dict[str, Any]] | None = None,
+    append_competitions: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """
+    Deep-merge personal info into Candidate Library (chat → Profile).
+
+    Scalar patches merge; education/experiences/projects/competitions append rows only
+    (RESUME_CONSTITUTION §4 — no fabrication).
+    """
+    current = get_or_seed_library(user_id)
+    next_apply = dict(current.get("apply") or {})
+    next_inventory = dict(current.get("inventory") or {})
+
+    changed_apply: list[str] = []
+    changed_inventory: list[str] = []
+
+    if apply_patch:
+        clean: dict[str, Any] = {}
+        for key, value in apply_patch.items():
+            if key == "answers" and isinstance(value, dict):
+                next_apply["answers"] = _deep_merge_dict(
+                    dict(next_apply.get("answers") or {}),
+                    value,
+                )
+                changed_apply.append("answers")
+                continue
+            if key == "custom_fields" and isinstance(value, dict):
+                next_apply["custom_fields"] = _deep_merge_dict(
+                    dict(next_apply.get("custom_fields") or {}),
+                    {str(k): v for k, v in value.items() if v is not None and v != ""},
+                )
+                changed_apply.append("custom_fields")
+                continue
+            if key in _APPLY_SCALAR_KEYS and value is not None and value != "":
+                clean[key] = value
+                changed_apply.append(key)
+        next_apply = {**next_apply, **clean}
+
+    if inventory_patch:
+        for key, value in inventory_patch.items():
+            if key in _INVENTORY_SCALAR_KEYS and value is not None and value != "":
+                next_inventory[key] = value
+                changed_inventory.append(key)
+
+    def _append_rows(bucket: str, rows: list[dict[str, Any]] | None) -> None:
+        if not rows:
+            return
+        existing = list(next_inventory.get(bucket) or [])
+        for row in rows:
+            if not isinstance(row, dict) or not row:
+                continue
+            existing.append(row)
+            changed_inventory.append(f"{bucket}+")
+        next_inventory[bucket] = existing
+
+    _append_rows("education", append_education)
+    _append_rows("experiences", append_experiences)
+    _append_rows("projects", append_projects)
+    _append_rows("competitions", append_competitions)
+
+    if not changed_apply and not changed_inventory:
+        return {
+            **current,
+            "changed_apply": [],
+            "changed_inventory": [],
+        }
+
+    saved = update_library(
+        user_id,
+        inventory=next_inventory,
+        apply_profile=next_apply if changed_apply else None,
+    )
+    return {
+        **saved,
+        "changed_apply": sorted(set(changed_apply)),
+        "changed_inventory": sorted(set(changed_inventory)),
+    }
 
 
 def reset_library_to_default(user_id: str) -> dict[str, Any]:

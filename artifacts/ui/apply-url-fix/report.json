@@ -1,0 +1,62 @@
+{
+  "job_id": "7c2247db-96f2-4402-8983-b7f052aa139a",
+  "version_id": "8ac6993e-2e2f-4baa-bf68-72dbbc3fbb98",
+  "checks": [
+    {
+      "name": "api_manual_indeed",
+      "pass": true,
+      "detail": "https://www.indeed.com/viewjob?jk=2466bdbb34a5abf5"
+    },
+    {
+      "name": "api_auto_indeed",
+      "pass": true,
+      "detail": "https://www.indeed.com/viewjob?jk=2466bdbb34a5abf5"
+    },
+    {
+      "name": "manual_btn_visible",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "manual_opens_indeed",
+      "pass": true,
+      "detail": "https://www.indeed.com/viewjob?jk=2466bdbb34a5abf5"
+    },
+    {
+      "name": "manual_not_workday",
+      "pass": true,
+      "detail": "https://www.indeed.com/viewjob?jk=2466bdbb34a5abf5"
+    },
+    {
+      "name": "manual_page_not_connection_closed",
+      "pass": true,
+      "detail": "\u67e5\u627e\u804c\u4f4d\n\u516c\u53f8\u8bc4\u8bba\n\u67e5\u8be2\u85aa\u8d44\n\u4e0a\u4f20\u60a8\u7684\u7b80\u5386\n\u767b\u5f55\n\u96c7\u4e3b/\u53d1\u5e03\u804c\u4f4d\n\u8bf7\u6c42\u88ab\u62e6\u622a\n\n\u60a8\u7684\u8bf7\u6c42\u88ab\u62e6\u622a\u3002\u5982\u679c\u60a8\u8ba4\u4e3a\u6b64\u5224\u65ad\u6709\u8bef\uff0c\u8bf7\u8bbf\u95ee support.indeed.com \u5e76\u63d0\u4f9b\u4ee5\u4e0b\u4fe1\u606f\uff1a\n\n\u60a8\u672c\u6b21\u8bf7\u6c42\u7684 Ray ID \u4e3a a262ad662b72"
+    },
+    {
+      "name": "auto_btn_visible",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "auto_opens_indeed",
+      "pass": true,
+      "detail": "https://www.indeed.com/viewjob?jk=2466bdbb34a5abf5"
+    },
+    {
+      "name": "auto_not_workday",
+      "pass": true,
+      "detail": "https://www.indeed.com/viewjob?jk=2466bdbb34a5abf5"
+    },
+    {
+      "name": "auto_page_not_connection_closed",
+      "pass": true,
+      "detail": "\u67e5\u627e\u804c\u4f4d\n\u516c\u53f8\u8bc4\u8bba\n\u67e5\u8be2\u85aa\u8d44\n\u4e0a\u4f20\u60a8\u7684\u7b80\u5386\n\u767b\u5f55\n\u96c7\u4e3b/\u53d1\u5e03\u804c\u4f4d\n\u8bf7\u6c42\u88ab\u62e6\u622a\n\n\u60a8\u7684\u8bf7\u6c42\u88ab\u62e6\u622a\u3002\u5982\u679c\u60a8\u8ba4\u4e3a\u6b64\u5224\u65ad\u6709\u8bef\uff0c\u8bf7\u8bbf\u95ee support.indeed.com \u5e76\u63d0\u4f9b\u4ee5\u4e0b\u4fe1\u606f\uff1a\n\n\u60a8\u672c\u6b21\u8bf7\u6c42\u7684 Ray ID \u4e3a a262ad780bfb"
+    },
+    {
+      "name": "panel_link_indeed",
+      "pass": true,
+      "detail": "https://www.indeed.com/viewjob?jk=2466bdbb34a5abf5"
+    }
+  ],
+  "passed": true
+}

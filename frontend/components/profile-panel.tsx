@@ -151,6 +151,21 @@ export default function ProfilePanel({ userId }: ProfilePanelProps) {
     };
   }, [userId, hydrate]);
 
+  useEffect(() => {
+    const onProfileUpdated = () => {
+      getCandidateLibrary(userId)
+        .then((lib) => {
+          hydrate(lib);
+          setMessage("Synced from Resume Agent chat.");
+        })
+        .catch(() => {
+          /* ignore */
+        });
+    };
+    window.addEventListener("ra-profile-updated", onProfileUpdated);
+    return () => window.removeEventListener("ra-profile-updated", onProfileUpdated);
+  }, [userId, hydrate]);
+
   const buildInventory = () => ({
     candidate_name: candidateName,
     contact_line: contactLine,
@@ -226,7 +241,8 @@ export default function ProfilePanel({ userId }: ProfilePanelProps) {
         <div>
           <h2 className="text-base font-bold text-slate-950">Profile</h2>
           <p className="text-[12px] text-slate-500">
-            Master Inventory (resume truth) + Apply Profile (autofill). Updated {updatedAt || "—"}.
+            Master Inventory + Apply Profile. Chat with Resume Agent to save personal facts here, or edit &amp; Save.
+            Updated {updatedAt || "—"}.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -657,6 +673,30 @@ export default function ProfilePanel({ userId }: ProfilePanelProps) {
                 />
                 Willing to relocate
               </label>
+            </div>
+            <div className="mt-5">
+              <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Custom fields
+              </h4>
+              <p className="mb-2 text-[11px] text-slate-400">
+                Extra facts the agent can add (JSON object). Used for Apply answers beyond the defaults.
+              </p>
+              <textarea
+                value={JSON.stringify((apply.custom_fields as Record<string, unknown>) || {}, null, 2)}
+                onChange={(e) => {
+                  try {
+                    const parsed = JSON.parse(e.target.value || "{}");
+                    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                      setApplyField("custom_fields", parsed);
+                    }
+                  } catch {
+                    /* keep typing */
+                  }
+                }}
+                rows={4}
+                className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-[12px] text-slate-800 outline-none focus:border-emerald-400"
+                data-testid="profile-custom-fields"
+              />
             </div>
           </div>
         )}

@@ -12,7 +12,13 @@ class OutreachDraftRequest(BaseModel):
     company: Optional[str] = None
     channel: Literal["email", "linkedin", "referral"] = "email"
     tone: Literal["concise", "warm", "formal"] = "warm"
-    template_type: Literal["coffee_chat", "post_apply_thanks", "recruiter_ping", "general"] = "general"
+    template_type: Literal[
+        "coffee_chat",
+        "post_apply_thanks",
+        "recruiter_ping",
+        "linkedin_connect",
+        "general",
+    ] = "general"
     linkedin_url: Optional[str] = None
     contact_email: Optional[str] = None
     coffee_availability: Optional[str] = None
@@ -105,3 +111,102 @@ class OutreachMarkSentRequest(BaseModel):
 class UnsubscribeResponse(BaseModel):
     status: str
     message: str
+
+
+# ── Step-2 candidate ranking ──────────────────────────────────
+
+
+class OutreachCandidateInput(BaseModel):
+    id: Optional[str] = None
+    name: str = ""
+    title: str = ""
+    role: Optional[str] = None
+    snippet: str = ""
+    headline: Optional[str] = None
+    recent_activity: str = ""
+    linkedin_url: str = ""
+    company_size: Optional[str] = None
+    status: str = "not_contacted"
+
+
+class OutreachRankRequest(BaseModel):
+    user_id: UUID
+    candidates: list[OutreachCandidateInput] = Field(default_factory=list, max_length=25)
+    jd_text: str = ""
+    position: str = ""
+    company: str = ""
+    company_size: Optional[Literal["small", "medium", "large", "unknown"]] = "unknown"
+
+
+class OutreachRankedCandidate(BaseModel):
+    id: str = ""
+    name: str = ""
+    title: str = ""
+    snippet: str = ""
+    recent_activity: str = ""
+    linkedin_url: str = ""
+    score: int = 0
+    stars: int = 1
+    match_reason: str = ""
+    reason_details: list[str] = Field(default_factory=list)
+    components: dict = Field(default_factory=dict)
+    status: str = "not_contacted"
+
+
+class OutreachRankResponse(BaseModel):
+    candidates: list[OutreachRankedCandidate] = Field(default_factory=list)
+    jd_signals: dict = Field(default_factory=dict)
+
+
+# ── Step-1 JD URL ingest ──────────────────────────────────────
+
+
+class OutreachJdIngestRequest(BaseModel):
+    user_id: UUID
+    url: str
+    jd_text_override: str = ""
+
+
+class OutreachJdIngestResponse(BaseModel):
+    ok: bool
+    error: Optional[str] = None
+    company: str = ""
+    position: str = ""
+    jd_text: str = ""
+    platform: str = "unknown"
+    source_url: str = ""
+    page_title: str = ""
+    fetch_status: str = ""
+
+
+# ── Step-3 email finder ───────────────────────────────────────
+
+
+class OutreachEmailFindRequest(BaseModel):
+    user_id: UUID
+    name: str
+    company: str = ""
+    domain: str = ""
+    website: str = ""
+    use_hunter: bool = True
+
+
+class OutreachEmailCandidate(BaseModel):
+    email: str
+    source: str = ""
+    source_detail: str = ""
+    pattern: str = ""
+    confidence: float = 0.0
+    confidence_label: str = "low"
+    smtp_status: str = "not_checked"
+    recommendation: str = ""
+
+
+class OutreachEmailFindResponse(BaseModel):
+    name: str = ""
+    company: str = ""
+    domain: str = ""
+    hunter_used: bool = False
+    candidates: list[OutreachEmailCandidate] = Field(default_factory=list)
+    expectancy_note: str = ""
+    empty_reason: Optional[str] = None

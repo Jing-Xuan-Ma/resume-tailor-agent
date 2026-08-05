@@ -114,6 +114,44 @@ export interface OutreachContact {
   updated_at: string;
 }
 
+export interface OutreachRankedCandidate {
+  id: string;
+  name: string;
+  title: string;
+  snippet: string;
+  recent_activity: string;
+  linkedin_url: string;
+  score: number;
+  stars: number;
+  match_reason: string;
+  reason_details: string[];
+  components: Record<string, number>;
+  status: string;
+}
+
+export interface OutreachEmailCandidate {
+  email: string;
+  source: string;
+  source_detail: string;
+  pattern: string;
+  confidence: number;
+  confidence_label: string;
+  smtp_status: string;
+  recommendation: string;
+}
+
+export interface OutreachJdIngestResult {
+  ok: boolean;
+  error?: string | null;
+  company: string;
+  position: string;
+  jd_text: string;
+  platform: string;
+  source_url: string;
+  page_title: string;
+  fetch_status: string;
+}
+
 export interface GrowthPlan {
   id: string;
   user_id: string;
@@ -476,13 +514,65 @@ export async function draftOutreach(req: {
   company?: string;
   channel?: "email" | "linkedin" | "referral";
   tone?: "concise" | "warm" | "formal";
-  template_type?: "coffee_chat" | "post_apply_thanks" | "recruiter_ping" | "general";
+  template_type?:
+    | "coffee_chat"
+    | "post_apply_thanks"
+    | "recruiter_ping"
+    | "linkedin_connect"
+    | "general";
   linkedin_url?: string;
   contact_email?: string;
   coffee_availability?: string;
   save_to_crm?: boolean;
 }): Promise<OutreachMessage> {
   return post<OutreachMessage>("/api/v1/outreach/draft", req);
+}
+
+export async function rankOutreachCandidates(req: {
+  user_id: string;
+  candidates: Array<{
+    id?: string;
+    name?: string;
+    title?: string;
+    snippet?: string;
+    recent_activity?: string;
+    linkedin_url?: string;
+    company_size?: string;
+    status?: string;
+  }>;
+  jd_text?: string;
+  position?: string;
+  company?: string;
+  company_size?: string;
+}): Promise<{ candidates: OutreachRankedCandidate[]; jd_signals: Record<string, unknown> }> {
+  return post("/api/v1/outreach/rank-candidates", req);
+}
+
+export async function ingestOutreachJd(req: {
+  user_id: string;
+  url: string;
+  jd_text_override?: string;
+}): Promise<OutreachJdIngestResult> {
+  return post<OutreachJdIngestResult>("/api/v1/outreach/jd-ingest", req);
+}
+
+export async function findOutreachEmail(req: {
+  user_id: string;
+  name: string;
+  company?: string;
+  domain?: string;
+  website?: string;
+  use_hunter?: boolean;
+}): Promise<{
+  name: string;
+  company: string;
+  domain: string;
+  hunter_used: boolean;
+  candidates: OutreachEmailCandidate[];
+  expectancy_note: string;
+  empty_reason?: string | null;
+}> {
+  return post("/api/v1/outreach/find-email", req);
 }
 
 export async function listOutreachMessages(user_id: string, limit = 50): Promise<{ messages: OutreachMessage[] }> {
@@ -613,6 +703,10 @@ export interface ContentDelta {
   }>;
   change_count?: number;
   instruction?: string;
+  unchanged_paths?: string[];
+  hidden_entries?: Array<Record<string, unknown> | string>;
+  diff_baseline?: string;
+  highlight?: { changed?: string; unchanged?: string; hidden?: string };
 }
 
 export interface RewriteResponse {
@@ -748,7 +842,7 @@ export async function openJobInResumeWorkspace(
 export interface AgentTurnResponse {
   session_id: string;
   agent_message: string;
-  intent: "chat" | "rewrite" | string;
+  intent: "chat" | "rewrite" | "update_profile" | string;
   did_rewrite: boolean;
   new_version_id?: string | null;
   version_index?: number | null;
@@ -757,6 +851,9 @@ export interface AgentTurnResponse {
   content_delta: Record<string, unknown>;
   llm_provider?: string | null;
   llm_model?: string | null;
+  profile_updated?: boolean;
+  changed_apply?: string[];
+  changed_inventory?: string[];
 }
 
 export async function workspaceAgentTurn(
@@ -1114,3 +1211,49 @@ export async function skipQueueItem(item_id: string, user_id: string): Promise<Q
   return post(`/api/v1/queue/${encodeURIComponent(item_id)}/skip`, { user_id });
 }
 
+
+export interface LlmProviderInfo {
+  id: string;
+  name: string;
+  default_model: string;
+  configured: boolean;
+  preferred: boolean;
+  cooled_down: boolean;
+}
+
+export interface LlmStatus {
+  preferred_provider: string | null;
+  failover: boolean;
+  last_provider: string | null;
+  last_model: string | null;
+  active_provider: string | null;
+  active_provider_name: string | null;
+  active_model: string | null;
+  configured: LlmProviderInfo[];
+  available: LlmProviderInfo[];
+}
+
+export async function getLlmStatus(): Promise<LlmStatus> {
+  const res = await fetch(`${API_BASE}/api/v1/llm/status`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<LlmStatus>;
+}
+
+export async function setLlmPreference(body: {
+  provider?: string | null;
+  failover?: boolean | null;
+}): Promise<LlmStatus> {
+  const res = await fetch(`${API_BASE}/api/v1/llm/preference`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<LlmStatus>;
+}

@@ -3,16 +3,31 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import FlowStepper from "@/components/flow-stepper";
 import {
+  EditableTierPanel,
+  GroupedFieldList,
+  PersistToast,
+  ScanBanner,
+  filledRowToEditable,
+  libraryValueFromInput,
+  mergeApplyPatch,
+  planItemToEditable,
+  toLibraryApplyKey,
+  type EditableField,
+  type FieldTone,
+} from "@/components/apply-field-editor";
+import {
   confirmApplySubmit,
   confirmVersion,
   exportVersion,
   getApply,
+  getCandidateLibrary,
   getVersion,
   startApply,
+  updateCandidateLibrary,
   type FillPlanItem,
   type StartApplyResponse,
 } from "@/lib/api";
-import { isLivePostingUrl } from "@/lib/posting-url";
+import { isLivePostingUrl, pickOpenablePostingUrl } from "@/lib/posting-url";
 
 type ReviewStep = "profile" | "ats" | "resume" | "pause";
 
@@ -22,66 +37,6 @@ const REVIEW_STEPS: { id: ReviewStep; label: string; hint: string }[] = [
   { id: "resume", label: "3. Resume", hint: "Upload path / file" },
   { id: "pause", label: "4. Pause", hint: "You confirm Submit" },
 ];
-
-function tierOf(item: FillPlanItem | { tier?: string; confidence?: number; action?: string }): string {
-  if (item.tier) return String(item.tier);
-  const conf = Number(item.confidence ?? 0);
-  const action = String(item.action || "");
-  if (action === "leave_empty" || !action) return "empty";
-  if (conf >= 0.85) return "auto";
-  if (conf >= 0.5) return "review";
-  return "empty";
-}
-
-function TierList({
-  title,
-  tone,
-  items,
-  testId,
-}: {
-  title: string;
-  tone: "auto" | "review" | "empty";
-  items: FillPlanItem[];
-  testId: string;
-}) {
-  const styles = {
-    auto: "border-emerald-200 bg-emerald-50/80 text-emerald-950",
-    review: "border-amber-200 bg-amber-50/80 text-amber-950",
-    empty: "border-rose-200 bg-rose-50/80 text-rose-950",
-  }[tone];
-  const badge = {
-    auto: "bg-emerald-600 text-white",
-    review: "bg-amber-500 text-white",
-    empty: "bg-rose-600 text-white",
-  }[tone];
-  return (
-    <div className={`rounded-2xl border px-3 py-3 ${styles}`} data-testid={testId}>
-      <div className="mb-2 flex items-center gap-2">
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badge}`}>{title}</span>
-        <span className="text-[11px] opacity-70">{items.length}</span>
-      </div>
-      {items.length === 0 ? (
-        <p className="text-[11px] opacity-60">None</p>
-      ) : (
-        <ul className="max-h-40 space-y-1.5 overflow-y-auto text-xs">
-          {items.map((m, i) => (
-            <li key={`${m.field_id || m.label || i}`} className="flex gap-2">
-              <span className="w-36 shrink-0 truncate font-semibold">
-                {String(m.label || m.profile_key || m.field_id || "field")}
-              </span>
-              <span className="min-w-0 flex-1 truncate opacity-80" title={String(m.value || m.reason || "")}>
-                {m.value || m.reason || "—"}
-                {typeof m.confidence === "number" ? (
-                  <span className="ml-1 opacity-60">({Math.round(m.confidence * 100)}%)</span>
-                ) : null}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -138,6 +93,17 @@ export default function ApplyWorkspace({
   const [exporting, setExporting] = useState<"pdf" | "docx" | null>(null);
   const [confirmSubmitBusy, setConfirmSubmitBusy] = useState(false);
   const [humanReviewed, setHumanReviewed] = useState(false);
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [editingIds, setEditingIds] = useState<Set<string>>(() => new Set());
+  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(() => new Set());
+  const [scannedAt, setScannedAt] = useState<Date | null>(null);
+  const [persistPrompt, setPersistPrompt] = useState<{
+    id: string;
+    label: string;
+    value: string;
+    libraryKey: string;
+  } | null>(null);
+  const [persistNote, setPersistNote] = useState<string | null>(null);
 
   const tailorHref = useMemo(() => {
     const q = new URLSearchParams({ view: "resume", step: "tailor" });
@@ -233,6 +199,7 @@ export default function ApplyWorkspace({
         const res = await getApply(applyId);
         if (cancelled) return;
         setResult(res);
+        setScannedAt(new Date());
         if (res.final_path) setFinalPath(res.final_path);
         if (res.paused_before_submit) setReviewStep("pause");
       } catch {
@@ -276,14 +243,18 @@ export default function ApplyWorkspace({
       setResult(res);
       setConfirmed(true);
       setHumanReviewed(false);
+      setConfirmedIds(new Set());
+      setEditingIds(new Set());
+      setFieldValues({});
+      setScannedAt(new Date());
+      setPersistPrompt(null);
       if (res.final_path) setFinalPath(res.final_path);
       if (res.apply_id) persistApplyUrl(res.apply_id);
       if (mode === "auto") setReviewStep("profile");
-      if (mode === "manual") {
-        const openUrl = res.source_url || res.board_url;
-        if (openUrl && isLivePostingUrl(openUrl)) {
-          window.open(openUrl, "_blank", "noopener,noreferrer");
-        }
+      // Manual + Auto: open usable posting (ATS or board). Skip dead Workday roots.
+      const openUrl = pickOpenablePostingUrl(res.source_url, res.board_url);
+      if (openUrl) {
+        window.open(openUrl, "_blank", "noopener,noreferrer");
       }
       requestAnimationFrame(() => {
         document.querySelector("[data-testid=apply-result-section]")?.scrollIntoView({
@@ -320,7 +291,8 @@ export default function ApplyWorkspace({
     }
   };
 
-  const sourceUrl = result?.source_url || initialSourceUrl || "";
+  const openableUrl = pickOpenablePostingUrl(result?.source_url || initialSourceUrl, result?.board_url) || "";
+  const sourceUrl = openableUrl;
 
   const handleConfirmSubmit = async () => {
     if (!result?.apply_id || confirmSubmitBusy) return;
@@ -340,8 +312,8 @@ export default function ApplyWorkspace({
       );
       persistApplyUrl(result.apply_id);
       setReviewStep("pause");
-      const url = res.source_url || sourceUrl;
-      if (url && isLivePostingUrl(url)) {
+      const url = pickOpenablePostingUrl(res.source_url || sourceUrl, result?.board_url);
+      if (url) {
         window.open(url, "_blank", "noopener,noreferrer");
       }
       requestAnimationFrame(() => {
@@ -386,32 +358,111 @@ export default function ApplyWorkspace({
         } as FillPlanItem;
       });
   }, [result?.fill_plan, result?.filled_fields]);
+
+  const editablePlan = useMemo(
+    () => fillPlan.map((m, i) => planItemToEditable(m, i)),
+    [fillPlan]
+  );
+
   const tierBuckets = useMemo(() => {
-    const auto: FillPlanItem[] = [];
-    const review: FillPlanItem[] = [];
-    const empty: FillPlanItem[] = [];
-    for (const m of fillPlan) {
-      const t = tierOf(m);
+    const auto: EditableField[] = [];
+    const review: EditableField[] = [];
+    const empty: EditableField[] = [];
+    for (const m of editablePlan) {
+      if (confirmedIds.has(m.id) && m.tone === "review") {
+        auto.push({ ...m, tone: "auto" });
+        continue;
+      }
+      const t = m.tone as FieldTone;
       if (t === "auto") auto.push(m);
       else if (t === "review") review.push(m);
       else empty.push(m);
     }
     return { auto, review, empty };
-  }, [fillPlan]);
+  }, [editablePlan, confirmedIds]);
+
   const needsReviewGate =
     Boolean(result?.requires_human_review) ||
     tierBuckets.review.length > 0 ||
-    tierBuckets.empty.length > 0 ||
+    tierBuckets.empty.some((f) => !(fieldValues[f.id] ?? f.value).trim()) ||
     Boolean(result?.paused_before_submit);
 
-  const visibleFields = useMemo(() => {
+  const visibleEditable = useMemo(() => {
     if (reviewStep === "profile") {
-      return profileFields.filter((f) => f.field !== "resume_upload" && f.field !== "submit_button");
+      return profileFields
+        .filter((f) => f.field !== "resume_upload" && f.field !== "submit_button")
+        .map(filledRowToEditable);
     }
-    if (reviewStep === "ats") return atsFields;
-    if (reviewStep === "resume") return resumeField ? [resumeField] : [];
-    return pauseField ? [pauseField] : [{ field: "submit_button", value: "NOT_CLICKED", note: "hard stop" }];
+    if (reviewStep === "ats") return atsFields.map(filledRowToEditable);
+    if (reviewStep === "resume") return resumeField ? [filledRowToEditable(resumeField)] : [];
+    return pauseField
+      ? [filledRowToEditable(pauseField)]
+      : [
+          filledRowToEditable({
+            field: "submit_button",
+            value: "NOT_CLICKED",
+            note: "hard stop",
+            tier: "empty",
+          }),
+        ];
   }, [reviewStep, profileFields, atsFields, resumeField, pauseField]);
+
+  const toggleEdit = useCallback((id: string) => {
+    setEditingIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const confirmField = useCallback((id: string) => {
+    setConfirmedIds((prev) => new Set(prev).add(id));
+    setEditingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const handleFieldChange = useCallback((id: string, value: string, field: EditableField) => {
+    setFieldValues((prev) => ({ ...prev, [id]: value }));
+  }, []);
+
+  const handleFieldCommit = useCallback((id: string, value: string, field: EditableField) => {
+    const libraryKey = toLibraryApplyKey(field.profileKey || field.label);
+    const wasEmpty = !(field.value || "").trim();
+    const trimmed = value.trim();
+    if (libraryKey && trimmed && (wasEmpty || field.tone === "empty")) {
+      setPersistPrompt({
+        id,
+        label: field.label,
+        value: trimmed,
+        libraryKey,
+      });
+    }
+  }, []);
+
+  const handlePersistSave = useCallback(async () => {
+    if (!persistPrompt) return;
+    try {
+      const lib = await getCandidateLibrary(userId);
+      const apply = { ...(lib.apply || {}) } as Record<string, unknown>;
+      const next = mergeApplyPatch(
+        apply,
+        persistPrompt.libraryKey,
+        libraryValueFromInput(persistPrompt.libraryKey, persistPrompt.value)
+      );
+      await updateCandidateLibrary(userId, { apply: next });
+      setPersistNote(
+        `已保存 "${persistPrompt.label}: ${persistPrompt.value.slice(0, 40)}" 到 Profile，下次申请会自动带入`
+      );
+    } catch (err) {
+      setPersistNote(err instanceof Error ? err.message : "保存 Profile 失败");
+    } finally {
+      setPersistPrompt(null);
+    }
+  }, [persistPrompt, userId]);
 
   const fillUrl =
     (result?.browser_fill?.fill_url as string | undefined) ||
@@ -421,6 +472,11 @@ export default function ApplyWorkspace({
     typeof result?.browser_fill?.screenshot_path === "string"
       ? result.browser_fill.screenshot_path
       : null;
+
+  const scanTotal = editablePlan.length || visibleEditable.length;
+  const scanAuto = tierBuckets.auto.length;
+  const scanReview = tierBuckets.review.length;
+  const scanEmpty = tierBuckets.empty.length;
 
   return (
     <div className="min-h-screen bg-[#f4f6f4] text-slate-950" data-testid="apply-workspace-page">
@@ -645,7 +701,23 @@ export default function ApplyWorkspace({
 
             {result.mode === "auto" && result.status !== "error" || result.paused_before_submit ? (
               <>
-                <div className="mt-5 flex flex-wrap gap-1.5" data-testid="apply-review-steps">
+                {(scanTotal > 0 || editablePlan.length > 0) ? (
+                  <div className="mt-5">
+                    <ScanBanner
+                      total={scanTotal || editablePlan.length}
+                      auto={scanAuto}
+                      review={scanReview}
+                      empty={scanEmpty}
+                      scannedAt={scannedAt}
+                      mapProvider={result.map_provider}
+                      atsType={result.ats_type}
+                      onRescan={() => void handleStart("auto")}
+                      rescanBusy={busy}
+                    />
+                  </div>
+                ) : null}
+
+                <div className="mt-4 flex flex-wrap gap-1.5" data-testid="apply-review-steps">
                   {REVIEW_STEPS.map((s) => (
                     <button
                       key={s.id}
@@ -691,47 +763,107 @@ export default function ApplyWorkspace({
                   </button>
                 </div>
 
-                <ul
-                  className="mt-3 max-h-72 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50/80 text-sm"
-                  data-testid="apply-review-fields"
-                >
-                  {visibleFields.length === 0 ? (
-                    <li className="px-4 py-6 text-center text-xs text-slate-400">No fields in this step</li>
+                <div className="mt-3">
+                  {reviewStep === "profile" || reviewStep === "ats" ? (
+                    <GroupedFieldList
+                      fields={visibleEditable}
+                      values={fieldValues}
+                      editingIds={editingIds}
+                      confirmedIds={confirmedIds}
+                      onToggleEdit={toggleEdit}
+                      onChange={handleFieldChange}
+                      onCommit={handleFieldCommit}
+                      onConfirm={confirmField}
+                      defaultOpen={reviewStep === "profile" ? "basics" : "other"}
+                    />
                   ) : (
-                    visibleFields.map((row) => (
-                      <li
-                        key={row.field}
-                        className="grid grid-cols-[140px_minmax(0,1fr)] gap-3 border-b border-slate-100 px-4 py-2.5 last:border-0"
-                      >
-                        <span className="text-xs font-semibold text-slate-700">
-                          {String(row.field).replace(/^ats:/, "")}
-                          {row.required ? " *" : ""}
-                        </span>
-                        <span className="truncate text-xs text-slate-600" title={row.value || ""}>
-                          {row.value || "—"}
-                          {row.note ? <span className="ml-1 text-amber-700">({row.note})</span> : null}
-                        </span>
-                      </li>
-                    ))
+                    <ul
+                      className="rounded-2xl border border-slate-100 bg-slate-50/80 text-sm"
+                      data-testid="apply-review-fields"
+                    >
+                      {visibleEditable.length === 0 ? (
+                        <li className="px-4 py-6 text-center text-xs text-slate-400">
+                          No fields in this step
+                        </li>
+                      ) : (
+                        visibleEditable.map((row) => (
+                          <li
+                            key={row.id}
+                            className="grid grid-cols-[140px_minmax(0,1fr)] gap-3 border-b border-slate-100 px-4 py-2.5 last:border-0"
+                          >
+                            <span className="text-xs font-semibold text-slate-700">{row.label}</span>
+                            <span
+                              className="truncate text-xs text-slate-600"
+                              title={fieldValues[row.id] ?? row.value}
+                            >
+                              {(fieldValues[row.id] ?? row.value) || "—"}
+                              {row.reason ? (
+                                <span className="ml-1 text-amber-700">({row.reason})</span>
+                              ) : null}
+                            </span>
+                          </li>
+                        ))
+                      )}
+                    </ul>
                   )}
-                </ul>
+                </div>
 
-                {fillPlan.length > 0 ? (
+                {editablePlan.length > 0 ? (
                   <div className="mt-4 space-y-2" data-testid="apply-fill-plan-tiers">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-sm font-bold tracking-tight">即将提交的信息清单</h3>
-                      {result.map_provider ? (
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                          map: {result.map_provider}
-                        </span>
-                      ) : null}
+                      <span className="text-[10px] text-slate-500">
+                        绿=已自动填（可纠错）· 黄=待核对（默认展开）· 红=未填（直接输入）
+                      </span>
                     </div>
-                    <div className="grid gap-2 md:grid-cols-3">
-                      <TierList title="已自动填" tone="auto" items={tierBuckets.auto} testId="fill-tier-auto" />
-                      <TierList title="待你核对" tone="review" items={tierBuckets.review} testId="fill-tier-review" />
-                      <TierList title="未填" tone="empty" items={tierBuckets.empty} testId="fill-tier-empty" />
+                    <div className="grid gap-2 lg:grid-cols-3">
+                      <EditableTierPanel
+                        title="已自动填"
+                        tone="auto"
+                        items={tierBuckets.auto}
+                        values={fieldValues}
+                        editingIds={editingIds}
+                        confirmedIds={confirmedIds}
+                        testId="fill-tier-auto"
+                        onToggleEdit={toggleEdit}
+                        onChange={handleFieldChange}
+                        onCommit={handleFieldCommit}
+                        onConfirm={confirmField}
+                      />
+                      <EditableTierPanel
+                        title="待你核对"
+                        tone="review"
+                        items={tierBuckets.review}
+                        values={fieldValues}
+                        editingIds={editingIds}
+                        confirmedIds={confirmedIds}
+                        testId="fill-tier-review"
+                        onToggleEdit={toggleEdit}
+                        onChange={handleFieldChange}
+                        onCommit={handleFieldCommit}
+                        onConfirm={confirmField}
+                      />
+                      <EditableTierPanel
+                        title="未填"
+                        tone="empty"
+                        items={tierBuckets.empty}
+                        values={fieldValues}
+                        editingIds={editingIds}
+                        confirmedIds={confirmedIds}
+                        testId="fill-tier-empty"
+                        onToggleEdit={toggleEdit}
+                        onChange={handleFieldChange}
+                        onCommit={handleFieldCommit}
+                        onConfirm={confirmField}
+                      />
                     </div>
                   </div>
+                ) : null}
+
+                {persistNote ? (
+                  <p className="mt-2 text-xs text-emerald-700" data-testid="apply-persist-note">
+                    {persistNote}
+                  </p>
                 ) : null}
 
                 {shotPath ? (
@@ -888,6 +1020,15 @@ export default function ApplyWorkspace({
           supports multiple jobs with per-job Confirm Submit.
         </p>
       </main>
+
+      {persistPrompt ? (
+        <PersistToast
+          label={persistPrompt.label}
+          value={persistPrompt.value}
+          onSave={() => void handlePersistSave()}
+          onSessionOnly={() => setPersistPrompt(null)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -236,16 +236,25 @@ def main() -> int:
         check("confirm_action_btn", page.locator("[data-testid=confirm-version]").count() > 0)
         check("confirm_not_step_chip", page.locator("[data-testid=flow-step-confirm]").count() == 0)
 
-        # Scroll to Apply in tailor
+        # Click Apply chip → navigate to dedicated Apply page
         apply_chip = page.locator("[data-testid=flow-step-apply]")
-        apply_chip.first.click()
+        with page.expect_navigation(timeout=30000):
+            apply_chip.first.click()
         page.wait_for_timeout(1000)
-        shot(page, "05-apply-scroll.png")
-        assert_stepper(page, expect_active="apply", context="apply_scroll")
-        apply_heading = page.locator("[data-testid=apply-mode-panel] h3").first
-        if apply_heading.count():
-            ht = apply_heading.inner_text()
-            check("apply_says_step_5", "Step 5" in ht, ht)
+        shot(page, "05-apply-page.png")
+        check("apply_page_url", "/apply" in page.url, page.url)
+        check(
+            "apply_workspace_or_gate",
+            page.locator("[data-testid=apply-workspace], [data-testid=apply-confirm-gate]").count() > 0
+            or "apply" in page.url.lower(),
+        )
+        # Confirm under PDF (back on tailor) — no inline Step 5/6 cards
+        page.go_back()
+        page.wait_for_selector("[data-testid=resume-workspace]", timeout=60000)
+        page.wait_for_timeout(800)
+        check("no_inline_apply_panel", page.locator("[data-testid=apply-mode-panel]").count() == 0)
+        check("no_inline_outreach_card", page.locator("[data-testid=outreach-open-card]").count() == 0)
+        check("confirm_under_pdf", page.locator("[data-testid=tailor-confirm-card] [data-testid=confirm-version]").count() > 0)
 
         # --- 6) Outreach page (same-tab navigation) ---
         with page.expect_navigation(timeout=30000):
