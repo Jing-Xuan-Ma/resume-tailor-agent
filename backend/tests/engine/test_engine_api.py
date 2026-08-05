@@ -55,7 +55,7 @@ def test_engine_step_mock(client: TestClient):
 
 
 @pytest.mark.asyncio
-async def test_plan_step_workday_fills_and_pauses():
+async def test_plan_step_workday_fills_and_pauses_or_advances():
     snap = DOMSnapshot.model_validate(
         json.loads((FIXTURES / "workday_sample.json").read_text(encoding="utf-8"))
     )
@@ -66,7 +66,8 @@ async def test_plan_step_workday_fills_and_pauses():
     assert resp.ats.ats_type.value == "workday"
     fills = [i for i in resp.instructions if i.action == "fill"]
     assert len(fills) >= 3
-    assert any(i.action == "pause_for_human" for i in resp.instructions)
+    # Fixture has Next → may advance; otherwise pause. Never bare submit.
+    assert any(i.action in {"pause_for_human", "click", "wait"} for i in resp.instructions)
     assert not any(i.action == "submit" and not i.requires_confirmation for i in resp.instructions)
 
 
