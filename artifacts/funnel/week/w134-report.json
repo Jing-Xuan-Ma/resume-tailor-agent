@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w134_discover_dismiss",
+      "ok": true
+    },
+    {
+      "name": "w131_crm_filters",
+      "ok": true
+    },
+    {
+      "name": "w132_hrefs",
+      "ok": true
+    }
+  ]
+}

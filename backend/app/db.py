@@ -109,6 +109,13 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS candidate_libraries (
+                user_id TEXT PRIMARY KEY,
+                inventory_json TEXT NOT NULL,
+                apply_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS events (
                 id TEXT PRIMARY KEY,
                 event_type TEXT NOT NULL,
@@ -206,6 +213,29 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_drafts_user ON drafts(user_id, updated_at);
             CREATE INDEX IF NOT EXISTS idx_conversation_session ON conversation_turns(user_id, session_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id, created_at);
+
+            CREATE TABLE IF NOT EXISTS job_listings (
+                id TEXT PRIMARY KEY,
+                fingerprint TEXT NOT NULL UNIQUE,
+                title TEXT NOT NULL,
+                company TEXT,
+                location TEXT,
+                source_url TEXT,
+                source_platform TEXT NOT NULL,
+                raw_text TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL DEFAULT 'active',
+                scraped_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                work_model TEXT NOT NULL DEFAULT 'unknown',
+                category TEXT NOT NULL DEFAULT 'other'
+            );
+            CREATE INDEX IF NOT EXISTS idx_job_listings_status_scraped
+                ON job_listings(status, scraped_at);
+            CREATE INDEX IF NOT EXISTS idx_job_listings_platform
+                ON job_listings(source_platform);
+
             CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON job_bookmarks(user_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_application_runs_user ON application_runs(user_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_cover_letters_user ON cover_letters(user_id, created_at);
@@ -253,11 +283,31 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS application_queue (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                job_id TEXT,
+                version_id TEXT,
+                source_url TEXT,
+                company TEXT,
+                position TEXT,
+                fill_status TEXT NOT NULL DEFAULT 'queued',
+                awaiting_confirm INTEGER NOT NULL DEFAULT 0,
+                apply_id TEXT,
+                submitted_at TEXT,
+                skipped_at TEXT,
+                error TEXT,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_growth_user ON growth_plans(user_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_job_history_user_job ON job_history(user_id, job_id);
             CREATE INDEX IF NOT EXISTS idx_jd_sessions_user ON jd_sessions(user_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_resume_versions_session ON resume_versions(session_id, version_index);
             CREATE INDEX IF NOT EXISTS idx_resume_templates_user ON resume_templates(user_id, is_active);
+            CREATE INDEX IF NOT EXISTS idx_application_queue_user ON application_queue(user_id, updated_at);
             """
         )
         columns = {row[1] for row in conn.execute("PRAGMA table_info(application_runs)").fetchall()}
@@ -267,6 +317,37 @@ def init_db() -> None:
             conn.execute("ALTER TABLE application_runs ADD COLUMN submission_result_json TEXT NOT NULL DEFAULT '{}'")
         if "submitted_at" not in columns:
             conn.execute("ALTER TABLE application_runs ADD COLUMN submitted_at TEXT")
+        listing_cols = {row[1] for row in conn.execute("PRAGMA table_info(job_listings)").fetchall()}
+        if listing_cols and "work_model" not in listing_cols:
+            conn.execute(
+                "ALTER TABLE job_listings ADD COLUMN work_model TEXT NOT NULL DEFAULT 'unknown'"
+            )
+        if listing_cols and "category" not in listing_cols:
+            conn.execute(
+                "ALTER TABLE job_listings ADD COLUMN category TEXT NOT NULL DEFAULT 'other'"
+            )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS application_queue (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                job_id TEXT,
+                version_id TEXT,
+                source_url TEXT,
+                company TEXT,
+                position TEXT,
+                fill_status TEXT NOT NULL DEFAULT 'queued',
+                awaiting_confirm INTEGER NOT NULL DEFAULT 0,
+                apply_id TEXT,
+                submitted_at TEXT,
+                skipped_at TEXT,
+                error TEXT,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
         conn.commit()
     finally:
         conn.close()
@@ -471,6 +552,44 @@ def get_profile(user_id: str) -> dict[str, Any] | None:
     return _loads(row["profile_json"], None) if row else None
 
 
+def get_candidate_library(user_id: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT user_id, inventory_json, apply_json, updated_at FROM candidate_libraries WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+    if not row:
+        return None
+    return {
+        "user_id": row["user_id"],
+        "inventory": _loads(row["inventory_json"], {}),
+        "apply": _loads(row["apply_json"], {}),
+        "updated_at": row["updated_at"],
+    }
+
+
+def save_candidate_library(user_id: str, inventory: dict[str, Any], apply_profile: dict[str, Any]) -> dict[str, Any]:
+    now = utcnow()
+    with connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO candidate_libraries (user_id, inventory_json, apply_json, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                inventory_json = excluded.inventory_json,
+                apply_json = excluded.apply_json,
+                updated_at = excluded.updated_at
+            """,
+            (user_id, _json(inventory), _json(apply_profile), now),
+        )
+    return {
+        "user_id": user_id,
+        "inventory": inventory,
+        "apply": apply_profile,
+        "updated_at": now,
+    }
+
+
 def save_event(event_type: str, payload: dict[str, Any]) -> None:
     with connect() as conn:
         conn.execute(
@@ -520,6 +639,265 @@ def list_jobs(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
         item["parsed"] = _loads(item.pop("parsed_json"), {})
         jobs.append(item)
     return jobs
+
+
+def _row_to_listing(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+    item = dict(row)
+    item["metadata"] = _loads(item.pop("metadata_json", None), {})
+    return item
+
+
+def upsert_job_listing(
+    *,
+    fingerprint: str,
+    title: str,
+    company: str | None,
+    location: str | None,
+    source_url: str | None,
+    source_platform: str,
+    raw_text: str,
+    metadata: dict[str, Any] | None = None,
+    status: str = "active",
+    work_model: str = "unknown",
+    category: str = "other",
+) -> tuple[str, bool]:
+    """Insert or update a shared catalog listing. Returns (id, created)."""
+    now = utcnow()
+    meta = metadata or {}
+    wm = (work_model or "unknown").strip().lower() or "unknown"
+    cat = (category or "other").strip().lower() or "other"
+    with connect() as conn:
+        existing = conn.execute(
+            "SELECT id FROM job_listings WHERE fingerprint = ?",
+            (fingerprint,),
+        ).fetchone()
+        if existing:
+            listing_id = existing["id"]
+            conn.execute(
+                """
+                UPDATE job_listings
+                SET title = ?, company = ?, location = ?, source_url = ?,
+                    source_platform = ?, raw_text = ?, metadata_json = ?,
+                    status = ?, scraped_at = ?, updated_at = ?, work_model = ?,
+                    category = ?
+                WHERE id = ?
+                """,
+                (
+                    title,
+                    company,
+                    location,
+                    source_url,
+                    source_platform,
+                    raw_text,
+                    _json(meta),
+                    status,
+                    now,
+                    now,
+                    wm,
+                    cat,
+                    listing_id,
+                ),
+            )
+            return listing_id, False
+
+        listing_id = str(uuid4())
+        conn.execute(
+            """
+            INSERT INTO job_listings (
+                id, fingerprint, title, company, location, source_url,
+                source_platform, raw_text, metadata_json, status,
+                scraped_at, created_at, updated_at, work_model, category
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                listing_id,
+                fingerprint,
+                title,
+                company,
+                location,
+                source_url,
+                source_platform,
+                raw_text,
+                _json(meta),
+                status,
+                now,
+                now,
+                now,
+                wm,
+                cat,
+            ),
+        )
+        return listing_id, True
+
+
+def get_job_listing(listing_id: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM job_listings WHERE id = ?",
+            (listing_id,),
+        ).fetchone()
+    return _row_to_listing(row) if row else None
+
+
+def count_job_listings(status: str = "active") -> int:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM job_listings WHERE status = ?",
+            (status,),
+        ).fetchone()
+    return int(row["n"] if row else 0)
+
+
+def mark_stale_job_listings(*, max_age_hours: int) -> int:
+    """Mark listings not seen within max_age_hours as closed. Returns rows updated."""
+    cutoff = datetime.now(UTC).timestamp() - (max_age_hours * 3600)
+    # scraped_at is ISO; compare via python filter for sqlite portability
+    now = utcnow()
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT id, scraped_at FROM job_listings WHERE status = 'active'"
+        ).fetchall()
+        ids: list[str] = []
+        for row in rows:
+            scraped = row["scraped_at"] or ""
+            try:
+                ts = datetime.fromisoformat(scraped.replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                continue
+            if ts < cutoff:
+                ids.append(row["id"])
+        for listing_id in ids:
+            conn.execute(
+                """
+                UPDATE job_listings
+                SET status = 'closed', updated_at = ?
+                WHERE id = ?
+                """,
+                (now, listing_id),
+            )
+        return len(ids)
+
+
+def close_job_listings_by_platform(source_platform: str) -> int:
+    """Close all active listings from a given platform (e.g. seed fixtures)."""
+    now = utcnow()
+    with connect() as conn:
+        cur = conn.execute(
+            """
+            UPDATE job_listings
+            SET status = 'closed', updated_at = ?
+            WHERE status = 'active' AND source_platform = ?
+            """,
+            (now, source_platform),
+        )
+        return int(cur.rowcount or 0)
+
+
+def search_job_listings(
+    *,
+    query: str | None = None,
+    location: str | None = None,
+    status: str = "active",
+    limit: int = 50,
+    max_age_hours: int | None = None,
+    work_model: str | None = None,
+    source_platform: str | None = None,
+    category: str | None = None,
+) -> list[dict[str, Any]]:
+    """Keyword search over the shared job catalog (JR-1 read path)."""
+    clauses = ["status = ?"]
+    params: list[Any] = [status]
+
+    q = (query or "").strip()
+    if q:
+        like = f"%{q}%"
+        clauses.append("(title LIKE ? OR company LIKE ? OR raw_text LIKE ? OR location LIKE ?)")
+        params.extend([like, like, like, like])
+
+    loc = (location or "").strip()
+    if loc and loc.lower() not in {"remote", "any", "anywhere"}:
+        clauses.append("(location LIKE ? OR location LIKE ? OR lower(location) LIKE '%remote%')")
+        params.extend([f"%{loc}%", f"%{loc.split(',')[0].strip()}%"])
+
+    wm = (work_model or "").strip().lower()
+    if wm and wm not in {"any", "all", "unknown"}:
+        clauses.append("lower(work_model) = ?")
+        params.append(wm)
+
+    platform = (source_platform or "").strip().lower()
+    if platform and platform not in {"any", "all"}:
+        clauses.append("lower(source_platform) = ?")
+        params.append(platform)
+
+    cat = (category or "").strip().lower()
+    if cat and cat not in {"any", "all", ""}:
+        clauses.append("lower(category) = ?")
+        params.append(cat)
+
+    if max_age_hours is not None and max_age_hours > 0:
+        from datetime import timedelta
+
+        cutoff = (datetime.now(UTC) - timedelta(hours=max_age_hours)).isoformat()
+        clauses.append("scraped_at >= ?")
+        params.append(cutoff)
+
+    sql = (
+        f"SELECT * FROM job_listings WHERE {' AND '.join(clauses)} "
+        "ORDER BY scraped_at DESC LIMIT ?"
+    )
+    params.append(limit)
+
+    with connect() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [_row_to_listing(row) for row in rows]
+
+
+def count_job_listings_by_category(status: str = "active") -> dict[str, int]:
+    with connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT category, COUNT(*) AS n
+            FROM job_listings
+            WHERE status = ?
+            GROUP BY category
+            """,
+            (status,),
+        ).fetchall()
+    return {str(r["category"]): int(r["n"]) for r in rows}
+
+
+def backfill_listing_categories(classify_fn) -> int:
+    """Reclassify all active listings. Returns updated count."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT id, title, raw_text, metadata_json FROM job_listings WHERE status = 'active'"
+        ).fetchall()
+    updated = 0
+    now = utcnow()
+    for row in rows:
+        item = dict(row)
+        meta = _loads(item.get("metadata_json"), {})
+        if not isinstance(meta, dict):
+            meta = {}
+        result = classify_fn(
+            title=item.get("title") or "",
+            raw_text=item.get("raw_text") or "",
+            source_category=meta.get("category"),
+        )
+        new_cat = result.get("category") or "other"
+        meta["categories"] = result.get("categories") or []
+        meta["category_label"] = result.get("category_label")
+        with connect() as conn:
+            conn.execute(
+                """
+                UPDATE job_listings
+                SET category = ?, metadata_json = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (new_cat, _json(meta), now, item["id"]),
+            )
+        updated += 1
+    return updated
 
 
 def bookmark_job(user_id: str, job_id: str, notes: str | None = None) -> dict[str, Any]:
@@ -956,3 +1334,83 @@ def list_job_history_with_details(user_id: str, limit: int = 50) -> list[dict[st
             (user_id, limit),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def _queue_from_row(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+    item = dict(row)
+    payload = _loads(item.pop("payload_json", None), {})
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            item.setdefault(key, value)
+    item["awaiting_confirm"] = bool(item.get("awaiting_confirm"))
+    return item
+
+
+def upsert_application_queue_item(payload: dict[str, Any]) -> None:
+    item_id = str(payload["id"])
+    now = payload.get("updated_at") or utcnow()
+    with connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO application_queue (
+                id, user_id, job_id, version_id, source_url, company, position,
+                fill_status, awaiting_confirm, apply_id, submitted_at, skipped_at,
+                error, payload_json, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                job_id=excluded.job_id,
+                version_id=excluded.version_id,
+                source_url=excluded.source_url,
+                company=excluded.company,
+                position=excluded.position,
+                fill_status=excluded.fill_status,
+                awaiting_confirm=excluded.awaiting_confirm,
+                apply_id=excluded.apply_id,
+                submitted_at=excluded.submitted_at,
+                skipped_at=excluded.skipped_at,
+                error=excluded.error,
+                payload_json=excluded.payload_json,
+                updated_at=excluded.updated_at
+            """,
+            (
+                item_id,
+                payload.get("user_id"),
+                payload.get("job_id"),
+                payload.get("version_id"),
+                payload.get("source_url"),
+                payload.get("company"),
+                payload.get("position"),
+                payload.get("fill_status") or "queued",
+                1 if payload.get("awaiting_confirm") else 0,
+                payload.get("apply_id"),
+                payload.get("submitted_at"),
+                payload.get("skipped_at"),
+                payload.get("error"),
+                _json(payload),
+                payload.get("created_at") or now,
+                now,
+            ),
+        )
+
+
+def get_application_queue_item(item_id: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM application_queue WHERE id = ?",
+            (item_id,),
+        ).fetchone()
+    return _queue_from_row(row) if row else None
+
+
+def list_application_queue(user_id: str, limit: int = 100) -> list[dict[str, Any]]:
+    with connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM application_queue
+            WHERE user_id = ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        ).fetchall()
+    return [_queue_from_row(r) for r in rows]

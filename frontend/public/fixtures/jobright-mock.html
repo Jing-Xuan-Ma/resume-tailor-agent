@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jobright Mock — Data Analyst</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #0b1220; color: #e2e8f0; }
+    .shell { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+    aside { background: #111827; padding: 20px; border-right: 1px solid #1f2937; }
+    main { padding: 28px 36px 96px; max-width: 880px; }
+    h1 { margin: 0 0 8px; font-size: 28px; color: #fff; }
+    .company { color: #34d399; font-weight: 600; margin-bottom: 4px; }
+    .loc { color: #94a3b8; margin-bottom: 20px; }
+    .jd { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 20px; line-height: 1.55; white-space: pre-wrap; }
+    a.apply {
+      display: inline-block; margin-top: 16px; background: #047857; color: #fff;
+      text-decoration: none; padding: 10px 16px; border-radius: 999px; font-weight: 600;
+    }
+    .hint { margin-top: 24px; color: #64748b; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#34d399;font-weight:700">Jobright mock</div>
+      <p style="color:#94a3b8;font-size:13px;margin-top:12px">Local fixture for Resume Agent extension self-test. Mimics a job detail page.</p>
+    </aside>
+    <main>
+      <h1 data-ra-title data-testid="job-title">Data Analyst</h1>
+      <div class="company" data-ra-company="Northwind Analytics" data-testid="job-company">Northwind Analytics</div>
+      <div class="loc" data-ra-location data-testid="job-location">Remote · United States</div>
+      <div class="jd" data-ra-jd data-testid="job-description">Data Analyst at Northwind Analytics
+
+About the role
+We are hiring a Data Analyst to partner with product and growth teams. You will own SQL pipelines, dashboard storytelling, and experiment readouts.
+
+Responsibilities
+• Write production-quality SQL against a cloud warehouse (BigQuery / Snowflake)
+• Build Tableau or Power BI dashboards used weekly by stakeholders
+• Partner on A/B test design and interpret results with clear recommendations
+• Document metrics definitions and improve data quality with engineers
+
+Requirements
+• 2+ years as a Data Analyst or similar
+• Strong SQL and analytical storytelling
+• Python or R for data wrangling
+• Experience with Tableau, Power BI, or Looker
+• Clear communication with non-technical stakeholders
+
+Preferred qualifications
+• Experimentation / A/B testing exposure
+• dbt or similar transformation tooling
+• Familiarity with product analytics funnels
+
+Job description
+This is a full job description suitable for resume tailoring. Minimum qualifications include SQL, dashboards, and stakeholder communication. What you'll do day to day is translate ambiguous business questions into measurable analyses.
+</div>
+      <a class="apply" data-ra-apply data-testid="apply-link" href="https://boards.greenhouse.io/northwind/jobs/1234567">Apply on Greenhouse</a>
+      <p class="hint">Extension FAB appears when the content script is loaded (Chrome Load unpacked). Self-test also hits the leads API directly.</p>
+    </main>
+  </div>
+</body>
+</html>

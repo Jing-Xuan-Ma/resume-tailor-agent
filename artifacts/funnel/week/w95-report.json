@@ -1,0 +1,30 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w92_kbd_hints",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w93_profile_ctrl_s",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w94_empty_paste_cta",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w95_discover_btn",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w95_discover_visible",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

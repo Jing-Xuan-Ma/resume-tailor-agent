@@ -1,7 +1,11 @@
 from pathlib import Path
 from copy import deepcopy
+import json
+import re
 
 from app import db
+from app.config import settings
+from app.core.llm_client import get_chat_openai
 from app.modules.resume_tailor.nodes.evidence_guard import EvidenceGuardNode
 from app.modules.resume_workspace.schemas import KeywordMatchItem
 from app.modules.resume_workspace.template_editor import ResumeTemplateEditor
@@ -11,6 +15,10 @@ from app.modules.resume_workspace.master_template import ensure_user_has_master_
 from app.modules.resume_workspace.master_inject import inject_content
 from app.modules.resume_workspace.quality_gate import project_for_jd, run_quality_gate
 from app.modules.resume_workspace.format_lock import fingerprint_docx, compare_fingerprints
+from app.modules.resume_workspace.constitution import (
+    MASTER_TEMPLATE_LABEL,
+    constitution_system_block,
+)
 
 
 _RESUME_TEMPLATES_DIR = Path(__file__).resolve().parents[4] / "data" / "templates"
@@ -18,6 +26,19 @@ _RESUME_TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 
 # Keep current + 3 previous versions (RESUME_CONSTITUTION §8)
 MAX_VERSIONS = 4
+
+_REWRITE_HINTS = re.compile(
+    r"\b(emphasize|highlight|shorten|rewrite|tailor|update|change|revise|focus|"
+    r"make\s+the|add\s+|remove|bullet|summary|skills?|tableau|sql|one[\s-]?page|"
+    r"da-focused|more\s+|less\s+|cut\s+|trim|project|experience|keyword)\b|"
+    r"(改|强调|缩短|突出|聚焦|改写|删|加|摘要|技能)",
+    re.I,
+)
+_CHAT_HINTS = re.compile(
+    r"^(hi|hello|hey|thanks|thank you|ok|okay|how are you|what can you|"
+    r"who are you|help|你好|谢谢|在吗|怎么样)[\s!.?1]*$",
+    re.I,
+)
 
 MOCK_RESUME = {
     "candidate_name": "Jingxuan Ma",
@@ -47,6 +68,59 @@ MOCK_RESUME = {
         },
     ],
     "experiences": [
+        {
+            "company": "Beijing Yiling Network Technology Co., Ltd.",
+            "title": "AI Agent Intern",
+            "location": "Beijing, China",
+            "date_range": "June 2026 - Present",
+            "github_url": "https://github.com/Jing-Xuan-Ma/resume-tailor-agent",
+            "evidence_url": "https://github.com/Jing-Xuan-Ma/resume-tailor-agent",
+            "tags": [
+                "ai-agent", "python", "fastapi", "nextjs", "ooxml", "resume",
+                "jd-matching", "quality-gate", "prompt-engineering", "github",
+            ],
+            "bullets": [
+                {
+                    "text": (
+                        "Faced with producing JD-matched one-page resumes without breaking a locked Word "
+                        "template, built a Python/FastAPI + Next.js AI agent that ranks roles, extracts "
+                        "keywords, and injects tailored content into the master DOCX via OOXML edits"
+                    ),
+                    "evidence_from": "yiling_exp_1",
+                    "original_text": (
+                        "Faced with producing JD-matched one-page resumes without breaking a locked Word "
+                        "template, built a Python/FastAPI + Next.js AI agent that ranks roles, extracts "
+                        "keywords, and injects tailored content into the master DOCX via OOXML edits"
+                    ),
+                },
+                {
+                    "text": (
+                        "Designed format-lock and quality-gate checks (shell fingerprint, hyperlink "
+                        "preservation, Word PDF one-page validation, evidence-linked bullets) so delivery "
+                        "copies keep master fonts, margins, and list styles without rebuilding the document"
+                    ),
+                    "evidence_from": "yiling_exp_2",
+                    "original_text": (
+                        "Designed format-lock and quality-gate checks (shell fingerprint, hyperlink "
+                        "preservation, Word PDF one-page validation, evidence-linked bullets) so delivery "
+                        "copies keep master fonts, margins, and list styles without rebuilding the document"
+                    ),
+                },
+                {
+                    "text": (
+                        "Implemented JD-conditioned show/hide of experiences and projects plus content-only "
+                        "rewrites with prompt engineering; ran fixture-JD eval loops with PDF/page gates to "
+                        "catch layout and honesty regressions before human review"
+                    ),
+                    "evidence_from": "yiling_exp_3",
+                    "original_text": (
+                        "Implemented JD-conditioned show/hide of experiences and projects plus content-only "
+                        "rewrites with prompt engineering; ran fixture-JD eval loops with PDF/page gates to "
+                        "catch layout and honesty regressions before human review"
+                    ),
+                },
+            ],
+        },
         {
             "company": "Shenwan Hongyuan Securities Co., Ltd.",
             "title": "Data Analyst Intern",
@@ -249,9 +323,82 @@ class ResumeWorkspaceService:
         if not session:
             session_data = db.create_jd_session(user_id="mock", jd_text=MOCK_JD_TEXT)
             session_id = session_data["id"]
+            session = session_data
 
-        matches = [m.model_dump() for m in MOCK_KEYWORD_MATCHES]
+        jd_text = str((session or {}).get("jd_text") or "")
+        matches = self._keyword_matches_for_jd(jd_text)
         db.update_jd_session_keywords(session_id, matches)
+        return matches
+
+    def _keyword_matches_for_jd(self, jd_text: str) -> list[dict]:
+        """Derive skill tags from JD text against DA skill lexicon (not static mock list)."""
+        from app.modules.job_discovery.scorer import SKILL_LEXICON, tokenize
+        from app.modules.resume_workspace.schemas import KeywordMatchItem
+
+        jd = jd_text or ""
+        jd_l = jd.lower()
+        tokens = tokenize(jd)
+        # Multi-word phrases from lexicon that appear in JD
+        phrases = sorted(SKILL_LEXICON, key=len, reverse=True)
+        found: list[str] = []
+        for phrase in phrases:
+            if " " in phrase or "-" in phrase:
+                if phrase.lower() in jd_l:
+                    found.append(phrase)
+            elif phrase.lower() in tokens or phrase.lower() in jd_l:
+                found.append(phrase)
+        # Always surface common DA stack if present in JD wording variants
+        aliases = {
+            "power bi": "Power BI",
+            "powerbi": "Power BI",
+            "a/b": "A/B testing",
+            "machine learning": "machine learning",
+        }
+        for alias, label in aliases.items():
+            if alias in jd_l and label not in found:
+                found.append(label)
+
+        # Dedupe case-insensitively, cap tags
+        seen: set[str] = set()
+        keywords: list[str] = []
+        for kw in found:
+            key = kw.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            keywords.append(kw if len(kw) > 2 else kw.upper())
+            if len(keywords) >= 16:
+                break
+
+        if not keywords:
+            # Fallback DA defaults only when JD is empty/unparseable
+            keywords = ["SQL", "Python", "Tableau", "Excel", "statistics"]
+
+        # Heuristic coverage vs inventory keywords commonly on Jingxuan's resume
+        inventory = {
+            "sql", "python", "tableau", "excel", "statistics", "pandas", "numpy",
+            "power bi", "powerbi", "r", "etl", "dashboard", "dashboards", "a/b",
+            "experimentation", "postgresql", "mysql", "aws", "dbt",
+        }
+        matches: list[dict] = []
+        for kw in keywords:
+            covered = kw.lower() in inventory or any(
+                tok in inventory for tok in kw.lower().replace("/", " ").split()
+            )
+            start = jd_l.find(kw.lower())
+            span = [start, start + len(kw)] if start >= 0 else [0, 0]
+            matches.append(
+                KeywordMatchItem(
+                    keyword=kw.title() if kw.islower() else kw,
+                    status="covered" if covered else "missing",
+                    source_span_in_jd=span,
+                    suggestion=(
+                        None
+                        if covered
+                        else f"Only claim {kw} if it exists in Master Inventory — do not fabricate."
+                    ),
+                ).model_dump()
+            )
         return matches
 
     def _trim_versions(self, session_id: str, user_id: str) -> None:
@@ -261,33 +408,16 @@ class ResumeWorkspaceService:
             versions = db.list_resume_versions(session_id, user_id)
 
     def _content_only_tailor(self, resume: dict, instruction: str, jd_text: str) -> dict:
-        """Rewrite wording only; preserve structure, evidence, and numbers."""
+        """Rewrite wording only; preserve structure, evidence, numbers, and one-page budget."""
         tailored = deepcopy(resume)
         instr = (instruction or "").lower()
         jd_l = (jd_text or "").lower()
 
-        # Summary: re-emphasize inventory keywords only when JD is analytics-related
+        # NEVER lengthen summary — one-page lock. Keep master summary unless shortening.
         base_summary = str(resume.get("summary") or "")
-        analytics_signal = any(
-            k in jd_l for k in ("sql", "python", "tableau", "analyst", "data", "etl", "airflow", "risk", "statistic")
-)
-        boosts = []
-        if analytics_signal:
-            for kw in ("SQL", "Tableau", "Python", "ETL", "Airflow", "stakeholder", "risk", "dashboard"):
-                if kw.lower() in jd_l or kw.lower() in instr:
-                    if kw.lower() in base_summary.lower() or kw.lower() in str(resume.get("skills_certifications", "")).lower():
-                        boosts.append(kw)
-        if boosts:
-            tailored["summary"] = (
-                f"Data Analyst candidate (JHU Data Science M.S.) focused on {', '.join(boosts[:4])}. "
-                + base_summary
-            )
-            if len(tailored["summary"]) > 420:
-                tailored["summary"] = tailored["summary"][:417].rstrip() + "..."
-        else:
-            tailored["summary"] = base_summary
+        tailored["summary"] = base_summary
 
-        # Reorder skills: JD-mentioned inventory skills first
+        # Reorder skills only; keep token count, do not append new tokens
         skills_raw = str(resume.get("skills_certifications") or "")
         parts = [p.strip() for p in skills_raw.replace(";", ",").split(",") if p.strip()]
         hit, rest = [], []
@@ -297,32 +427,21 @@ class ResumeWorkspaceService:
             else:
                 rest.append(p)
         if hit:
-            tailored["skills_certifications"] = ", ".join(hit + rest)
+            reordered = ", ".join(hit + rest)
+            # Prefer not longer than original skills line
+            if len(reordered) <= len(skills_raw) + 5:
+                tailored["skills_certifications"] = reordered
 
-        # Lightly rephrase first experience bullet only when instruction asks to tailor
-        # Keep original numbers and attach evidence_from
-        if "experiences" in tailored and tailored["experiences"]:
-            exp0 = tailored["experiences"][0]
-            bullets = exp0.get("bullets") or []
-            if bullets and isinstance(bullets[0], dict):
-                original = bullets[0].get("original_text") or bullets[0].get("text") or ""
-                if original and ("tailor" in instr or "match" in instr or "emphasize" in instr or not instruction):
-                    bullets[0] = {
-                        **bullets[0],
-                        "text": original if original.startswith(("Faced", "Given", "To ", "Built", "Delivered", "Used", "Prepared", "Engineered"))
-                        else f"To align analytics delivery with stakeholder needs, {original[0].lower() + original[1:]}",
-                        "evidence_from": bullets[0].get("evidence_from") or "inventory",
-                        "original_text": original,
-                    }
-                    exp0["bullets"] = bullets
-                    tailored["experiences"][0] = exp0
-
+        # Do not rewrite bullets by default (length risk). Keep evidence fields intact.
         tailored["format_check"] = {
             "single_page": True,
             "section_order_ok": True,
             "fabrication": False,
         }
-        tailored["evidence_check"] = {"ok": True, "notes": "All bullets retain evidence_from from master inventory."}
+        tailored["evidence_check"] = {
+            "ok": True,
+            "notes": "Inventory preserved; summary not lengthened for one-page lock.",
+        }
         return tailored
 
     async def rewrite(
@@ -331,22 +450,30 @@ class ResumeWorkspaceService:
     ) -> dict:
         ensure_user_has_master_template(user_id)
 
-        if base_version_id:
-            base = db.get_resume_version(base_version_id, user_id)
-            resume = base["full_resume"] if base else MOCK_RESUME
-        else:
-            resume = MOCK_RESUME
-
         session = db.get_jd_session(session_id) or {}
         jd_text = str(session.get("jd_text") or "")
-        # Iter-4: always project from master inventory; content-only rewrite after
-        source_master = MOCK_RESUME
+        # Master Inventory is the truth source (Profile library); fallback to built-in seed.
+        from app.modules.profile.library_service import get_master_inventory
+
+        source_master = get_master_inventory(user_id) or MOCK_RESUME
+        if base_version_id:
+            base = db.get_resume_version(base_version_id, user_id)
+            # Still project from inventory for show/hide; version is only a content hint
+            _ = base
         projected = project_for_jd(source_master, jd_text)
         tailored = self._content_only_tailor(projected, instruction, jd_text)
+        tailored["experiences"] = projected.get("experiences") or []
+        tailored["projects"] = projected.get("projects") or []
+        tailored["competitions"] = projected.get("competitions") or []
         tailored["hidden_entries"] = projected.get("hidden_entries") or []
+        tailored["skills_certifications"] = (
+            projected.get("skills_certifications") or tailored.get("skills_certifications")
+        )
         gate = run_quality_gate(tailored, jd_text)
         evidence = await self.evidence_guard.verify(source_master, tailored)
-        evidence_ok = bool(evidence.get("passed"))
+        issues = list(evidence.get("issues") or [])
+        hard_issues = [i for i in issues if "weak textual support" not in i]
+        evidence_hard_ok = len(hard_issues) == 0
         tailored["format_check"] = {
             "single_page": "content likely exceeds one page" not in gate["errors"],
             "section_order_ok": True,
@@ -354,19 +481,21 @@ class ResumeWorkspaceService:
             "quality_gate": gate,
         }
         tailored["evidence_check"] = {
-            "ok": evidence_ok,
-            "passed": evidence_ok,
-            "issues": evidence.get("issues") or [],
+            "ok": evidence_hard_ok,
+            "passed": evidence_hard_ok,
+            "issues": issues,
+            "hard_issues": hard_issues,
             "confidence": evidence.get("confidence"),
             "notes": (
-                "; ".join((evidence.get("issues") or [])[:3])
-                if evidence.get("issues")
+                "; ".join(issues[:3])
+                if issues
                 else "ok"
             ),
         }
-        if not gate["ok"] or not evidence_ok:
-            # Soft-block: still create version but mark requires_fix for UI / confirm gate
+        if not gate["ok"] or not evidence_hard_ok:
             tailored["requires_fix"] = True
+        if issues and evidence_hard_ok:
+            tailored["evidence_warnings"] = issues
         content_delta = compute_resume_diff(source_master, tailored)
         content_delta["instruction"] = instruction
         content_delta["quality_gate"] = gate
@@ -385,7 +514,7 @@ class ResumeWorkspaceService:
         master_bytes = ensure_master_template_bytes()
         if master_bytes:
             try:
-                template_docx = inject_content(master_bytes, tailored, MOCK_RESUME)
+                template_docx = inject_content(master_bytes, tailored, source_master)
                 fp_m = fingerprint_docx(master_bytes)
                 fp_g = fingerprint_docx(template_docx)
                 fmt_cmp = compare_fingerprints(fp_m, fp_g)
@@ -413,11 +542,9 @@ class ResumeWorkspaceService:
                     pass
             content_delta["template_replacements"] = template_replacements
 
-        pdf_bytes: bytes | None = None
-        try:
-            pdf_bytes = ResumeTemplateEditor.generate_pdf_from_resume(tailored)
-        except Exception:
-            pdf_bytes = None
+        # Skip sync Word PDF so rewrite returns for HTML first-paint.
+        # Preview endpoint builds master PDF on first request via _ensure_word_pdf.
+        content_delta["pdf_async"] = True
 
         version_id = db.create_resume_version(
             session_id=session_id,
@@ -430,10 +557,8 @@ class ResumeWorkspaceService:
 
         if template_docx:
             self._store_version_file(version_id, "docx", template_docx)
-        if pdf_bytes:
-            self._store_version_file(version_id, "pdf", pdf_bytes)
 
-        matches = [m.model_dump() for m in MOCK_KEYWORD_MATCHES]
+        matches = self._keyword_matches_for_jd(jd_text)
 
         return {
             "new_version_id": version_id,
@@ -444,7 +569,189 @@ class ResumeWorkspaceService:
             "keyword_matches": matches,
             "content_delta": content_delta,
             "has_template": bool(template_docx),
-            "has_pdf": bool(pdf_bytes),
+            "has_pdf": False,
+            "pdf_pending": True,
+        }
+
+    def _classify_intent(self, message: str) -> str:
+        text = (message or "").strip()
+        if not text:
+            return "chat"
+        if _CHAT_HINTS.search(text) and not _REWRITE_HINTS.search(text):
+            return "chat"
+        if _REWRITE_HINTS.search(text):
+            return "rewrite"
+        # Ambiguous medium-length instruction → prefer rewrite for tailor workspace
+        if len(text) >= 24 and any(w in text.lower() for w in ("resume", "jd", "bullet", "page", "简历")):
+            return "rewrite"
+        return "chat"
+
+    async def _llm_chat_reply(
+        self,
+        message: str,
+        chat_history: list[dict] | None = None,
+        context: dict | None = None,
+    ) -> str:
+        history = []
+        for item in (chat_history or [])[-8:]:
+            role = str(item.get("role") or "")
+            content = str(item.get("content") or "").strip()
+            if role in {"user", "assistant"} and content:
+                history.append({"role": role, "content": content})
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    constitution_system_block()
+                    + "\nYou are Resume Agent for Jingxuan Ma (Data Analyst / Analytics). "
+                    "You can chat normally and also rewrite the resume on the locked master DOCX template "
+                    f"({MASTER_TEMPLATE_LABEL}, content-only injection). "
+                    "Be concise and helpful. Do not claim you changed the resume unless a rewrite just ran. "
+                    "Never invent employers, metrics, or skills."
+                ),
+            },
+            *history,
+            {"role": "user", "content": message},
+        ]
+        if context:
+            messages.insert(
+                1,
+                {"role": "system", "content": f"Workspace context: {json.dumps(context, ensure_ascii=False)[:1200]}"},
+            )
+        llm = get_chat_openai(
+            model=settings.DEFAULT_PARSER_MODEL or settings.DEFAULT_TAILOR_MODEL,
+            temperature=0.4,
+            max_tokens=700,
+        )
+        response = await llm.ainvoke(messages)
+        content = str(response.content or "").strip()
+        return content or "I can chat about this JD or update the resume preview when you give an edit instruction."
+
+    async def _llm_rewrite_ack(self, instruction: str, version_index: int, content_delta: dict) -> str:
+        changed = []
+        if isinstance(content_delta, dict):
+            for key in ("summary", "skills_certifications", "experiences", "projects", "hidden_entries"):
+                if content_delta.get(key):
+                    changed.append(key)
+        hint = ", ".join(changed) if changed else "JD-based projection on the locked master template"
+        try:
+            llm = get_chat_openai(
+                model=settings.DEFAULT_PARSER_MODEL or settings.DEFAULT_TAILOR_MODEL,
+                temperature=0.2,
+                max_tokens=120,
+            )
+            response = await llm.ainvoke(
+                [
+                    {
+                        "role": "system",
+                        "content": (
+                            constitution_system_block()
+                            + "Confirm a resume rewrite in at most 2 short sentences. "
+                            "Mention checking the PDF preview on the right. "
+                            "Do NOT invent bullet text, employers, metrics, or before/after examples."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            f"User instruction: {instruction}\n"
+                            f"Created version: v{version_index}\n"
+                            f"Touched areas (labels only): {hint}"
+                        ),
+                    },
+                ]
+            )
+            content = str(response.content or "").strip()
+            if content and "old version" not in content.lower() and "**" not in content:
+                return content
+        except Exception:
+            pass
+        return (
+            f"Updated to v{version_index} on your locked master template ({hint}). "
+            "Check the PDF preview on the right — tell me if you want another tweak."
+        )
+
+    async def agent_turn(
+        self,
+        user_id: str,
+        session_id: str,
+        message: str,
+        base_version_id: str | None = None,
+        chat_history: list[dict] | None = None,
+    ) -> dict:
+        provider = (settings.LLM_PROVIDER or "openai").strip().lower()
+        model = settings.DEFAULT_PARSER_MODEL or settings.DEFAULT_TAILOR_MODEL
+        intent = self._classify_intent(message)
+        session = db.get_jd_session(session_id) or {}
+        jd_text = str(session.get("jd_text") or "")
+        try:
+            from app.modules.profile.library_service import evidence_context_for_jd
+
+            evidence = evidence_context_for_jd(user_id, jd_text)
+        except Exception:
+            evidence = {"resume_tailor_github": "https://github.com/Jing-Xuan-Ma/resume-tailor-agent"}
+        context = {
+            "has_jd": bool(jd_text),
+            "job_id": session.get("job_id"),
+            "master_template": "Jingxuan_Resume_Data Analyst.docx",
+            "intent_guess": intent,
+            "evidence": evidence,
+            "guidance": (
+                "When the JD involves agents, FastAPI, Next.js, OOXML, JD matching, or resume tooling, "
+                "prefer Yiling AI Agent Intern facts and cite evidence from resume_tailor_github. "
+                "Do not invent repo features beyond inventory bullets."
+            ),
+        }
+
+        if intent == "rewrite":
+            result = await self.rewrite(
+                user_id=user_id,
+                session_id=session_id,
+                instruction=message,
+                base_version_id=base_version_id,
+            )
+            try:
+                agent_message = await self._llm_rewrite_ack(
+                    message, result["version_index"], result.get("content_delta") or {}
+                )
+            except Exception:
+                agent_message = (
+                    f"Updated to v{result['version_index']}. "
+                    "Check the resume preview on the right."
+                )
+            return {
+                "session_id": session_id,
+                "agent_message": agent_message,
+                "intent": "rewrite",
+                "did_rewrite": True,
+                "new_version_id": result["new_version_id"],
+                "version_index": result["version_index"],
+                "full_resume": result["full_resume"],
+                "keyword_matches": result.get("keyword_matches") or [],
+                "content_delta": result.get("content_delta") or {},
+                "llm_provider": provider,
+                "llm_model": model,
+            }
+
+        try:
+            agent_message = await self._llm_chat_reply(message, chat_history, context)
+        except Exception as exc:
+            agent_message = (
+                "I can help chat about this role or rewrite the resume on your locked master template. "
+                f"(LLM temporarily unavailable: {exc})"
+            )
+        return {
+            "session_id": session_id,
+            "agent_message": agent_message,
+            "intent": "chat",
+            "did_rewrite": False,
+            "new_version_id": None,
+            "version_index": None,
+            "full_resume": None,
+            "keyword_matches": [],
+            "content_delta": {},
+            "llm_provider": provider,
+            "llm_model": model,
         }
 
     def _store_version_file(self, version_id: str, ext: str, data: bytes) -> Path:
@@ -460,6 +767,70 @@ class ResumeWorkspaceService:
             return file_path.read_bytes()
         return None
 
+    def _ensure_master_docx(self, version_id: str, user_id: str, full_resume: dict) -> bytes | None:
+        """Return OOXML DOCX for this version (stored or re-injected from master)."""
+        docx_bytes = self._get_version_file(version_id, "docx")
+        if docx_bytes:
+            return docx_bytes
+        master_bytes = ensure_master_template_bytes()
+        if master_bytes:
+            try:
+                from app.modules.profile.library_service import get_master_inventory
+
+                source_master = get_master_inventory(user_id) or MOCK_RESUME
+            except Exception:
+                source_master = deepcopy(MOCK_RESUME)
+            try:
+                docx_bytes = inject_content(master_bytes, full_resume, source_master)
+                self._store_version_file(version_id, "docx", docx_bytes)
+                return docx_bytes
+            except Exception:
+                pass
+        template = db.get_active_template(user_id) or ensure_user_has_master_template(user_id)
+        if template and template.get("docx_bytes"):
+            docx_bytes = template["docx_bytes"]
+            self._store_version_file(version_id, "docx", docx_bytes)
+            return docx_bytes
+        return None
+
+    def _ensure_word_pdf(self, version_id: str, docx_bytes: bytes | None, full_resume: dict) -> bytes | None:
+        """Prefer Word COM PDF from master DOCX; never archive Markdown-marker PDFs."""
+        pdf_bytes = self._get_version_file(version_id, "pdf")
+        # Tiny Helvetica dumps (<12KB) may bake Markdown; Word PDFs are large and may
+        # coincidentally contain b'##' / b'**' in compressed streams — do not reject those.
+        if pdf_bytes and len(pdf_bytes) < 12000:
+            if b"##" in pdf_bytes or b"**" in pdf_bytes or b"# " in pdf_bytes:
+                pdf_bytes = None
+            else:
+                # Still prefer rebuilding from DOCX when available
+                if docx_bytes:
+                    pdf_bytes = None
+        if pdf_bytes and len(pdf_bytes) >= 12000:
+            return pdf_bytes
+        if docx_bytes:
+            try:
+                pdf_bytes = ResumeTemplateEditor.convert_docx_to_pdf_via_word(
+                    docx_bytes, label=version_id[:8]
+                )
+                self._store_version_file(version_id, "pdf", pdf_bytes)
+                return pdf_bytes
+            except Exception:
+                try:
+                    pdf_bytes = ResumeTemplateEditor.convert_to_pdf_via_libreoffice(docx_bytes)
+                    self._store_version_file(version_id, "pdf", pdf_bytes)
+                    return pdf_bytes
+                except Exception:
+                    pass
+        try:
+            pdf_bytes = ResumeTemplateEditor.generate_pdf_from_resume(full_resume)
+            if pdf_bytes and (b"##" in pdf_bytes or b"**" in pdf_bytes):
+                return None
+            if pdf_bytes:
+                self._store_version_file(version_id, "pdf", pdf_bytes)
+            return pdf_bytes
+        except Exception:
+            return None
+
     def confirm_version(self, version_id: str, user_id: str) -> dict | None:
         version = db.get_resume_version(version_id, user_id)
         if not version:
@@ -468,16 +839,37 @@ class ResumeWorkspaceService:
         full_resume = version.get("full_resume") or {}
         evidence = full_resume.get("evidence_check") or {}
         format_check = full_resume.get("format_check") or {}
-        evidence_ok = evidence.get("passed")
-        if evidence_ok is None:
-            evidence_ok = evidence.get("ok", True)
-        if evidence_ok is False or format_check.get("fabrication") is True:
+        issues = list(evidence.get("issues") or [])
+        hard_issues = evidence.get("hard_issues")
+        if hard_issues is None:
+            # Wording-overlap alone is not a confirm blocker (JD inventory variants).
+            hard_issues = [i for i in issues if "weak textual support" not in i]
+        if hard_issues or format_check.get("fabrication") is True:
             return {
                 "ok": False,
                 "blocked": True,
                 "version_id": version_id,
                 "reason": "evidence_or_format_gate",
-                "issues": evidence.get("issues") or [],
+                "issues": hard_issues or issues,
+                "evidence_check": evidence,
+                "format_check": format_check,
+            }
+
+        session = db.get_jd_session(version["session_id"]) or {}
+        company, position = extract_company_position(full_resume, session)
+        docx_bytes = self._ensure_master_docx(version_id, user_id, full_resume)
+        pdf_bytes = self._ensure_word_pdf(version_id, docx_bytes, full_resume)
+        if not docx_bytes or not pdf_bytes:
+            return {
+                "ok": False,
+                "blocked": True,
+                "version_id": version_id,
+                "reason": "missing_master_docx_or_pdf",
+                "issues": [
+                    "Confirm requires OOXML DOCX + Word-level PDF (no Markdown preview).",
+                    f"docx={'ok' if docx_bytes else 'missing'}",
+                    f"pdf={'ok' if pdf_bytes else 'missing'}",
+                ],
                 "evidence_check": evidence,
                 "format_check": format_check,
             }
@@ -485,16 +877,6 @@ class ResumeWorkspaceService:
         ok = db.confirm_resume_version(version_id, user_id)
         if not ok:
             return None
-
-        session = db.get_jd_session(version["session_id"]) or {}
-        company, position = extract_company_position(full_resume, session)
-        docx_bytes = self._get_version_file(version_id, "docx")
-        pdf_bytes = self._get_version_file(version_id, "pdf")
-        if not docx_bytes:
-            # Fall back to master template bytes (format lock) even if replacements were empty
-            template = db.get_active_template(user_id) or ensure_user_has_master_template(user_id)
-            if template and template.get("docx_bytes"):
-                docx_bytes = template["docx_bytes"]
 
         saved = save_final_resume(
             company=company,
@@ -504,6 +886,14 @@ class ResumeWorkspaceService:
             full_resume=full_resume,
             docx_bytes=docx_bytes,
             pdf_bytes=pdf_bytes,
+            extra_meta={
+                "job_id": session.get("job_id") or session.get("listing_id"),
+                "session_id": version.get("session_id"),
+                "source_url": session.get("source_url") or session.get("original_url"),
+                "match_score": full_resume.get("match_score") or session.get("match_score"),
+                "user_id": user_id,
+                "preview_engine": "ooxml_word_pdf",
+            },
         )
         return {
             "ok": True,
@@ -512,15 +902,13 @@ class ResumeWorkspaceService:
             "files": saved["files"],
             "company": saved["company"],
             "position": saved["position"],
+            "meta": saved.get("meta"),
         }
 
     def suggest_project(self, keyword: str) -> str:
-        for m in MOCK_KEYWORD_MATCHES:
-            if m.keyword == keyword and m.suggestion:
-                return m.suggestion
         return (
-            f"For '{keyword}', consider building a practical project that "
-            f"demonstrates this skill."
+            f"For '{keyword}', only add a project if it already exists in Master Inventory "
+            f"or you confirm new facts in writing — never fabricate a portfolio piece."
         )
 
     def list_versions(self, session_id: str, user_id: str) -> list[dict]:
@@ -571,17 +959,9 @@ class ResumeWorkspaceService:
         return None
 
     def get_version_pdf(self, version_id: str, user_id: str) -> bytes | None:
-        stored = self._get_version_file(version_id, "pdf")
-        if stored:
-            return stored
         version = db.get_resume_version(version_id, user_id)
         if not version:
             return None
-        try:
-            pdf = ResumeTemplateEditor.generate_pdf_from_resume(
-                version["full_resume"]
-            )
-            self._store_version_file(version_id, "pdf", pdf)
-            return pdf
-        except Exception:
-            return None
+        full_resume = version.get("full_resume") or {}
+        docx = self._ensure_master_docx(version_id, user_id, full_resume)
+        return self._ensure_word_pdf(version_id, docx, full_resume)

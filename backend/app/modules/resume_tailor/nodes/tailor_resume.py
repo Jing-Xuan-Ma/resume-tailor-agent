@@ -21,8 +21,17 @@ class TailorResumeNode:
         self._llm = None
         system_prompt_path = Path(__file__).parent.parent / "prompts" / "tailor_system.txt"
         template_path = Path(__file__).parent.parent / "prompts" / "standard_resume_template.md"
-        self.system_prompt = system_prompt_path.read_text(encoding="utf-8")
+        from app.modules.resume_workspace.constitution import constitution_for_llm, constitution_system_block
+
+        base = system_prompt_path.read_text(encoding="utf-8")
         self.standard_template = template_path.read_text(encoding="utf-8")
+        # Runtime injection: always bind full constitution after the short system prompt.
+        self.system_prompt = (
+            f"{constitution_system_block()}\n\n{base}\n\n"
+            f"===== RESUME_CONSTITUTION.md (authoritative) =====\n"
+            f"{constitution_for_llm()}\n"
+            f"===== end constitution =====\n"
+        )
 
     def _get_llm(self):
         if self._llm is None:

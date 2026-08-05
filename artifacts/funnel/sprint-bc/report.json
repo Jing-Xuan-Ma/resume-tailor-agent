@@ -1,0 +1,83 @@
+{
+  "sprint": "B+C",
+  "passed": true,
+  "job_id": "cc67489e-9804-42d4-ac4d-8a510fc67c59",
+  "version_id": "9de4793b-cb73-483d-abd6-f6a91318fcd1",
+  "checks": [
+    {
+      "name": "start_apply_http",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "paused_before_submit",
+      "ok": true,
+      "detail": "paused_before_submit"
+    },
+    {
+      "name": "not_submitted",
+      "ok": true,
+      "detail": "False"
+    },
+    {
+      "name": "has_profile_fields",
+      "ok": true,
+      "detail": "17"
+    },
+    {
+      "name": "has_submit_hard_stop",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "has_ats_map",
+      "ok": true,
+      "detail": "generic"
+    },
+    {
+      "name": "draft_coffee_chat",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "draft_post_apply_thanks",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "two_draft_types",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "name": "draft_bodies_differ",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "template_in_metadata",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_has_version",
+      "ok": true,
+      "detail": "58c111b8-0b7f-4366-9d19-ff2224d7d4f3"
+    },
+    {
+      "name": "ui_checklist",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_two_drafts",
+      "ok": true,
+      "detail": "n=2 err="
+    },
+    {
+      "name": "ui_outreach_panel",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

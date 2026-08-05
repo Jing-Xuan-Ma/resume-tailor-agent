@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w29_hide_stale_control",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w29_detail_honest",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w29_detail_stale_or_age",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

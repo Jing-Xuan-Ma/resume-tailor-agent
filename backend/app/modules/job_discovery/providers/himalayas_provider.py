@@ -41,6 +41,7 @@ class HimalayasProvider(BaseJobProvider):
                     "type": item.get("type"),
                     "category": item.get("category"),
                     "company_data": item.get("company"),
+                    "pubDate": item.get("pubDate") or item.get("postedAt") or item.get("createdAt"),
                 },
             ))
         return results

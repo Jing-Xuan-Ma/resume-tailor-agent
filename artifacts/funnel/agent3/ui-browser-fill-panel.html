@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><title>ApplyModePanel · browser_fill</title>
+<style>
+body{font-family:system-ui;background:#f8fafc;padding:24px}
+.panel{max-width:420px;border:1px solid #a7f3d0;border-radius:16px;background:#fff;padding:16px;box-shadow:0 1px 2px #0001}
+.bf{margin-top:12px;border:1px solid #fde68a;background:#fffbeb;border-radius:12px;padding:10px;font-size:12px;color:#78350f}
+.bf ul{margin:6px 0 0;padding:0;list-style:none}
+.bf li{display:flex;justify-content:space-between;padding:2px 0}
+.badge{display:inline-block;margin-top:8px;background:#fef3c7;color:#92400e;padding:4px 8px;border-radius:8px;font-weight:700;font-size:11px}
+</style></head><body>
+<div class="panel" data-testid="apply-mode-panel">
+  <h3>Step 5 · How do you want to apply?</h3>
+  <div class="badge" data-testid="paused-before-submit">Stopped before Submit — no application was sent.</div>
+  <div class="bf" data-testid="browser-fill-result">
+    <div><b>Browser fill-pause</b></div>
+    <div data-testid="browser-fill-status">status: filled_paused_before_submit · submitted: <span data-testid="browser-fill-submitted">False</span> · sandbox · greenhouse</div>
+    <div>filled 5/5 fields</div>
+    <div>Filled form fields and stopped before Submit.</div>
+    <ul data-testid="browser-fill-fields"><li><b>first_name</b> <span>filled</span></li><li><b>last_name</b> <span>filled</span></li><li><b>email</b> <span>filled</span></li><li><b>phone</b> <span>filled</span></li><li><b>linkedin</b> <span>filled</span></li></ul>
+  </div>
+</div>
+</body></html>

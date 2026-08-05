@@ -1,0 +1,30 @@
+{
+  "submitted": false,
+  "status": "filled_paused_before_submit",
+  "mode": "playwright_fill_pause",
+  "filled": [
+    {
+      "field": "first_name",
+      "status": "not_found"
+    },
+    {
+      "field": "last_name",
+      "status": "not_found"
+    },
+    {
+      "field": "email",
+      "status": "filled"
+    },
+    {
+      "field": "phone",
+      "status": "filled"
+    }
+  ],
+  "screenshot_path": "D:\\resume-agent\\artifacts\\ui\\apply-pass\\lever-filled-paused.png",
+  "message": "Filled form fields and stopped before Submit.",
+  "paused_before_submit": true,
+  "submit_marker": "",
+  "submit_leaked": false,
+  "ats_type": "lever",
+  "sandbox": true
+}

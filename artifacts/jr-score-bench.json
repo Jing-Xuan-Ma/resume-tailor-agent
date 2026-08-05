@@ -1,0 +1,48 @@
+{
+  "order": [
+    "da_sql_tableau",
+    "bi_powerbi",
+    "pm_generic",
+    "de_spark",
+    "nurse"
+  ],
+  "scores": {
+    "da_sql_tableau": 71.1,
+    "bi_powerbi": 51.4,
+    "pm_generic": 35.0,
+    "de_spark": 12.5,
+    "nurse": 0.0
+  },
+  "sample_breakdown": {
+    "query_overlap": 1.0,
+    "resume_overlap": 0.474,
+    "skill_hit_rate": 0.667,
+    "ats_coverage": 0.667,
+    "weights": {
+      "query": 0.25,
+      "resume": 0.2,
+      "skills": 0.35,
+      "ats": 0.2
+    }
+  },
+  "sample_matched_skills": [
+    "a/b",
+    "dashboards",
+    "python",
+    "sql",
+    "statistics",
+    "tableau"
+  ],
+  "mid_scores": [
+    12.5
+  ],
+  "pass_criteria": {
+    "has_breakdown": true,
+    "has_matched_or_missing": true,
+    "high_beat_low": true,
+    "da_before_nurse": true,
+    "pm_not_top": true,
+    "body_matters": true
+  },
+  "all_pass": true
+}

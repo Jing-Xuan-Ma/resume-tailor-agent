@@ -1,0 +1,35 @@
+{
+  "jd_id": "jd05_bi_analyst",
+  "company": "Northwind Retail",
+  "title": "Business Intelligence Analyst",
+  "format": {
+    "ok": true,
+    "score": 10,
+    "errors": [],
+    "warnings": []
+  },
+  "quality_gate": {
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "stats": {
+      "bullet_count": 12,
+      "approx_chars": 3169,
+      "jd_core_covered": 2,
+      "jd_core_missing_in_projection": [
+        "excel"
+      ],
+      "hidden_entries": 1
+    }
+  },
+  "scores": {
+    "format": 10,
+    "match": 10,
+    "honesty": 10,
+    "one_page_heuristic": 10
+  },
+  "screenshot": true,
+  "agent_notes": [
+    "Format lock OK (paragraph/style fingerprint)."
+  ]
+}

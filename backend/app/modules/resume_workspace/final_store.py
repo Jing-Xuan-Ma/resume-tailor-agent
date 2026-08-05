@@ -25,6 +25,24 @@ def folder_name(company: str, position: str) -> str:
     return f"{slugify(company)}_{slugify(position)}"
 
 
+def resolve_job_company_position(job_id: str | None) -> tuple[str, str]:
+    """Look up company/title from jobs or job_listings when session has job_id."""
+    if not job_id:
+        return "", ""
+    try:
+        from app import db
+
+        listing = db.get_job_listing(job_id)
+        if listing:
+            return str(listing.get("company") or ""), str(listing.get("title") or "")
+        job = db.get_job(job_id)
+        if job:
+            return str(job.get("company") or ""), str(job.get("title") or "")
+    except Exception:
+        pass
+    return "", ""
+
+
 def extract_company_position(resume: dict[str, Any], session: dict[str, Any] | None = None) -> tuple[str, str]:
     session = session or {}
     company = ""
@@ -35,14 +53,33 @@ def extract_company_position(resume: dict[str, Any], session: dict[str, Any] | N
     position = str(session.get("position") or session.get("title") or "")
 
     if not company or not position:
+        job_company, job_title = resolve_job_company_position(
+            session.get("job_id") or session.get("listing_id")
+        )
+        if not company:
+            company = job_company
+        if not position:
+            position = job_title
+
+    if not company or not position:
         jd = str(session.get("jd_text") or "")
         lines = [ln.strip() for ln in jd.splitlines() if ln.strip()]
         if lines and not position:
-            position = lines[0][:120]
+            # "Title at Company" or first line as position
+            first = lines[0][:120]
+            if " at " in first.lower() and not company:
+                left, _, right = first.partition(" at ")
+                if not position:
+                    position = left.strip()
+                company = company or right.strip()
+            else:
+                position = first
         for ln in lines[:8]:
-            if ln.lower().startswith("company:"):
-                company = ln.split(":", 1)[1].strip()
-                break
+            low = ln.lower()
+            if low.startswith("company:"):
+                company = company or ln.split(":", 1)[1].strip()
+            if low.startswith("title:") or low.startswith("position:"):
+                position = position or ln.split(":", 1)[1].strip()
 
     if not company:
         exps = resume.get("experiences") or []
@@ -66,18 +103,32 @@ def save_final_resume(
     full_resume: dict[str, Any],
     docx_bytes: bytes | None = None,
     pdf_bytes: bytes | None = None,
+    extra_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    from datetime import datetime, timezone
+
     FINAL_ROOT.mkdir(parents=True, exist_ok=True)
     folder = FINAL_ROOT / folder_name(company, position)
     folder.mkdir(parents=True, exist_ok=True)
 
     base = slugify(f"{company}_{position}", max_len=80)
-    meta = {
+    meta: dict[str, Any] = {
         "company": company,
         "position": position,
         "version_id": version_id,
         "folder": str(folder),
+        "job_id": None,
+        "confirmed_at": datetime.now(timezone.utc).isoformat(),
+        "apply_status": "not_started",
+        "outreach_status": "not_started",
     }
+    if extra_meta:
+        meta.update({k: v for k, v in extra_meta.items() if v is not None and v != ""})
+    # Constitution funnel contract: these keys always present
+    meta.setdefault("job_id", None)
+    meta.setdefault("apply_status", "not_started")
+    meta.setdefault("outreach_status", "not_started")
+    meta.setdefault("confirmed_at", datetime.now(timezone.utc).isoformat())
 
     (folder / f"{base}.txt").write_text(markdown or "", encoding="utf-8")
     (folder / f"{base}.json").write_text(
@@ -91,13 +142,21 @@ def save_final_resume(
         "json": str(folder / f"{base}.json"),
         "meta": str(folder / "meta.json"),
     }
-    if docx_bytes:
-        path = folder / f"{base}.docx"
-        path.write_bytes(docx_bytes)
-        files["docx"] = str(path)
-    if pdf_bytes:
-        path = folder / f"{base}.pdf"
-        path.write_bytes(pdf_bytes)
-        files["pdf"] = str(path)
+    if not docx_bytes:
+        raise ValueError("Confirm requires master-template DOCX bytes")
+    path = folder / f"{base}.docx"
+    path.write_bytes(docx_bytes)
+    files["docx"] = str(path)
+    # Stable aliases for upload / humans browsing the folder
+    (folder / "resume.docx").write_bytes(docx_bytes)
+    files["resume_docx"] = str(folder / "resume.docx")
 
-    return {"folder": str(folder), "files": files, "company": company, "position": position}
+    if not pdf_bytes:
+        raise ValueError("Confirm requires Word-exported PDF bytes")
+    path = folder / f"{base}.pdf"
+    path.write_bytes(pdf_bytes)
+    files["pdf"] = str(path)
+    (folder / "resume.pdf").write_bytes(pdf_bytes)
+    files["resume_pdf"] = str(folder / "resume.pdf")
+
+    return {"folder": str(folder), "files": files, "company": company, "position": position, "meta": meta}

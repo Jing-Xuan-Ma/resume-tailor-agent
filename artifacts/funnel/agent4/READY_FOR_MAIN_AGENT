@@ -1,0 +1,9 @@
+READY_FOR_MAIN_AGENT
+
+agent: 4
+module: outreach_hm_crm
+status: PASS
+gate: artifacts/funnel/agent4/report.json
+report: artifacts/funnel/agent4-outreach-report.md
+draft_only: true
+mass_send: false

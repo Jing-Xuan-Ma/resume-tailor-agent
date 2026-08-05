@@ -1,0 +1,52 @@
+[
+  {
+    "id": "890d67c2-97f0-4725-9a53-1f07c077d9c4",
+    "user_id": "251bd13a-aaa8-4fb9-90b3-f886bab730e6",
+    "job_id": "cc67489e-9804-42d4-ac4d-8a510fc67c59",
+    "contact_name": "Alex Recruiter",
+    "contact_role": "Hiring Manager",
+    "company": "LawnStarter",
+    "channel": "linkedin",
+    "subject": "Quick coffee chat \u2014 Staff Product Engineer (Montevideo) at LawnStarter",
+    "body": "Hi Alex Recruiter,\n\nI recently applied / am preparing an application for Staff Product Engineer (Montevideo) at LawnStarter. I would value a short 15-minute coffee chat to learn how your team approaches the work (my background includes data analysis, SQL, Python, and stakeholder reporting).\n\nHappy to work around your calendar \u2014 even a brief LinkedIn reply helps.\n\nBest,\n",
+    "status": "draft",
+    "metadata": {
+      "safety": "draft_only_user_sends",
+      "tone": "warm",
+      "template_type": "coffee_chat",
+      "job_title": "Staff Product Engineer (Montevideo)",
+      "contact_role": "Hiring Manager",
+      "source_url": "https://remotive.com/remote-jobs/product/staff-product-engineer-montevideo-2091054",
+      "linkedin_url": "https://www.linkedin.com/in/example",
+      "contact_email": null,
+      "linkedin_search_hint": "LawnStarter Hiring Manager"
+    },
+    "created_at": "2026-08-03T14:39:39.363745+00:00",
+    "updated_at": "2026-08-03T14:39:39.363745+00:00"
+  },
+  {
+    "id": "bccf12b0-55eb-4349-b54f-e218728979d5",
+    "user_id": "251bd13a-aaa8-4fb9-90b3-f886bab730e6",
+    "job_id": "cc67489e-9804-42d4-ac4d-8a510fc67c59",
+    "contact_name": "Alex Recruiter",
+    "contact_role": "Recruiter",
+    "company": "LawnStarter",
+    "channel": "email",
+    "subject": "Thank you \u2014 application for Staff Product Engineer (Montevideo)",
+    "body": "Hi Alex Recruiter,\n\nI just submitted my application for Staff Product Engineer (Montevideo) at LawnStarter and wanted to thank you for reviewing materials. I am especially excited about the problems in the posting; my recent work covers data analysis, SQL, Python, and stakeholder reporting.\n\nIf helpful, I can share a one-page project summary or walk through a relevant dashboard/analysis.\n\nBest,\n",
+    "status": "draft",
+    "metadata": {
+      "safety": "draft_only_user_sends",
+      "tone": "warm",
+      "template_type": "post_apply_thanks",
+      "job_title": "Staff Product Engineer (Montevideo)",
+      "contact_role": "Recruiter",
+      "source_url": "https://remotive.com/remote-jobs/product/staff-product-engineer-montevideo-2091054",
+      "linkedin_url": "https://www.linkedin.com/in/example",
+      "contact_email": null,
+      "linkedin_search_hint": "LawnStarter Recruiter"
+    },
+    "created_at": "2026-08-03T14:39:39.378333+00:00",
+    "updated_at": "2026-08-03T14:39:39.378333+00:00"
+  }
+]

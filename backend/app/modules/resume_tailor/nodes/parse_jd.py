@@ -57,15 +57,39 @@ class JDParsingNode:
             # Attempt to parse the LLM output
             parsed = self.parser.parse(response.content)
             parsed.raw_text = jd_text
+            if not parsed.title or parsed.title.strip().lower() in {"unknown title", "unknown", "n/a"}:
+                heur = self._heuristic_parse(jd_text)
+                if heur.title:
+                    parsed.title = heur.title
+                if not parsed.company and heur.company:
+                    parsed.company = heur.company
             return parsed
         except Exception:
-            # Fallback: return basic structure (also used when no API key)
-            return ParsedJobDescription(
-                title="Unknown Title",
-                raw_text=jd_text,
-                required_skills=[],
-                preferred_skills=[],
-                key_responsibilities=[],
-                company_values=[],
-                ats_keywords=[],
-            )
+            # Fallback: heuristic structure (also used when no API key)
+            return self._heuristic_parse(jd_text)
+
+    def _heuristic_parse(self, jd_text: str) -> ParsedJobDescription:
+        lines = [ln.strip() for ln in (jd_text or "").splitlines() if ln.strip()]
+        title = lines[0] if lines else "Imported Job"
+        company = None
+        for ln in lines[:8]:
+            low = ln.lower()
+            if low.startswith("company:"):
+                company = ln.split(":", 1)[1].strip() or None
+                break
+            if low.startswith("company "):
+                company = ln[7:].strip(" :-") or None
+                break
+        # Prefer a short title-like first line (not a paragraph)
+        if len(title) > 120 or title.count(" ") > 14:
+            title = "Imported Job"
+        return ParsedJobDescription(
+            title=title or "Imported Job",
+            company=company,
+            raw_text=jd_text,
+            required_skills=[],
+            preferred_skills=[],
+            key_responsibilities=[],
+            company_values=[],
+            ats_keywords=[],
+        )

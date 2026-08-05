@@ -97,11 +97,15 @@ SKILLS & CERTIFICATIONS                 ← 单行关键词，禁止 bullet
 - 点明身份 + 与 JD 最相关的 3–5 个关键词（必须已真实具备）
 - 按岗位簇调整侧重点（见 §5）
 
-### 3.4 Skills
+### 3.5 ATS text hygiene（全简历强制）
 
-- 单行，逗号/分号分隔；**不是** bullet 列表
-- 投递版做 **子集 + 重排**，不要永远全量粘贴（防一页溢出与噪音）
-- 技能分层见 §5；只写能在经历/项目中举证或用户确认会的项
+禁止在 summary / bullets / skills / 标题中出现 ATS 不友好符号：
+
+`→ ← ⇒ ⇐ ➜ ➔ ➡ • ● ◆ ■ ★ ✓ ✔ ✗`
+
+改用英文逗号、`|`、连字符 `-`，或词语 `to` / `then`。技术专有名词（FastAPI、Tableau、RAG 等）保持原文，不做营销化改写。
+
+同一段经历的多条 bullet 应使用**不同动作动词**覆盖能力层次（Built / Designed / Delivered / Integrated / Optimized），避免三条都以 Built 开头。
 
 ---
 
@@ -132,12 +136,16 @@ SKILLS & CERTIFICATIONS                 ← 单行关键词，禁止 bullet
 
 | 块 | 默认优先级 | 典型映射 |
 |----|------------|----------|
+| 依零网络 AI Agent 实习 | 最高（默认上架） | Python, FastAPI, OOXML format lock, JD matching, quality gate |
 | Tesla ETL + Tableau 项目 | 高 | Airflow, SQL, Tableau, dashboard, ETL |
 | 申万宏源实习 | 高（量化/性能岗更高） | Python, Monte Carlo, pricing, C++ |
 | Credit Risk 项目 | 高（风险/ML 岗） | ML, SQL, credit risk, XGBoost |
-| Claims Severity 项目 | 高（保险岗） | claims, severity, R/Python |
+| Claims Severity 项目 | 高（保险岗）；上架依零时默认置换下架 | claims, severity, R/Python |
 | 银华基金实习 | 中（偏业务 DA） | cleaning, reporting, stakeholder |
 | MCM 等竞赛 | 低 | 空间不够可隐藏 |
+
+**一页置换规则：** 上架「依零 AI Agent 实习」时，默认下架 `Insurance Claims Severity Modeling`（保险/claims JD 则改下架 Credit Risk），用腾出的纵向空间保持正好一页。
+
 
 ---
 

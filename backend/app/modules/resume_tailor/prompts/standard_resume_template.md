@@ -46,3 +46,7 @@ Canonical policy: repository root `RESUME_CONSTITUTION.md` (wins on conflict).
 8. Skills are a comma/semicolon-separated keyword string, never bullet points. Reorder/subset by JD; do not dump the full inventory every time.
 9. Do not fabricate tools, numbers, companies, titles, dates, degrees, certifications, project scope, or outcomes.
 10. Before final output, self-check whether the result fits one page, avoids fabrication, and follows every format rule above and `RESUME_CONSTITUTION.md`.
+11. **ATS text hygiene (mandatory):** never use arrows or decorative symbols (`→ ← ⇒ • ★ ✓` etc.) in any resume field. Use commas, `|`, hyphens, or words (`to`, `then`). Keep inventory technical terms verbatim.
+12. **Verb variety:** within one experience, use different strong verbs across bullets (Built / Designed / Delivered / Integrated / Optimized) so capability layers are visible.
+13. **One-page cuts:** prefer hiding overlapping projects (same methods/tools/domain) over deleting verified internships or unique projects.
+14. Experience headings: title|company may be bold in Word; location|dates must remain regular weight (content JSON should not try to restyle).

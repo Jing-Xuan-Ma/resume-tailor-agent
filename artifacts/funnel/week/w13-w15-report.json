@@ -1,0 +1,56 @@
+{
+  "wave": 3,
+  "passed": true,
+  "checks": [
+    {
+      "name": "w13_strips_html_tags",
+      "ok": true,
+      "detail": "About the role\n\nWe need a Data Analyst with SQL.\n\n- Tableau dashboards\n\n- Python scripting\n\nnoise\n\nPreferred:\n- Stakehol"
+    },
+    {
+      "name": "w13_keeps_content",
+      "ok": true,
+      "detail": "About the role\n\nWe need a Data Analyst with SQL.\n\n- Tableau dashboards\n\n- Python scripting\n\nnoise\n\nPreferred:\n- Stakeholder communication"
+    },
+    {
+      "name": "w13_drops_tw_noise",
+      "ok": true,
+      "detail": "About the role\n\nWe need a Data Analyst with SQL.\n\n- Tableau dashboards\n\n- Python scripting\n\nnoise\n\nPreferred:\n- Stakeholder communication"
+    },
+    {
+      "name": "w13_fe_stripJdHtml",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w14_soft_warnings_banner",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w14_hard_issues_only_block",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w14_confirm_error_inline",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w15_flow_apply_after_confirm",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w13_jobs_for_handoff",
+      "ok": true,
+      "detail": "4c49922c-0c87-434b-b570-329124da1bea"
+    },
+    {
+      "name": "w13_handoff_no_raw_tags",
+      "ok": true,
+      "detail": "Business Intel Architect - Self-Pay, Analytics & Revenue Cycle Counseling (SPARC) - Patient Financia"
+    }
+  ]
+}

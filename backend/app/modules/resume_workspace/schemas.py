@@ -44,6 +44,27 @@ class RewriteResponse(BaseModel):
     content_delta: dict = Field(default_factory=dict)
 
 
+class AgentTurnRequest(BaseModel):
+    user_id: str
+    message: str
+    base_version_id: Optional[str] = None
+    chat_history: list[dict] = Field(default_factory=list)
+
+
+class AgentTurnResponse(BaseModel):
+    session_id: str
+    agent_message: str
+    intent: str  # chat | rewrite
+    did_rewrite: bool = False
+    new_version_id: Optional[str] = None
+    version_index: Optional[int] = None
+    full_resume: Optional[dict] = None
+    keyword_matches: list[KeywordMatchItem] = Field(default_factory=list)
+    content_delta: dict = Field(default_factory=dict)
+    llm_provider: Optional[str] = None
+    llm_model: Optional[str] = None
+
+
 class ConfirmResponse(BaseModel):
     ok: bool
     version_id: str
@@ -59,6 +80,8 @@ class StartApplyRequest(BaseModel):
     company: Optional[str] = None
     position: Optional[str] = None
     final_path: Optional[str] = None
+    job_id: Optional[str] = None
+    source_url: Optional[str] = None
 
 
 class StartApplyResponse(BaseModel):
@@ -69,7 +92,31 @@ class StartApplyResponse(BaseModel):
     paused_before_submit: bool
     message: str
     filled_fields: list[dict] = Field(default_factory=list)
+    ats_fields: list[dict] = Field(default_factory=list)
+    ats_type: Optional[str] = None
+    source_url: Optional[str] = None
+    board_url: Optional[str] = None
+    browser_fill: Optional[dict] = None
     final_path: Optional[str] = None
+    confirmed_submit_at: Optional[str] = None
+    fill_plan: list[dict] = Field(default_factory=list)
+    map_provider: Optional[str] = None
+    requires_human_review: bool = False
+
+
+class ConfirmSubmitRequest(BaseModel):
+    user_id: str
+    acknowledge: bool = False
+
+
+class ConfirmSubmitResponse(BaseModel):
+    apply_id: str
+    status: str
+    submitted: bool
+    paused_before_submit: bool
+    message: str
+    confirmed_submit_at: Optional[str] = None
+    source_url: Optional[str] = None
 
 
 class SuggestProjectRequest(BaseModel):

@@ -1,0 +1,41 @@
+{
+  "sprint": "F",
+  "passed": true,
+  "checks": [
+    {
+      "name": "api_coffee_chat",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "has_search_hint",
+      "ok": true,
+      "detail": "TELUS Digital Hiring Manager"
+    },
+    {
+      "name": "ui_version",
+      "ok": true,
+      "detail": "d465287d-7a44-44c6-ada6-ad8c02015745"
+    },
+    {
+      "name": "hm_playbook",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "linkedin_search_links_ge_2",
+      "ok": true,
+      "detail": "3"
+    },
+    {
+      "name": "linkedin_href",
+      "ok": true,
+      "detail": "https://www.linkedin.com/search/results/people/?keywords=TELUS%20Digital%20%22Hi"
+    },
+    {
+      "name": "draft_after_find",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

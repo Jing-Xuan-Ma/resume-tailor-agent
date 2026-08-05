@@ -1,0 +1,156 @@
+{
+  "apply_id": "59444b66-eb25-45b0-98a3-b2d88cad99e1",
+  "mode": "auto",
+  "status": "paused_before_submit",
+  "submitted": false,
+  "paused_before_submit": true,
+  "message": "Auto-apply dry run mapped profile + ATS fields, then stopped before Submit (safety boundary \u2014 nothing was sent).",
+  "filled_fields": [
+    {
+      "field": "full_name",
+      "value": "Jingxuan Ma"
+    },
+    {
+      "field": "email",
+      "value": "jma107@jh.edu"
+    },
+    {
+      "field": "phone",
+      "value": "+1 (410) 240-4366"
+    },
+    {
+      "field": "linkedin",
+      "value": "LinkedIn"
+    },
+    {
+      "field": "portfolio",
+      "value": ""
+    },
+    {
+      "field": "github",
+      "value": "https://github.com/Jing-Xuan-Ma/resume-tailor-agent"
+    },
+    {
+      "field": "location",
+      "value": "Baltimore, MD"
+    },
+    {
+      "field": "work_authorization",
+      "value": "Yes"
+    },
+    {
+      "field": "needs_sponsorship",
+      "value": "Yes"
+    },
+    {
+      "field": "resume_upload",
+      "value": "confirmed:9de4793b-cb73-483d-abd6-f6a91318fcd1"
+    },
+    {
+      "field": "submit_button",
+      "value": "NOT_CLICKED",
+      "note": "hard stop \u2014 pause before submit"
+    },
+    {
+      "field": "ats:full_name",
+      "value": "Jingxuan Ma",
+      "required": true,
+      "type": "text",
+      "ats_type": "generic",
+      "note": "ats_template_map"
+    },
+    {
+      "field": "ats:email",
+      "value": "jma107@jh.edu",
+      "required": true,
+      "type": "text",
+      "ats_type": "generic",
+      "note": "ats_template_map"
+    },
+    {
+      "field": "ats:phone",
+      "value": "+1 (410) 240-4366",
+      "required": false,
+      "type": "text",
+      "ats_type": "generic",
+      "note": "ats_template_map"
+    },
+    {
+      "field": "ats:resume",
+      "value": "confirmed:9de4793b-cb73-483d-abd6-f6a91318fcd1",
+      "required": true,
+      "type": "file",
+      "ats_type": "generic",
+      "note": "ats_template_map"
+    },
+    {
+      "field": "ats:cover_letter",
+      "value": "(optional \u2014 not auto-generated in dry-run)",
+      "required": false,
+      "type": "file",
+      "ats_type": "generic",
+      "note": "ats_template_map"
+    },
+    {
+      "field": "ats:work_authorization",
+      "value": "Yes",
+      "required": true,
+      "type": "select",
+      "ats_type": "generic",
+      "note": "ats_template_map"
+    }
+  ],
+  "ats_fields": [
+    {
+      "field": "full_name",
+      "value": "Jingxuan Ma",
+      "required": true,
+      "type": "text",
+      "ats_type": "generic",
+      "note": "ats_template_map"
+    },
+    {
+      "field": "email",
+      "value": "jma107@jh.edu",
+      "required": true,
+      "type": "text",
+      "ats_type": "generic",
+      "note": "ats_template_map"
+    },
+    {
+      "field": "phone",
+      "value": "+1 (410) 240-4366",
+      "required": false,
+      "type": "text",
+      "ats_type": "generic",
+      "note": "ats_template_map"
+    },
+    {
+      "field": "resume",
+      "value": "confirmed:9de4793b-cb73-483d-abd6-f6a91318fcd1",
+      "required": true,
+      "type": "file",
+      "ats_type": "generic",
+      "note": "ats_template_map"
+    },
+    {
+      "field": "cover_letter",
+      "value": "(optional \u2014 not auto-generated in dry-run)",
+      "required": false,
+      "type": "file",
+      "ats_type": "generic",
+      "note": "ats_template_map"
+    },
+    {
+      "field": "work_authorization",
+      "value": "Yes",
+      "required": true,
+      "type": "select",
+      "ats_type": "generic",
+      "note": "ats_template_map"
+    }
+  ],
+  "ats_type": "generic",
+  "source_url": "https://remotive.com/remote-jobs/product/staff-product-engineer-montevideo-2091054",
+  "final_path": null
+}

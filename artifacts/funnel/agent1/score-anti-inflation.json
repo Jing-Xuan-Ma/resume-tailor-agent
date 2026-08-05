@@ -1,0 +1,23 @@
+{
+  "thin": 1.4,
+  "rich": 84.4,
+  "title_as_query_empty_resume": 0.0,
+  "thin_skill_hit": 0.0,
+  "live_score_count": 40,
+  "live_unique_rounded": 23,
+  "live_stuck_at_35_share": 0.0,
+  "live_sample": [
+    5.7,
+    5.7,
+    5.7,
+    5.7,
+    5.7,
+    5.7,
+    5.7,
+    5.7,
+    33.6,
+    57.0,
+    5.7,
+    5.7
+  ]
+}

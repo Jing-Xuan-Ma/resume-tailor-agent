@@ -1,0 +1,71 @@
+{
+  "sprint": "D",
+  "passed": true,
+  "checks": [
+    {
+      "name": "has_confirmed_version",
+      "ok": true,
+      "detail": "58c111b8-0b7f-4366-9d19-ff2224d7d4f3"
+    },
+    {
+      "name": "not_submitted",
+      "ok": true,
+      "detail": "False"
+    },
+    {
+      "name": "paused_status",
+      "ok": true,
+      "detail": "filled_paused_before_submit"
+    },
+    {
+      "name": "filled_ge_3",
+      "ok": true,
+      "detail": "5"
+    },
+    {
+      "name": "screenshot_exists",
+      "ok": true,
+      "detail": "d:\\resume-agent\\artifacts\\funnel\\sprint-d\\01-filled-paused.png"
+    },
+    {
+      "name": "msg_mentions_pause",
+      "ok": true,
+      "detail": "Filled form fields and stopped before Submit."
+    },
+    {
+      "name": "audit_logged",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "result": {
+    "submitted": false,
+    "status": "filled_paused_before_submit",
+    "mode": "playwright_fill_pause",
+    "filled": [
+      {
+        "field": "first_name",
+        "status": "filled"
+      },
+      {
+        "field": "last_name",
+        "status": "filled"
+      },
+      {
+        "field": "email",
+        "status": "filled"
+      },
+      {
+        "field": "phone",
+        "status": "filled"
+      },
+      {
+        "field": "linkedin",
+        "status": "filled"
+      }
+    ],
+    "screenshot_path": "d:\\resume-agent\\artifacts\\funnel\\sprint-d\\01-filled-paused.png",
+    "message": "Filled form fields and stopped before Submit.",
+    "paused_before_submit": true
+  }
+}

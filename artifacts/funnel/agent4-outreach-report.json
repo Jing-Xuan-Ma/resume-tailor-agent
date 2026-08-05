@@ -1,0 +1,135 @@
+{
+  "agent": 4,
+  "module": "outreach_hm_crm",
+  "passed": true,
+  "status": "PASS",
+  "draft_only": true,
+  "mass_send": false,
+  "checks": [
+    {
+      "name": "api_health",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "auth_login",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "crm_upsert",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "crm_fields",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "crm_upsert_second",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "crm_list",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "crm_list_ge_2",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "name": "crm_upsert_merge",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "job_listing",
+      "ok": true,
+      "detail": "TELUS Digital / Online Data Analyst Canada (French Language) (C)"
+    },
+    {
+      "name": "draft_coffee_chat",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "draft_status_draft",
+      "ok": true,
+      "detail": "draft"
+    },
+    {
+      "name": "draft_safety_flag",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "draft_crm_linked",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "draft_post_apply_thanks",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "draft_templates_ge_2",
+      "ok": true,
+      "detail": "{'coffee_chat', 'post_apply_thanks'}"
+    },
+    {
+      "name": "no_mass_send",
+      "ok": true,
+      "detail": "draft_only + mark-sent-by-user"
+    },
+    {
+      "name": "crm_file_written",
+      "ok": true,
+      "detail": "d:\\resume-agent\\data\\outreach_crm\\7887e445-14cd-43a9-8199-9e8528f44dd9.json"
+    },
+    {
+      "name": "ui_panel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "hm_playbook",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "linkedin_search_links_ge_2",
+      "ok": true,
+      "detail": "3"
+    },
+    {
+      "name": "linkedin_href",
+      "ok": true,
+      "detail": "https://www.linkedin.com/search/results/people/?keywords=TELUS%20Digital%20%22Hiring%20Man"
+    },
+    {
+      "name": "linkedin_uses_company",
+      "ok": true,
+      "detail": "TELUS Digital"
+    },
+    {
+      "name": "ui_crm_list",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_drafts_ge_2",
+      "ok": true,
+      "detail": "2"
+    }
+  ],
+  "screenshots": [
+    "artifacts/funnel/agent4/01-hm-playbook.png",
+    "artifacts/funnel/agent4/02-crm-saved.png",
+    "artifacts/funnel/agent4/03-drafts.png"
+  ]
+}

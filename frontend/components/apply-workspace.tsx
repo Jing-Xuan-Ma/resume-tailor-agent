@@ -1,0 +1,893 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import FlowStepper from "@/components/flow-stepper";
+import {
+  confirmApplySubmit,
+  confirmVersion,
+  exportVersion,
+  getApply,
+  getVersion,
+  startApply,
+  type FillPlanItem,
+  type StartApplyResponse,
+} from "@/lib/api";
+import { isLivePostingUrl } from "@/lib/posting-url";
+
+type ReviewStep = "profile" | "ats" | "resume" | "pause";
+
+const REVIEW_STEPS: { id: ReviewStep; label: string; hint: string }[] = [
+  { id: "profile", label: "1. Profile", hint: "Name, email, phone, location" },
+  { id: "ats", label: "2. ATS fields", hint: "Mapped form fields" },
+  { id: "resume", label: "3. Resume", hint: "Upload path / file" },
+  { id: "pause", label: "4. Pause", hint: "You confirm Submit" },
+];
+
+function tierOf(item: FillPlanItem | { tier?: string; confidence?: number; action?: string }): string {
+  if (item.tier) return String(item.tier);
+  const conf = Number(item.confidence ?? 0);
+  const action = String(item.action || "");
+  if (action === "leave_empty" || !action) return "empty";
+  if (conf >= 0.85) return "auto";
+  if (conf >= 0.5) return "review";
+  return "empty";
+}
+
+function TierList({
+  title,
+  tone,
+  items,
+  testId,
+}: {
+  title: string;
+  tone: "auto" | "review" | "empty";
+  items: FillPlanItem[];
+  testId: string;
+}) {
+  const styles = {
+    auto: "border-emerald-200 bg-emerald-50/80 text-emerald-950",
+    review: "border-amber-200 bg-amber-50/80 text-amber-950",
+    empty: "border-rose-200 bg-rose-50/80 text-rose-950",
+  }[tone];
+  const badge = {
+    auto: "bg-emerald-600 text-white",
+    review: "bg-amber-500 text-white",
+    empty: "bg-rose-600 text-white",
+  }[tone];
+  return (
+    <div className={`rounded-2xl border px-3 py-3 ${styles}`} data-testid={testId}>
+      <div className="mb-2 flex items-center gap-2">
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badge}`}>{title}</span>
+        <span className="text-[11px] opacity-70">{items.length}</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-[11px] opacity-60">None</p>
+      ) : (
+        <ul className="max-h-40 space-y-1.5 overflow-y-auto text-xs">
+          {items.map((m, i) => (
+            <li key={`${m.field_id || m.label || i}`} className="flex gap-2">
+              <span className="w-36 shrink-0 truncate font-semibold">
+                {String(m.label || m.profile_key || m.field_id || "field")}
+              </span>
+              <span className="min-w-0 flex-1 truncate opacity-80" title={String(m.value || m.reason || "")}>
+                {m.value || m.reason || "—"}
+                {typeof m.confidence === "number" ? (
+                  <span className="ml-1 opacity-60">({Math.round(m.confidence * 100)}%)</span>
+                ) : null}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+interface ApplyWorkspaceProps {
+  userId: string;
+  versionId?: string;
+  jobId?: string;
+  company?: string;
+  position?: string;
+  returnTo?: string;
+  sourceUrl?: string;
+  initialFinalPath?: string;
+  initialApplyId?: string;
+  initialSessionId?: string;
+}
+
+function applyStorageKey(versionId: string) {
+  return `resume-agent-apply:${versionId}`;
+}
+
+export default function ApplyWorkspace({
+  userId,
+  versionId: initialVersionId,
+  jobId,
+  company: initialCompany,
+  position: initialPosition,
+  returnTo,
+  sourceUrl: initialSourceUrl,
+  initialFinalPath,
+  initialApplyId,
+  initialSessionId,
+}: ApplyWorkspaceProps) {
+  const [versionId, setVersionId] = useState(initialVersionId || "");
+  const [sessionId, setSessionId] = useState(initialSessionId || "");
+  const [confirmed, setConfirmed] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [company, setCompany] = useState(initialCompany || "");
+  const [position, setPosition] = useState(initialPosition || "");
+  const [finalPath, setFinalPath] = useState<string | undefined>(initialFinalPath || undefined);
+  const [result, setResult] = useState<StartApplyResponse | null>(null);
+  const [reviewStep, setReviewStep] = useState<ReviewStep>("profile");
+  const [exporting, setExporting] = useState<"pdf" | "docx" | null>(null);
+  const [confirmSubmitBusy, setConfirmSubmitBusy] = useState(false);
+  const [humanReviewed, setHumanReviewed] = useState(false);
+
+  const tailorHref = useMemo(() => {
+    const q = new URLSearchParams({ view: "resume", step: "tailor" });
+    if (jobId) q.set("jobId", jobId);
+    if (sessionId) q.set("sessionId", sessionId);
+    if (versionId) q.set("versionId", versionId);
+    if (returnTo) q.set("returnTo", returnTo);
+    return `/?${q.toString()}`;
+  }, [jobId, returnTo, sessionId, versionId]);
+
+  const outreachHref = useMemo(() => {
+    const q = new URLSearchParams();
+    if (jobId) q.set("jobId", jobId);
+    if (company) q.set("company", company);
+    if (position) q.set("position", position);
+    if (versionId) q.set("versionId", versionId);
+    if (sessionId) q.set("sessionId", sessionId);
+    return `/outreach?${q.toString()}`;
+  }, [jobId, company, position, versionId, sessionId]);
+
+  const persistApplyUrl = useCallback(
+    (applyId: string) => {
+      if (typeof window === "undefined" || !versionId) return;
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("versionId", versionId);
+        url.searchParams.set("applyId", applyId);
+        if (sessionId) url.searchParams.set("sessionId", sessionId);
+        if (finalPath) url.searchParams.set("finalPath", finalPath);
+        if (jobId) url.searchParams.set("jobId", jobId);
+        if (company) url.searchParams.set("company", company);
+        if (position) url.searchParams.set("position", position);
+        if (initialSourceUrl) url.searchParams.set("sourceUrl", initialSourceUrl);
+        window.history.replaceState({}, "", `${url.pathname}?${url.searchParams.toString()}`);
+        sessionStorage.setItem(
+          applyStorageKey(versionId),
+          JSON.stringify({ applyId, finalPath, sessionId, company, position })
+        );
+      } catch {
+        /* ignore */
+      }
+    },
+    [versionId, sessionId, finalPath, jobId, company, position, initialSourceUrl]
+  );
+
+  const refreshVersion = useCallback(async () => {
+    if (!versionId) {
+      setLoadError("No resume version. Go back to Tailor, Confirm a draft, then open Apply.");
+      return;
+    }
+    setLoadError(null);
+    try {
+      const v = await getVersion(versionId, userId);
+      setConfirmed(!!v.is_confirmed);
+      if (v.session_id) setSessionId(v.session_id);
+      const resume = (v.full_resume || {}) as Record<string, unknown>;
+      if (!company && typeof resume.company === "string") setCompany(resume.company);
+      if (!position && typeof resume.target_title === "string") setPosition(resume.target_title);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Failed to load version");
+    }
+  }, [versionId, userId, company, position]);
+
+  useEffect(() => {
+    void refreshVersion();
+  }, [refreshVersion]);
+
+  useEffect(() => {
+    if (initialVersionId) setVersionId(initialVersionId);
+  }, [initialVersionId]);
+
+  // Restore prior apply session (URL / sessionStorage) so refresh & back don't wipe the review.
+  useEffect(() => {
+    if (!versionId || result) return;
+    let cancelled = false;
+    const run = async () => {
+      let applyId = initialApplyId || "";
+      if (!applyId) {
+        try {
+          const raw = sessionStorage.getItem(applyStorageKey(versionId));
+          if (raw) {
+            const parsed = JSON.parse(raw) as { applyId?: string; finalPath?: string; sessionId?: string };
+            applyId = parsed.applyId || "";
+            if (!finalPath && parsed.finalPath) setFinalPath(parsed.finalPath);
+            if (!sessionId && parsed.sessionId) setSessionId(parsed.sessionId);
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      if (!applyId) return;
+      try {
+        const res = await getApply(applyId);
+        if (cancelled) return;
+        setResult(res);
+        if (res.final_path) setFinalPath(res.final_path);
+        if (res.paused_before_submit) setReviewStep("pause");
+      } catch {
+        /* stale apply id */
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [versionId, initialApplyId, result, finalPath, sessionId]);
+
+  const handleConfirm = async () => {
+    if (!versionId) return;
+    setConfirming(true);
+    setConfirmError(null);
+    try {
+      const res = await confirmVersion(versionId, userId);
+      setConfirmed(true);
+      if (res.final_path) setFinalPath(res.final_path);
+      if (res.company) setCompany(res.company);
+      if (res.position) setPosition(res.position);
+    } catch (err) {
+      setConfirmError(err instanceof Error ? err.message : "Confirm failed");
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const handleStart = async (mode: "manual" | "auto") => {
+    if (!versionId) return;
+    setBusy(true);
+    try {
+      const res = await startApply(versionId, userId, mode, {
+        company: company || undefined,
+        position: position || undefined,
+        final_path: finalPath,
+        job_id: jobId,
+        source_url: initialSourceUrl,
+      });
+      setResult(res);
+      setConfirmed(true);
+      setHumanReviewed(false);
+      if (res.final_path) setFinalPath(res.final_path);
+      if (res.apply_id) persistApplyUrl(res.apply_id);
+      if (mode === "auto") setReviewStep("profile");
+      if (mode === "manual") {
+        const openUrl = res.source_url || res.board_url;
+        if (openUrl && isLivePostingUrl(openUrl)) {
+          window.open(openUrl, "_blank", "noopener,noreferrer");
+        }
+      }
+      requestAnimationFrame(() => {
+        document.querySelector("[data-testid=apply-result-section]")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Apply failed";
+      setResult({
+        apply_id: "",
+        mode,
+        status: "error",
+        submitted: false,
+        paused_before_submit: false,
+        message: msg,
+        filled_fields: [],
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleExport = async (format: "pdf" | "docx") => {
+    if (!versionId || exporting) return;
+    setExporting(format);
+    try {
+      const blob = await exportVersion(versionId, userId, format);
+      downloadBlob(blob, `resume-apply.${format}`);
+    } catch {
+      alert("Export failed — confirm the version first.");
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const sourceUrl = result?.source_url || initialSourceUrl || "";
+
+  const handleConfirmSubmit = async () => {
+    if (!result?.apply_id || confirmSubmitBusy) return;
+    setConfirmSubmitBusy(true);
+    try {
+      const res = await confirmApplySubmit(result.apply_id, userId, true);
+      setResult((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: res.status,
+              submitted: res.submitted,
+              paused_before_submit: res.paused_before_submit,
+              message: res.message,
+            }
+          : prev
+      );
+      persistApplyUrl(result.apply_id);
+      setReviewStep("pause");
+      const url = res.source_url || sourceUrl;
+      if (url && isLivePostingUrl(url)) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+      requestAnimationFrame(() => {
+        document.querySelector("[data-testid=submit-confirmed]")?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Confirm submit failed";
+      setResult((prev) =>
+        prev ? { ...prev, message: `${prev.message || ""}\nConfirm error: ${msg}`.trim() } : prev
+      );
+    } finally {
+      setConfirmSubmitBusy(false);
+    }
+  };
+  const fields = result?.filled_fields || [];
+  const profileFields = fields.filter((f) => !String(f.field).startsWith("ats:"));
+  const atsFields = fields.filter((f) => String(f.field).startsWith("ats:"));
+  const resumeField = profileFields.find((f) => f.field === "resume_upload");
+  const pauseField = profileFields.find((f) => f.field === "submit_button");
+
+  const fillPlan = useMemo(() => {
+    const fromApi = result?.fill_plan || [];
+    if (fromApi.length > 0) return fromApi;
+    // Fallback: derive tiers from filled_fields when API omitted fill_plan
+    return (result?.filled_fields || [])
+      .filter((f) => String(f.field).startsWith("ats:") || f.field === "resume_upload")
+      .map((f, i) => {
+        const tier = String(f.tier || (f.value && !String(f.value).startsWith("(") ? "review" : "empty"));
+        return {
+          field_id: `fe-${i}`,
+          label: String(f.field).replace(/^ats:/, ""),
+          profile_key: f.profile_key,
+          value: f.value || "",
+          confidence: f.confidence,
+          needs_review: f.needs_review ?? tier !== "auto",
+          action: f.action || (f.value ? "fill" : "leave_empty"),
+          reason: f.note,
+          tier,
+        } as FillPlanItem;
+      });
+  }, [result?.fill_plan, result?.filled_fields]);
+  const tierBuckets = useMemo(() => {
+    const auto: FillPlanItem[] = [];
+    const review: FillPlanItem[] = [];
+    const empty: FillPlanItem[] = [];
+    for (const m of fillPlan) {
+      const t = tierOf(m);
+      if (t === "auto") auto.push(m);
+      else if (t === "review") review.push(m);
+      else empty.push(m);
+    }
+    return { auto, review, empty };
+  }, [fillPlan]);
+  const needsReviewGate =
+    Boolean(result?.requires_human_review) ||
+    tierBuckets.review.length > 0 ||
+    tierBuckets.empty.length > 0 ||
+    Boolean(result?.paused_before_submit);
+
+  const visibleFields = useMemo(() => {
+    if (reviewStep === "profile") {
+      return profileFields.filter((f) => f.field !== "resume_upload" && f.field !== "submit_button");
+    }
+    if (reviewStep === "ats") return atsFields;
+    if (reviewStep === "resume") return resumeField ? [resumeField] : [];
+    return pauseField ? [pauseField] : [{ field: "submit_button", value: "NOT_CLICKED", note: "hard stop" }];
+  }, [reviewStep, profileFields, atsFields, resumeField, pauseField]);
+
+  const fillUrl =
+    (result?.browser_fill?.fill_url as string | undefined) ||
+    (result?.browser_fill?.original_url as string | undefined) ||
+    sourceUrl;
+  const shotPath =
+    typeof result?.browser_fill?.screenshot_path === "string"
+      ? result.browser_fill.screenshot_path
+      : null;
+
+  return (
+    <div className="min-h-screen bg-[#f4f6f4] text-slate-950" data-testid="apply-workspace-page">
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {returnTo ? (
+              <a
+                href={returnTo}
+                className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800"
+              >
+                ← Jobright
+              </a>
+            ) : null}
+            <a
+              href={tailorHref}
+              className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              data-testid="apply-back-tailor"
+            >
+              ← Tailor / Confirm
+            </a>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                Resume Agent
+              </p>
+              <h1 className="text-sm font-bold">Apply workspace</h1>
+            </div>
+            {(company || position) && (
+              <span className="truncate rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600">
+                {[company, position].filter(Boolean).join(" · ")}
+              </span>
+            )}
+          </div>
+          <FlowStepper
+            current="apply"
+            hrefs={{
+              jobs: "/jobs",
+              tailor: tailorHref,
+              outreach: outreachHref,
+            }}
+          />
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-5xl space-y-4 px-4 py-6">
+        {loadError ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900" data-testid="apply-load-error">
+            {loadError}{" "}
+            <a href={tailorHref} className="font-semibold underline">
+              Open Tailor
+            </a>
+          </div>
+        ) : null}
+
+        {/* Gate: Confirm */}
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm" data-testid="apply-confirm-gate">
+          <h2 className="text-lg font-bold tracking-tight">1. Confirm tailored resume</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Apply is locked until this version is confirmed and saved under{" "}
+            <code className="rounded bg-slate-100 px-1 text-[11px]">data/final_resumes/{"{Company}_{Position}"}/</code>
+            {" "}(PDF + DOCX). Intermediate drafts stay as markdown in the DB until Confirm.
+          </p>
+          {finalPath ? (
+            <p className="mt-2 break-all text-[11px] text-emerald-800" data-testid="apply-final-path-hint">
+              Final folder: {finalPath}
+            </p>
+          ) : null}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            {confirmed ? (
+              <span
+                className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 ring-1 ring-emerald-200"
+                data-testid="apply-confirmed-badge"
+              >
+                Confirmed ✓
+              </span>
+            ) : (
+              <button
+                type="button"
+                data-testid="apply-page-confirm"
+                disabled={!versionId || confirming}
+                onClick={() => void handleConfirm()}
+                className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+              >
+                {confirming ? "Confirming…" : "Confirm this resume"}
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={!confirmed || !!exporting}
+              onClick={() => void handleExport("docx")}
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 disabled:opacity-40"
+              data-testid="apply-download-docx"
+            >
+              Download DOCX
+            </button>
+            <button
+              type="button"
+              disabled={!confirmed || !!exporting}
+              onClick={() => void handleExport("pdf")}
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 disabled:opacity-40"
+              data-testid="apply-download-pdf"
+            >
+              Download PDF
+            </button>
+            {versionId ? (
+              <span className="text-[11px] text-slate-400">version {versionId.slice(0, 8)}…</span>
+            ) : null}
+          </div>
+          {confirmError ? (
+            <p className="mt-3 text-xs font-medium text-rose-700" data-testid="apply-confirm-error">
+              {confirmError}
+            </p>
+          ) : null}
+        </section>
+
+        {/* Mode pick */}
+        <section className="rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm" data-testid="apply-mode-section">
+          <h2 className="text-lg font-bold tracking-tight">2. How do you want to apply?</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Manual opens the official posting. Auto maps profile + ATS fields and{" "}
+            <strong>never clicks Submit</strong>.
+          </p>
+          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+            Safety: Auto-apply never clicks Submit
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              data-testid="apply-manual"
+              disabled={!confirmed || busy}
+              onClick={() => void handleStart("manual")}
+              className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left hover:bg-slate-50 disabled:opacity-40"
+            >
+              <div className="text-sm font-bold text-slate-950">Manual apply</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Open official site · download resume · you fill & submit
+              </div>
+            </button>
+            <button
+              type="button"
+              data-testid="apply-auto"
+              disabled={!confirmed || busy}
+              onClick={() => void handleStart("auto")}
+              className="rounded-2xl bg-emerald-600 px-5 py-4 text-left text-white hover:bg-emerald-700 disabled:opacity-40"
+            >
+              <div className="text-sm font-bold">Auto apply (safe)</div>
+              <div className="mt-1 text-xs text-emerald-50/90">
+                Prefill checklist · pause before Submit · you review
+              </div>
+            </button>
+          </div>
+          {!confirmed ? (
+            <p className="mt-3 text-xs font-semibold text-amber-800" data-testid="apply-need-confirm-hint">
+              Confirm the resume above first — Manual / Auto stay locked until then.
+            </p>
+          ) : null}
+        </section>
+
+        {/* Official URL + status */}
+        {result ? (
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm" data-testid="apply-result-section">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold tracking-tight">3. Review before you submit</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Flip through what we prepared. Open the official form to verify. You click Submit.
+                </p>
+              </div>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-bold ring-1 ${
+                  result.paused_before_submit
+                    ? "bg-amber-50 text-amber-900 ring-amber-200"
+                    : result.status === "error"
+                      ? "bg-rose-50 text-rose-800 ring-rose-200"
+                      : "bg-emerald-50 text-emerald-800 ring-emerald-200"
+                }`}
+                data-testid="apply-status"
+              >
+                {result.status}
+              </span>
+            </div>
+
+            {result.message ? (
+              <p className="mt-3 text-xs text-slate-600" data-testid="apply-message">
+                {result.message}
+              </p>
+            ) : null}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {isLivePostingUrl(sourceUrl) ? (
+                <a
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white hover:bg-slate-800"
+                  data-testid="apply-open-official"
+                >
+                  Open official posting
+                </a>
+              ) : (
+                <span className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-500">
+                  No live posting URL on file
+                </span>
+              )}
+              {fillUrl && isLivePostingUrl(fillUrl) && fillUrl !== sourceUrl ? (
+                <a
+                  href={fillUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700"
+                  data-testid="apply-open-fill-url"
+                >
+                  Open filled / apply form
+                </a>
+              ) : null}
+              {result.ats_type ? (
+                <span className="rounded-full bg-slate-100 px-3 py-2 text-[11px] font-semibold text-slate-600" data-testid="apply-ats-type">
+                  ATS: {result.ats_type}
+                </span>
+              ) : null}
+            </div>
+
+            {result.mode === "auto" && result.status !== "error" || result.paused_before_submit ? (
+              <>
+                <div className="mt-5 flex flex-wrap gap-1.5" data-testid="apply-review-steps">
+                  {REVIEW_STEPS.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      data-testid={`apply-review-step-${s.id}`}
+                      onClick={() => setReviewStep(s.id)}
+                      className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ring-1 ${
+                        reviewStep === s.id
+                          ? "bg-emerald-600 text-white ring-emerald-600"
+                          : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
+                      }`}
+                      title={s.hint}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    data-testid="apply-review-prev"
+                    disabled={REVIEW_STEPS.findIndex((s) => s.id === reviewStep) <= 0}
+                    onClick={() => {
+                      const i = REVIEW_STEPS.findIndex((s) => s.id === reviewStep);
+                      if (i > 0) setReviewStep(REVIEW_STEPS[i - 1].id);
+                    }}
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-semibold disabled:opacity-40"
+                  >
+                    ← Previous
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="apply-review-next"
+                    disabled={REVIEW_STEPS.findIndex((s) => s.id === reviewStep) >= REVIEW_STEPS.length - 1}
+                    onClick={() => {
+                      const i = REVIEW_STEPS.findIndex((s) => s.id === reviewStep);
+                      if (i < REVIEW_STEPS.length - 1) setReviewStep(REVIEW_STEPS[i + 1].id);
+                    }}
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-semibold disabled:opacity-40"
+                  >
+                    Next →
+                  </button>
+                </div>
+
+                <ul
+                  className="mt-3 max-h-72 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50/80 text-sm"
+                  data-testid="apply-review-fields"
+                >
+                  {visibleFields.length === 0 ? (
+                    <li className="px-4 py-6 text-center text-xs text-slate-400">No fields in this step</li>
+                  ) : (
+                    visibleFields.map((row) => (
+                      <li
+                        key={row.field}
+                        className="grid grid-cols-[140px_minmax(0,1fr)] gap-3 border-b border-slate-100 px-4 py-2.5 last:border-0"
+                      >
+                        <span className="text-xs font-semibold text-slate-700">
+                          {String(row.field).replace(/^ats:/, "")}
+                          {row.required ? " *" : ""}
+                        </span>
+                        <span className="truncate text-xs text-slate-600" title={row.value || ""}>
+                          {row.value || "—"}
+                          {row.note ? <span className="ml-1 text-amber-700">({row.note})</span> : null}
+                        </span>
+                      </li>
+                    ))
+                  )}
+                </ul>
+
+                {fillPlan.length > 0 ? (
+                  <div className="mt-4 space-y-2" data-testid="apply-fill-plan-tiers">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-bold tracking-tight">即将提交的信息清单</h3>
+                      {result.map_provider ? (
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          map: {result.map_provider}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-3">
+                      <TierList title="已自动填" tone="auto" items={tierBuckets.auto} testId="fill-tier-auto" />
+                      <TierList title="待你核对" tone="review" items={tierBuckets.review} testId="fill-tier-review" />
+                      <TierList title="未填" tone="empty" items={tierBuckets.empty} testId="fill-tier-empty" />
+                    </div>
+                  </div>
+                ) : null}
+
+                {shotPath ? (
+                  <p className="mt-2 text-[11px] text-slate-500" data-testid="apply-screenshot-path">
+                    Browser screenshot: {shotPath}
+                  </p>
+                ) : null}
+
+                {result.paused_before_submit ? (
+                  <div
+                    className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-950 ring-1 ring-amber-200"
+                    data-testid="paused-before-submit"
+                  >
+                    Paused before Submit — nothing was sent. Review the green / amber / red lists, then open the
+                    official form yourself.
+                    {needsReviewGate ? (
+                      <label
+                        className="mt-3 flex cursor-pointer items-start gap-2 font-medium"
+                        data-testid="human-reviewed-gate"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={humanReviewed}
+                          onChange={(e) => setHumanReviewed(e.target.checked)}
+                          data-testid="human-reviewed-checkbox"
+                        />
+                        <span>我已检查 — 已核对自动填写与未填项，准备在官网亲手 Submit</span>
+                      </label>
+                    ) : null}
+                    {humanReviewed || !needsReviewGate ? (
+                      <button
+                        type="button"
+                        data-testid="confirm-submit-btn"
+                        disabled={confirmSubmitBusy || !result.apply_id}
+                        onClick={() => void handleConfirmSubmit()}
+                        className="mt-3 block w-full rounded-xl bg-slate-900 px-3 py-2.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+                      >
+                        {confirmSubmitBusy
+                          ? "Recording confirm…"
+                          : "打开官网亲手 Submit"}
+                      </button>
+                    ) : (
+                      <p
+                        className="mt-3 rounded-xl border border-dashed border-amber-300 bg-white/60 px-3 py-2 text-[11px] font-medium text-amber-900"
+                        data-testid="confirm-submit-locked"
+                      >
+                        勾选「我已检查」后才会显示打开官网按钮。
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+                {result.status === "submitted_by_user_confirm" ? (
+                  <div
+                    className="mt-4 space-y-3 rounded-2xl bg-emerald-50 px-4 py-4 text-xs font-semibold text-emerald-950 ring-1 ring-emerald-200"
+                    data-testid="submit-confirmed"
+                  >
+                    <p>
+                      已记录你的确认。官网标签页应已打开 — 在雇主站点亲手 Submit。本页不会清空；定稿简历仍在磁盘上。
+                    </p>
+                    <div
+                      className="rounded-xl border border-emerald-200/80 bg-white/80 px-3 py-2.5 font-normal text-emerald-950"
+                      data-testid="final-resume-path"
+                    >
+                      <div className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                        定稿文件夹（Company_Position）
+                      </div>
+                      <div className="mt-1 break-all text-[11px]" title={finalPath || result.final_path || ""}>
+                        {finalPath || result.final_path || "Confirm 后写入 data/final_resumes/{Company}_{Position}/"}
+                      </div>
+                      <p className="mt-1 text-[10px] text-emerald-800/80">
+                        内含 resume.pdf / resume.docx（及同名定稿）。中间稿在库里用 markdown，未 Confirm 不写此目录。
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {isLivePostingUrl(sourceUrl) ? (
+                        <a
+                          href={sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-semibold text-white"
+                          data-testid="reopen-official-after-confirm"
+                        >
+                          再次打开官网
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={!!exporting}
+                        onClick={() => void handleExport("pdf")}
+                        className="rounded-xl border border-emerald-300 bg-white px-3 py-2 text-[11px] font-semibold text-emerald-900"
+                        data-testid="post-confirm-download-pdf"
+                      >
+                        下载定稿 PDF
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!!exporting}
+                        onClick={() => void handleExport("docx")}
+                        className="rounded-xl border border-emerald-300 bg-white px-3 py-2 text-[11px] font-semibold text-emerald-900"
+                        data-testid="post-confirm-download-docx"
+                      >
+                        下载定稿 DOCX
+                      </button>
+                      <a
+                        href={tailorHref}
+                        className="rounded-xl border border-emerald-300 bg-white px-3 py-2 text-[11px] font-semibold text-emerald-900"
+                        data-testid="back-to-tailor-with-version"
+                      >
+                        ← 回到 Tailor（保留此版本）
+                      </a>
+                      <a
+                        href={outreachHref}
+                        className="rounded-xl bg-emerald-700 px-3 py-2 text-[11px] font-semibold text-white"
+                        data-testid="goto-outreach-after-apply"
+                      >
+                        下一步：Outreach →
+                      </a>
+                    </div>
+                  </div>
+                ) : null}
+
+                {result.browser_fill ? (
+                  <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50/50 px-4 py-3 text-[11px] text-amber-950" data-testid="browser-fill-result">
+                    <div className="font-bold">Browser fill-pause</div>
+                    <div className="mt-0.5" data-testid="browser-fill-status">
+                      status: {String(result.browser_fill.status || "n/a")} · submitted:{" "}
+                      <span data-testid="browser-fill-submitted">
+                        {String(result.browser_fill.submitted ?? false)}
+                      </span>
+                      {result.browser_fill.sandbox ? " · sandbox" : ""}
+                    </div>
+                    {typeof result.browser_fill.message === "string" ? (
+                      <div className="mt-1 opacity-90">{result.browser_fill.message}</div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+
+            {result.mode === "manual" && result.status !== "error" ? (
+              <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-700" data-testid="manual-apply-guide">
+                Manual path: download DOCX/PDF above, open the official posting, attach the resume yourself, and submit when ready.
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        <p className="pb-8 text-center text-[11px] text-slate-400">
+          Next: after you submit (or skip), open Outreach to find hiring managers.{" "}
+          <a href="/queue" className="font-semibold text-emerald-800 underline" data-testid="open-queue-link">
+            Batch queue
+          </a>{" "}
+          supports multiple jobs with per-job Confirm Submit.
+        </p>
+      </main>
+    </div>
+  );
+}

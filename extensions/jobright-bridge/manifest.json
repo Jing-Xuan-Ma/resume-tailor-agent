@@ -1,0 +1,98 @@
+{
+
+  "manifest_version": 3,
+
+  "name": "Resume Agent â€?Jobright Bridge",
+
+  "version": "0.1.6",
+
+  "description": "Primary entry: Jobright â†?Tailor / Apply / Outreach in Resume Agent (full window).",
+
+  "permissions": ["storage", "tabs", "activeTab", "windows", "scripting"],
+
+  "host_permissions": [
+
+    "http://127.0.0.1:8000/*",
+
+    "http://localhost:8000/*",
+
+    "http://127.0.0.1:3000/*",
+
+    "http://localhost:3000/*",
+
+    "https://jobright.ai/*",
+
+    "https://*.jobright.ai/*",
+
+    "https://www.jobright.ai/*",
+
+    "file:///*"
+
+  ],
+
+  "background": {
+
+    "service_worker": "background.js"
+
+  },
+
+  "content_scripts": [
+
+    {
+
+      "matches": [
+
+        "https://jobright.ai/*",
+
+        "https://*.jobright.ai/*",
+
+        "https://www.jobright.ai/*",
+
+        "http://127.0.0.1:3000/fixtures/jobright-mock.html",
+
+        "http://localhost:3000/fixtures/jobright-mock.html",
+
+        "file:///*jobright-mock.html"
+
+      ],
+
+      "js": ["content/extract.js", "content/fab.js", "content/demote.js"],
+
+      "run_at": "document_idle"
+
+    },
+
+    {
+
+      "matches": [
+
+        "http://127.0.0.1:3000/*",
+
+        "http://localhost:3000/*"
+
+      ],
+
+      "exclude_matches": [
+
+        "http://127.0.0.1:3000/fixtures/jobright-mock.html",
+
+        "http://localhost:3000/fixtures/jobright-mock.html"
+
+      ],
+
+      "js": ["content/back_to_jobright.js"],
+
+      "run_at": "document_idle"
+
+    }
+
+  ],
+
+  "action": {
+
+    "default_title": "Open Tailor in Resume Agent"
+
+  }
+
+}
+

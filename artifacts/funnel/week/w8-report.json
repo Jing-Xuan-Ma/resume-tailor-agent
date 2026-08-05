@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "score_tailor_speed": 5,
+  "has_html": true,
+  "has_pdf": false,
+  "checks": [
+    {
+      "name": "w8_first_paint_html_or_pdf",
+      "ok": true,
+      "detail": "html=True pdf=False skeleton=False"
+    }
+  ]
+}

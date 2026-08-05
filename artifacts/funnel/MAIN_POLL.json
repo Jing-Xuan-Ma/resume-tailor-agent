@@ -1,0 +1,56 @@
+{
+  "polled_at": "2026-08-03T15:18:38.713546+00:00",
+  "agents": {
+    "1": {
+      "module": "rank",
+      "passed": true,
+      "ready": true,
+      "paths": [
+        "d:\\resume-agent\\artifacts\\funnel\\agent1-rank-report.md",
+        "d:\\resume-agent\\artifacts\\funnel\\agent1\\agent1-rank-report.md",
+        "d:\\resume-agent\\artifacts\\funnel\\agent1\\report.json",
+        "d:\\resume-agent\\artifacts\\funnel\\sprint-e\\report.json"
+      ],
+      "mtime": "2026-08-03T14:57:01.722730+00:00",
+      "age_min": 21.6
+    },
+    "2": {
+      "module": "tailor",
+      "passed": true,
+      "ready": true,
+      "paths": [
+        "d:\\resume-agent\\artifacts\\funnel\\agent2-tailor-report.md",
+        "d:\\resume-agent\\artifacts\\funnel\\agent2\\agent2-tailor-report.md",
+        "d:\\resume-agent\\artifacts\\funnel\\agent2\\report.json"
+      ],
+      "mtime": "2026-08-03T15:00:51.815649+00:00",
+      "age_min": 17.8
+    },
+    "3": {
+      "module": "apply",
+      "passed": true,
+      "ready": true,
+      "paths": [
+        "d:\\resume-agent\\artifacts\\funnel\\agent3-apply-report.md",
+        "d:\\resume-agent\\artifacts\\funnel\\agent3\\report.json",
+        "d:\\resume-agent\\artifacts\\funnel\\sprint-d\\report.json"
+      ],
+      "mtime": "2026-08-03T14:57:35.465063+00:00",
+      "age_min": 21.1
+    },
+    "4": {
+      "module": "outreach",
+      "passed": true,
+      "ready": true,
+      "paths": [
+        "d:\\resume-agent\\artifacts\\funnel\\agent4-outreach-report.md",
+        "d:\\resume-agent\\artifacts\\funnel\\agent4\\report.json",
+        "d:\\resume-agent\\artifacts\\funnel\\sprint-f\\report.json",
+        "d:\\resume-agent\\artifacts\\funnel\\sprint-c-report.md"
+      ],
+      "mtime": "2026-08-03T15:02:54.235717+00:00",
+      "age_min": 15.7
+    }
+  },
+  "action": "integrate_now"
+}

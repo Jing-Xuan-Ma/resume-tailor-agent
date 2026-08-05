@@ -50,6 +50,8 @@ class JobicyProvider(BaseJobProvider):
                     "jobIndustry": item.get("jobIndustry"),
                     "jobType": item.get("jobType"),
                     "technologies": item.get("technologies", []),
+                    "pubDate": item.get("pubDate") or item.get("jobPubDate") or item.get("date"),
+                    "publication_date": item.get("pubDate") or item.get("jobPubDate") or item.get("date"),
                 },
             ))
         return results

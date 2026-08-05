@@ -1,0 +1,36 @@
+{
+  "jd_id": "jd04_quant_analytics",
+  "company": "Shen Capital Desk",
+  "title": "Quantitative Analytics Intern",
+  "format": {
+    "ok": false,
+    "score": 4,
+    "errors": [
+      "missing_experience_company:Shenwan Hongyuan Securities Co., Ltd.",
+      "missing_experience_company:Yinhua Fund Management Co., Ltd."
+    ],
+    "warnings": []
+  },
+  "quality_gate": {
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "stats": {
+      "bullet_count": 12,
+      "approx_chars": 3169,
+      "jd_core_covered": 2,
+      "jd_core_missing_in_projection": [],
+      "hidden_entries": 1
+    }
+  },
+  "scores": {
+    "format": 4,
+    "match": 10,
+    "honesty": 10,
+    "one_page_heuristic": 10
+  },
+  "screenshot": true,
+  "agent_notes": [
+    "FORMAT FAIL \u2014 content score discarded until format lock fixed."
+  ]
+}

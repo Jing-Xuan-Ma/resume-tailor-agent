@@ -1,0 +1,30 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w132_hrefs_prop",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w133_ranked_hrefs",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w133_tailor_step_link",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w133_tailor_is_anchor",
+      "ok": true,
+      "detail": "A"
+    },
+    {
+      "name": "w133_tailor_href",
+      "ok": true,
+      "detail": "/?view=resume"
+    }
+  ]
+}

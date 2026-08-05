@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w100_history_filters",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w101_never_submit",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

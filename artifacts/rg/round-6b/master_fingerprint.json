@@ -1,0 +1,25 @@
+{
+  "shell": {
+    "word/styles.xml": "4cc0ecf051d58942",
+    "word/numbering.xml": "f1d10f8bb1fd54a0",
+    "word/settings.xml": "6c7fa0dea2b13789",
+    "word/fontTable.xml": "10f14a48714f70ea",
+    "word/theme/theme1.xml": "d37627ed1a5bda40"
+  },
+  "heading_labels": [
+    "EDUCATION",
+    "PROFESSIONAL EXPERIENCE",
+    "PROJECTS",
+    "COMPETITIONS",
+    "SKILLS & CERTIFICATIONS"
+  ],
+  "hyperlinks": 3,
+  "external_rels": 3,
+  "pgMar": [
+    "<w:pgMar w:top=\"284\" w:right=\"284\" w:bottom=\"0\" w:left=\"284\" w:header=\"709\" w:footer=\"709\" w:gutter=\"0\"/>"
+  ],
+  "pgSz": [
+    "<w:pgSz w:w=\"11906\" w:h=\"16838\"/>"
+  ],
+  "paragraph_count": 48
+}

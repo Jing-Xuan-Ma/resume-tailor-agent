@@ -1,0 +1,12 @@
+{
+  "checks": {
+    "workspace": true,
+    "chat": true,
+    "jd_panel": true,
+    "preview": true,
+    "no_keyword_gap": true,
+    "no_diff_panel": true,
+    "qualification_heading": true
+  },
+  "all_pass": true
+}

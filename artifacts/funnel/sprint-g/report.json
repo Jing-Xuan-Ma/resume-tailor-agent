@@ -1,0 +1,81 @@
+{
+  "sprint": "G",
+  "passed": true,
+  "checks": [
+    {
+      "name": "api_health",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "jobs_list",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "scores_not_flat_35",
+      "ok": true,
+      "detail": "[55, 56, 59, 61, 62, 63, 64, 66]"
+    },
+    {
+      "name": "job_summary",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "constitution",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_jobs",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_detail_score",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_no_fake_semantic_label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_tailor",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_apply_panel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_paste_jd",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "prior_sprint_bc",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "prior_sprint_d",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "prior_sprint_e",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "prior_sprint_f",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

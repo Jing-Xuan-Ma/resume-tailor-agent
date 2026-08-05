@@ -97,6 +97,23 @@ export interface OutreachMessage {
   updated_at: string;
 }
 
+export interface OutreachContact {
+  id: string;
+  name: string;
+  role: string;
+  company: string;
+  job_id?: string | null;
+  linkedin_url: string;
+  email: string;
+  coffee_availability: string;
+  notes: string;
+  status: string;
+  reply_status?: string;
+  last_reply_at?: string;
+  coffee_slots?: string[];
+  updated_at: string;
+}
+
 export interface GrowthPlan {
   id: string;
   user_id: string;
@@ -290,6 +307,42 @@ export async function getProfile(user_id: string): Promise<{ user_id: string; pr
   return res.json() as Promise<{ user_id: string; profile: Record<string, unknown> }>;
 }
 
+export interface CandidateLibrary {
+  user_id: string;
+  inventory: Record<string, unknown>;
+  apply: Record<string, unknown>;
+  updated_at: string;
+}
+
+export async function getCandidateLibrary(user_id: string): Promise<CandidateLibrary> {
+  const res = await fetch(`${API_BASE}/api/v1/profile/${encodeURIComponent(user_id)}/library`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<CandidateLibrary>;
+}
+
+export async function updateCandidateLibrary(
+  user_id: string,
+  payload: { inventory?: Record<string, unknown>; apply?: Record<string, unknown> }
+): Promise<CandidateLibrary> {
+  const res = await fetch(`${API_BASE}/api/v1/profile/${encodeURIComponent(user_id)}/library`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<CandidateLibrary>;
+}
+
+export async function resetCandidateLibrary(user_id: string): Promise<CandidateLibrary> {
+  return post<CandidateLibrary>(`/api/v1/profile/${encodeURIComponent(user_id)}/library/reset`, {});
+}
+
 export async function updateProfileFeedback(
   user_id: string,
   feedback: Record<string, unknown>
@@ -423,6 +476,11 @@ export async function draftOutreach(req: {
   company?: string;
   channel?: "email" | "linkedin" | "referral";
   tone?: "concise" | "warm" | "formal";
+  template_type?: "coffee_chat" | "post_apply_thanks" | "recruiter_ping" | "general";
+  linkedin_url?: string;
+  contact_email?: string;
+  coffee_availability?: string;
+  save_to_crm?: boolean;
 }): Promise<OutreachMessage> {
   return post<OutreachMessage>("/api/v1/outreach/draft", req);
 }
@@ -439,6 +497,39 @@ export async function listOutreachMessages(user_id: string, limit = 50): Promise
 
 export async function markOutreachSent(message_id: string, user_id: string): Promise<OutreachMessage> {
   return post<OutreachMessage>(`/api/v1/outreach/${message_id}/mark-sent`, { user_id });
+}
+
+export async function upsertOutreachContact(req: {
+  user_id: string;
+  id?: string;
+  name?: string;
+  role?: string;
+  company?: string;
+  job_id?: string;
+  linkedin_url?: string;
+  email?: string;
+  coffee_availability?: string;
+  notes?: string;
+  status?: string;
+  reply_status?: string;
+  coffee_slots?: string[];
+}): Promise<OutreachContact> {
+  return post<OutreachContact>("/api/v1/outreach/contacts", req);
+}
+
+export async function listOutreachContacts(user_id: string): Promise<{ contacts: OutreachContact[] }> {
+  const params = new URLSearchParams({ user_id });
+  const res = await fetch(`${API_BASE}/api/v1/outreach/contacts?${params}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<{ contacts: OutreachContact[] }>;
+}
+
+export function getOutreachCrmExportUrl(user_id: string): string {
+  const params = new URLSearchParams({ user_id });
+  return `${API_BASE}/api/v1/outreach/contacts/export?${params}`;
 }
 
 export interface RecommendedJob {
@@ -558,6 +649,30 @@ export interface GetVersionResponse {
   confirmed_at?: string;
 }
 
+export interface ConstitutionRule {
+  id: string;
+  title: string;
+  detail: string;
+}
+
+export interface ConstitutionResponse {
+  version: string;
+  source: string;
+  master_template: string;
+  track: string;
+  rules: ConstitutionRule[];
+  full_text?: string;
+}
+
+export async function getResumeConstitution(): Promise<ConstitutionResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/resume-workspace/constitution`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return (await res.json()) as ConstitutionResponse;
+}
+
 export async function createJdSession(
   user_id: string,
   jd_text: string,
@@ -591,6 +706,94 @@ export async function rewriteResume(
   );
 }
 
+export interface JobWorkspaceHandoff {
+  session_id: string;
+  job_id: string;
+  jd_text: string;
+  title?: string;
+  company?: string;
+  jobright_url?: string;
+  source_url?: string;
+}
+
+export async function openJobInResumeWorkspace(
+  job_id: string,
+  user_id: string
+): Promise<JobWorkspaceHandoff> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/jobs/${encodeURIComponent(job_id)}/to-resume-workspace?user_id=${encodeURIComponent(user_id)}`,
+    { method: "POST" }
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  const data = (await res.json()) as Record<string, unknown>;
+  const session_id = String(data.session_id || data.sessionId || "");
+  const jd_text = String(data.jd_text || "");
+  if (!session_id || !jd_text) {
+    throw new Error("Job handoff did not return session_id/jd_text");
+  }
+  return {
+    session_id,
+    job_id: String(data.job_id || data.jobId || job_id),
+    jd_text,
+    title: data.title ? String(data.title) : undefined,
+    company: data.company ? String(data.company) : undefined,
+    jobright_url: data.jobright_url ? String(data.jobright_url) : undefined,
+    source_url: data.source_url ? String(data.source_url) : undefined,
+  };
+}
+
+export interface AgentTurnResponse {
+  session_id: string;
+  agent_message: string;
+  intent: "chat" | "rewrite" | string;
+  did_rewrite: boolean;
+  new_version_id?: string | null;
+  version_index?: number | null;
+  full_resume?: Record<string, unknown> | null;
+  keyword_matches: KeywordMatchItem[];
+  content_delta: Record<string, unknown>;
+  llm_provider?: string | null;
+  llm_model?: string | null;
+}
+
+export async function workspaceAgentTurn(
+  user_id: string,
+  session_id: string,
+  message: string,
+  opts?: {
+    base_version_id?: string;
+    chat_history?: Array<{ role: string; content: string }>;
+  }
+): Promise<AgentTurnResponse> {
+  return post<AgentTurnResponse>(
+    `/api/v1/resume-workspace/jd-session/${session_id}/agent`,
+    {
+      user_id,
+      message,
+      base_version_id: opts?.base_version_id,
+      chat_history: opts?.chat_history || [],
+    }
+  );
+}
+
+export interface FillPlanItem {
+  field_id?: string;
+  profile_key?: string | null;
+  value?: string;
+  confidence?: number;
+  needs_review?: boolean;
+  action?: string;
+  reason?: string;
+  label?: string;
+  tier?: "auto" | "review" | "empty" | string;
+  selector?: string;
+  type?: string;
+  [key: string]: unknown;
+}
+
 export interface StartApplyResponse {
   apply_id: string;
   mode: string;
@@ -598,15 +801,55 @@ export interface StartApplyResponse {
   submitted: boolean;
   paused_before_submit: boolean;
   message: string;
-  filled_fields: Array<Record<string, unknown>>;
+  filled_fields: Array<{
+    field: string;
+    value?: string;
+    note?: string;
+    required?: boolean;
+    type?: string;
+    ats_type?: string;
+    tier?: string;
+    confidence?: number;
+    needs_review?: boolean;
+    profile_key?: string;
+    action?: string;
+  }>;
+  ats_fields?: Array<Record<string, unknown>>;
+  ats_type?: string;
+  source_url?: string;
+  /** Indeed/board listing when company ATS is missing or unusable (e.g. Workday career root). */
+  board_url?: string;
+  browser_fill?: {
+    status?: string;
+    submitted?: boolean;
+    paused_before_submit?: boolean;
+    message?: string;
+    filled?: Array<{ field?: string; status?: string }>;
+    screenshot_path?: string | null;
+    ats_type?: string;
+    sandbox?: boolean;
+    fill_url?: string;
+    original_url?: string | null;
+    [key: string]: unknown;
+  } | null;
   final_path?: string;
+  fill_plan?: FillPlanItem[];
+  map_provider?: string | null;
+  requires_human_review?: boolean;
+  confirmed_submit_at?: string;
 }
 
 export async function startApply(
   version_id: string,
   user_id: string,
   mode: "manual" | "auto",
-  opts?: { company?: string; position?: string; final_path?: string }
+  opts?: {
+    company?: string;
+    position?: string;
+    final_path?: string;
+    job_id?: string;
+    source_url?: string;
+  }
 ): Promise<StartApplyResponse> {
   return post<StartApplyResponse>(
     `/api/v1/resume-workspace/resume-version/${version_id}/start-apply`,
@@ -616,8 +859,40 @@ export async function startApply(
       company: opts?.company,
       position: opts?.position,
       final_path: opts?.final_path,
+      job_id: opts?.job_id,
+      source_url: opts?.source_url,
     }
   );
+}
+
+export async function confirmApplySubmit(
+  apply_id: string,
+  user_id: string,
+  acknowledge = true
+): Promise<{
+  apply_id: string;
+  status: string;
+  submitted: boolean;
+  paused_before_submit: boolean;
+  message: string;
+  confirmed_submit_at?: string;
+  source_url?: string;
+}> {
+  return post(`/api/v1/resume-workspace/apply/${encodeURIComponent(apply_id)}/confirm-submit`, {
+    user_id,
+    acknowledge,
+  });
+}
+
+export async function getApply(apply_id: string): Promise<StartApplyResponse> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/resume-workspace/apply/${encodeURIComponent(apply_id)}`
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json();
 }
 
 export async function confirmVersion(
@@ -735,7 +1010,7 @@ export async function getActiveTemplate(
 }
 
 export function getVersionPreviewUrl(version_id: string, user_id: string): string {
-  const params = new URLSearchParams({ user_id });
+  const params = new URLSearchParams({ user_id, v: String(Date.now()) });
   return `${API_BASE_PREVIEW}/api/v1/resume-workspace/resume-version/${version_id}/preview?${params}`;
 }
 
@@ -771,3 +1046,71 @@ export async function listGrowthPlans(user_id: string, limit = 20): Promise<{ pl
   }
   return res.json() as Promise<{ plans: GrowthPlan[] }>;
 }
+
+export async function translateJdSegments(
+  texts: string[],
+  target_lang = "zh-CN"
+): Promise<{ translations: { source: string; translated: string }[]; provider?: string }> {
+  return post("/api/v1/jobs/translate-segments", { texts, target_lang });
+}
+
+export type QueueItem = {
+  id: string;
+  user_id: string;
+  job_id?: string;
+  version_id?: string;
+  source_url?: string;
+  company?: string;
+  position?: string;
+  fill_status: string;
+  awaiting_confirm: boolean;
+  apply_id?: string;
+  submitted_at?: string;
+  skipped_at?: string;
+  error?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export async function enqueueApplications(
+  user_id: string,
+  items: Array<{
+    job_id?: string;
+    version_id?: string;
+    source_url?: string;
+    company?: string;
+    position?: string;
+  }>
+): Promise<{ items: QueueItem[] }> {
+  return post("/api/v1/queue/enqueue", { user_id, items });
+}
+
+export async function listApplicationQueue(user_id: string): Promise<{ items: QueueItem[] }> {
+  const params = new URLSearchParams({ user_id });
+  const res = await fetch(`${API_BASE}/api/v1/queue?${params}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<{ items: QueueItem[] }>;
+}
+
+export async function processQueueItem(item_id: string, user_id: string): Promise<QueueItem> {
+  return post(`/api/v1/queue/${encodeURIComponent(item_id)}/process`, { user_id });
+}
+
+export async function confirmQueueItem(
+  item_id: string,
+  user_id: string,
+  acknowledge = true
+): Promise<QueueItem> {
+  return post(`/api/v1/queue/${encodeURIComponent(item_id)}/confirm-submit`, {
+    user_id,
+    acknowledge,
+  });
+}
+
+export async function skipQueueItem(item_id: string, user_id: string): Promise<QueueItem> {
+  return post(`/api/v1/queue/${encodeURIComponent(item_id)}/skip`, { user_id });
+}
+

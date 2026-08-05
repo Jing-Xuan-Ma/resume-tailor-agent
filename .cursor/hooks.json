@@ -7,6 +7,12 @@
         "timeout": 15
       }
     ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "python .cursor/hooks/before_submit.py",
+        "timeout": 10
+      }
+    ],
     "stop": [
       {
         "command": "python .cursor/hooks/stop_continue.py",

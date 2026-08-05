@@ -1,0 +1,117 @@
+{
+  "agent": "agent1-rank-discover",
+  "passed": true,
+  "scores": {
+    "thin": 1.4,
+    "rich": 84.4,
+    "title_as_query_empty_resume": 0.0,
+    "thin_skill_hit": 0.0,
+    "live_score_count": 40,
+    "live_unique_rounded": 23,
+    "live_stuck_at_35_share": 0.0,
+    "live_sample": [
+      5.7,
+      5.7,
+      5.7,
+      5.7,
+      5.7,
+      5.7,
+      5.7,
+      5.7,
+      33.6,
+      57.0,
+      5.7,
+      5.7
+    ]
+  },
+  "freshness": {
+    "active": 161,
+    "median_age_hours": 14.9,
+    "under72h_share": 0.64,
+    "skillful_share": 0.776,
+    "preferred_source_share": 0.994,
+    "closed_thin": 0,
+    "platforms": {
+      "jobspy:indeed": 127,
+      "remotive": 33,
+      "remoteok": 1
+    }
+  },
+  "checks": [
+    {
+      "name": "thin_lt_35",
+      "ok": true,
+      "detail": "1.4"
+    },
+    {
+      "name": "rich_gt_60",
+      "ok": true,
+      "detail": "84.4"
+    },
+    {
+      "name": "rich_beats_thin",
+      "ok": true,
+      "detail": "84.4>1.4"
+    },
+    {
+      "name": "thin_skill_hit_not_one",
+      "ok": true,
+      "detail": "0.0"
+    },
+    {
+      "name": "no_flat_35_title_query",
+      "ok": true,
+      "detail": "0.0"
+    },
+    {
+      "name": "live_scores_not_all_35",
+      "ok": true,
+      "detail": "share=0.0"
+    },
+    {
+      "name": "live_score_spread",
+      "ok": true,
+      "detail": "unique=23"
+    },
+    {
+      "name": "active_gt_0",
+      "ok": true,
+      "detail": "161"
+    },
+    {
+      "name": "skillful_share_ge_35",
+      "ok": true,
+      "detail": "0.78"
+    },
+    {
+      "name": "preferred_source_ge_40",
+      "ok": true,
+      "detail": "0.99"
+    },
+    {
+      "name": "median_age_lt_14d",
+      "ok": true,
+      "detail": "14.9h"
+    },
+    {
+      "name": "under72h_gt_0",
+      "ok": true,
+      "detail": "0.64"
+    },
+    {
+      "name": "ui_source_column",
+      "ok": true,
+      "detail": "source=True"
+    },
+    {
+      "name": "ui_posted_age",
+      "ok": true,
+      "detail": "age=True"
+    },
+    {
+      "name": "ui_job_detail",
+      "ok": true,
+      "detail": "http://127.0.0.1:3000/jobs/4c49922c-0c87-434b-b570-329124da1bea"
+    }
+  ]
+}

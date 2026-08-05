@@ -1,0 +1,56 @@
+﻿{
+  "approvalMode": "unrestricted",
+  "terminalAllowlist": [
+    "git",
+    "npm",
+    "npx",
+    "node",
+    "pnpm",
+    "yarn",
+    "python",
+    "python3",
+    "py",
+    "pip",
+    "pip3",
+    "pytest",
+    "uvicorn",
+    "powershell",
+    "pwsh",
+    "cmd",
+    "curl",
+    "rg",
+    "dir",
+    "ls",
+    "cd",
+    "mkdir",
+    "copy",
+    "move",
+    "type",
+    "echo",
+    "where",
+    "Get-ChildItem",
+    "Get-Content",
+    "Set-Content",
+    "Select-Object",
+    "Write-Host",
+    "Test-Path",
+    "Remove-Item",
+    "New-Item",
+    "Push-Location",
+    "Pop-Location"
+  ],
+  "mcpAllowlist": [
+    "*:*"
+  ],
+  "autoRun": {
+    "allow_instructions": [
+      "Allow ordinary project work: tests, builds, installs, git, local servers, reading and editing project files.",
+      "Prefer auto-running shell and MCP tools that stay inside the project workspace.",
+      "Do not ask the user to click Run for routine development commands."
+    ],
+    "block_instructions": [
+      "Ask before deleting files outside the project, force-pushing, or irreversible production changes.",
+      "Ask before real job application Submit or sending emails."
+    ]
+  }
+}

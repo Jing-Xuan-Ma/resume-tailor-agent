@@ -1,0 +1,687 @@
+{
+  "checks": [
+    {
+      "name": "api_health",
+      "passed": true,
+      "detail": "{\"status\":\"healthy\",\"version\":\"0.1.0\",\"env\":\"development\"}"
+    },
+    {
+      "name": "upsert_lead",
+      "passed": true,
+      "detail": "{\"id\":\"77f29726-27e3-4074-8d01-287c65936cdf\",\"created\":false,\"source_platform\":\"jobright_extension\",\"quality_ok\":true,\"quality_reason\":\"pass\",\"workspace_url\":\"http://localhost:3000/?view=resume&jobId="
+    },
+    {
+      "name": "stepper_present_jobs",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no_confirm_in_stepper_jobs",
+      "passed": true,
+      "detail": "1. Jobs | / | 2. Match | / | 3. JD | / | 4. Tailor | / | 5. Apply | / | 6. Outreach"
+    },
+    {
+      "name": "step_jobs_exists_jobs",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_jobs_label_jobs",
+      "passed": true,
+      "detail": "got='1. Jobs'"
+    },
+    {
+      "name": "step_detail_exists_jobs",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_detail_label_jobs",
+      "passed": true,
+      "detail": "got='2. Match'"
+    },
+    {
+      "name": "step_jd_exists_jobs",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_jd_label_jobs",
+      "passed": true,
+      "detail": "got='3. JD'"
+    },
+    {
+      "name": "step_tailor_exists_jobs",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_tailor_label_jobs",
+      "passed": true,
+      "detail": "got='4. Tailor'"
+    },
+    {
+      "name": "step_apply_exists_jobs",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_apply_label_jobs",
+      "passed": true,
+      "detail": "got='5. Apply'"
+    },
+    {
+      "name": "step_outreach_exists_jobs",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_outreach_label_jobs",
+      "passed": true,
+      "detail": "got='6. Outreach'"
+    },
+    {
+      "name": "step_count_6_jobs",
+      "passed": true,
+      "detail": "n=6"
+    },
+    {
+      "name": "active_jobs_jobs",
+      "passed": true,
+      "detail": "rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-emerald-600 text-white ring-emerald-600 cursor-pointer hove"
+    },
+    {
+      "name": "stepper_present_match",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no_confirm_in_stepper_match",
+      "passed": true,
+      "detail": "1. Jobs | / | 2. Match | / | 3. JD | / | 4. Tailor | / | 5. Apply | / | 6. Outreach"
+    },
+    {
+      "name": "step_jobs_exists_match",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_jobs_label_match",
+      "passed": true,
+      "detail": "got='1. Jobs'"
+    },
+    {
+      "name": "step_detail_exists_match",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_detail_label_match",
+      "passed": true,
+      "detail": "got='2. Match'"
+    },
+    {
+      "name": "step_jd_exists_match",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_jd_label_match",
+      "passed": true,
+      "detail": "got='3. JD'"
+    },
+    {
+      "name": "step_tailor_exists_match",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_tailor_label_match",
+      "passed": true,
+      "detail": "got='4. Tailor'"
+    },
+    {
+      "name": "step_apply_exists_match",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_apply_label_match",
+      "passed": true,
+      "detail": "got='5. Apply'"
+    },
+    {
+      "name": "step_outreach_exists_match",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_outreach_label_match",
+      "passed": true,
+      "detail": "got='6. Outreach'"
+    },
+    {
+      "name": "step_count_6_match",
+      "passed": true,
+      "detail": "n=6"
+    },
+    {
+      "name": "active_detail_match",
+      "passed": true,
+      "detail": "rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-emerald-600 text-white ring-emerald-600 cursor-pointer hove"
+    },
+    {
+      "name": "stepper_present_jd",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no_confirm_in_stepper_jd",
+      "passed": true,
+      "detail": "1. Jobs | / | 2. Match | / | 3. JD | / | 4. Tailor | / | 5. Apply | / | 6. Outreach"
+    },
+    {
+      "name": "step_jobs_exists_jd",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_jobs_label_jd",
+      "passed": true,
+      "detail": "got='1. Jobs'"
+    },
+    {
+      "name": "step_detail_exists_jd",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_detail_label_jd",
+      "passed": true,
+      "detail": "got='2. Match'"
+    },
+    {
+      "name": "step_jd_exists_jd",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_jd_label_jd",
+      "passed": true,
+      "detail": "got='3. JD'"
+    },
+    {
+      "name": "step_tailor_exists_jd",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_tailor_label_jd",
+      "passed": true,
+      "detail": "got='4. Tailor'"
+    },
+    {
+      "name": "step_apply_exists_jd",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_apply_label_jd",
+      "passed": true,
+      "detail": "got='5. Apply'"
+    },
+    {
+      "name": "step_outreach_exists_jd",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_outreach_label_jd",
+      "passed": true,
+      "detail": "got='6. Outreach'"
+    },
+    {
+      "name": "step_count_6_jd",
+      "passed": true,
+      "detail": "n=6"
+    },
+    {
+      "name": "active_jd_jd",
+      "passed": true,
+      "detail": "rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-emerald-600 text-white ring-emerald-600 cursor-pointer hove"
+    },
+    {
+      "name": "jd_panel_visible",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no_qualification_tags",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "jd_required_or_plaintext",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no_workspace_subtabs",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tailor_chip_clickable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "stepper_present_tailor",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no_confirm_in_stepper_tailor",
+      "passed": true,
+      "detail": "1. Jobs | / | 2. Match | / | 3. JD | / | 4. Tailor | / | 5. Apply | / | 6. Outreach"
+    },
+    {
+      "name": "step_jobs_exists_tailor",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_jobs_label_tailor",
+      "passed": true,
+      "detail": "got='1. Jobs'"
+    },
+    {
+      "name": "step_detail_exists_tailor",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_detail_label_tailor",
+      "passed": true,
+      "detail": "got='2. Match'"
+    },
+    {
+      "name": "step_jd_exists_tailor",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_jd_label_tailor",
+      "passed": true,
+      "detail": "got='3. JD'"
+    },
+    {
+      "name": "step_tailor_exists_tailor",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_tailor_label_tailor",
+      "passed": true,
+      "detail": "got='4. Tailor'"
+    },
+    {
+      "name": "step_apply_exists_tailor",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_apply_label_tailor",
+      "passed": true,
+      "detail": "got='5. Apply'"
+    },
+    {
+      "name": "step_outreach_exists_tailor",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_outreach_label_tailor",
+      "passed": true,
+      "detail": "got='6. Outreach'"
+    },
+    {
+      "name": "step_count_6_tailor",
+      "passed": true,
+      "detail": "n=6"
+    },
+    {
+      "name": "active_tailor_tailor",
+      "passed": true,
+      "detail": "rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-emerald-600 text-white ring-emerald-600 cursor-pointer hove"
+    },
+    {
+      "name": "tailor_panel_visible",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "chat_visible",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "preview_visible",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "jd_not_in_tailor_panel",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "confirm_action_btn",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "confirm_not_step_chip",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "stepper_present_apply_scroll",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no_confirm_in_stepper_apply_scroll",
+      "passed": true,
+      "detail": "1. Jobs | / | 2. Match | / | 3. JD | / | 4. Tailor | / | 5. Apply | / | 6. Outreach"
+    },
+    {
+      "name": "step_jobs_exists_apply_scroll",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_jobs_label_apply_scroll",
+      "passed": true,
+      "detail": "got='1. Jobs'"
+    },
+    {
+      "name": "step_detail_exists_apply_scroll",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_detail_label_apply_scroll",
+      "passed": true,
+      "detail": "got='2. Match'"
+    },
+    {
+      "name": "step_jd_exists_apply_scroll",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_jd_label_apply_scroll",
+      "passed": true,
+      "detail": "got='3. JD'"
+    },
+    {
+      "name": "step_tailor_exists_apply_scroll",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_tailor_label_apply_scroll",
+      "passed": true,
+      "detail": "got='4. Tailor'"
+    },
+    {
+      "name": "step_apply_exists_apply_scroll",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_apply_label_apply_scroll",
+      "passed": true,
+      "detail": "got='5. Apply'"
+    },
+    {
+      "name": "step_outreach_exists_apply_scroll",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_outreach_label_apply_scroll",
+      "passed": true,
+      "detail": "got='6. Outreach'"
+    },
+    {
+      "name": "step_count_6_apply_scroll",
+      "passed": true,
+      "detail": "n=6"
+    },
+    {
+      "name": "active_apply_apply_scroll",
+      "passed": true,
+      "detail": "rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-emerald-600 text-white ring-emerald-600 cursor-pointer hove"
+    },
+    {
+      "name": "apply_says_step_5",
+      "passed": true,
+      "detail": "Step 5 \u00b7 How do you want to apply?"
+    },
+    {
+      "name": "stepper_present_outreach",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no_confirm_in_stepper_outreach",
+      "passed": true,
+      "detail": "1. Jobs | / | 2. Match | / | 3. JD | / | 4. Tailor | / | 5. Apply | / | 6. Outreach"
+    },
+    {
+      "name": "step_jobs_exists_outreach",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_jobs_label_outreach",
+      "passed": true,
+      "detail": "got='1. Jobs'"
+    },
+    {
+      "name": "step_detail_exists_outreach",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_detail_label_outreach",
+      "passed": true,
+      "detail": "got='2. Match'"
+    },
+    {
+      "name": "step_jd_exists_outreach",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_jd_label_outreach",
+      "passed": true,
+      "detail": "got='3. JD'"
+    },
+    {
+      "name": "step_tailor_exists_outreach",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_tailor_label_outreach",
+      "passed": true,
+      "detail": "got='4. Tailor'"
+    },
+    {
+      "name": "step_apply_exists_outreach",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_apply_label_outreach",
+      "passed": true,
+      "detail": "got='5. Apply'"
+    },
+    {
+      "name": "step_outreach_exists_outreach",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_outreach_label_outreach",
+      "passed": true,
+      "detail": "got='6. Outreach'"
+    },
+    {
+      "name": "step_count_6_outreach",
+      "passed": true,
+      "detail": "n=6"
+    },
+    {
+      "name": "active_outreach_outreach",
+      "passed": true,
+      "detail": "rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-emerald-600 text-white ring-emerald-600"
+    },
+    {
+      "name": "outreach_says_step_6",
+      "passed": true,
+      "detail": "Step 6 \u00b7 Find people / Cold outreach"
+    },
+    {
+      "name": "outreach_not_step_7",
+      "passed": true,
+      "detail": "Step 6 \u00b7 Find people / Cold outreach"
+    },
+    {
+      "name": "jobright_lands_on_tailor",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "jobright_back_link",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "stepper_present_jobright_deeplink",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no_confirm_in_stepper_jobright_deeplink",
+      "passed": true,
+      "detail": "1. Jobs | / | 2. Match | / | 3. JD | / | 4. Tailor | / | 5. Apply | / | 6. Outreach"
+    },
+    {
+      "name": "step_jobs_exists_jobright_deeplink",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_jobs_label_jobright_deeplink",
+      "passed": true,
+      "detail": "got='1. Jobs'"
+    },
+    {
+      "name": "step_detail_exists_jobright_deeplink",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_detail_label_jobright_deeplink",
+      "passed": true,
+      "detail": "got='2. Match'"
+    },
+    {
+      "name": "step_jd_exists_jobright_deeplink",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_jd_label_jobright_deeplink",
+      "passed": true,
+      "detail": "got='3. JD'"
+    },
+    {
+      "name": "step_tailor_exists_jobright_deeplink",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_tailor_label_jobright_deeplink",
+      "passed": true,
+      "detail": "got='4. Tailor'"
+    },
+    {
+      "name": "step_apply_exists_jobright_deeplink",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_apply_label_jobright_deeplink",
+      "passed": true,
+      "detail": "got='5. Apply'"
+    },
+    {
+      "name": "step_outreach_exists_jobright_deeplink",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "step_outreach_label_jobright_deeplink",
+      "passed": true,
+      "detail": "got='6. Outreach'"
+    },
+    {
+      "name": "step_count_6_jobright_deeplink",
+      "passed": true,
+      "detail": "n=6"
+    },
+    {
+      "name": "active_tailor_jobright_deeplink",
+      "passed": true,
+      "detail": "rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-emerald-600 text-white ring-emerald-600 cursor-pointer hove"
+    },
+    {
+      "name": "inapp_back_is_jobs",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "inapp_no_jobright_back",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "jd_hides_confirm_btn",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "header_height_reasonable",
+      "passed": true,
+      "detail": "h=47"
+    }
+  ],
+  "ok": true,
+  "notes": [
+    "screenshot 01-jobs.png",
+    "screenshot 02-match.png",
+    "screenshot 03-jd.png",
+    "screenshot 04-tailor.png",
+    "screenshot 05-apply-scroll.png",
+    "screenshot 06-outreach.png",
+    "screenshot 07-jobright-deeplink-tailor.png",
+    "screenshot 08-inapp-jd-back-jobs.png",
+    "header box={'x': 0, 'y': 57, 'width': 1440, 'height': 47}"
+  ],
+  "job_id": "77f29726-27e3-4074-8d01-287c65936cdf"
+}

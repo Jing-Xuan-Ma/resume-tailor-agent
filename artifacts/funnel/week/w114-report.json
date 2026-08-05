@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w113_html_first_note",
+      "ok": true
+    },
+    {
+      "name": "w114_clear_filters",
+      "ok": true
+    }
+  ]
+}

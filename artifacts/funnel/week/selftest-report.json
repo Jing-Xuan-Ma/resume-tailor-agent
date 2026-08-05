@@ -1,0 +1,150 @@
+{
+  "suite": "selftest_e2e",
+  "passed": true,
+  "pass_count": 28,
+  "total": 28,
+  "checks": [
+    {
+      "name": "api_healthy",
+      "ok": true,
+      "detail": "{'status': 'healthy', 'version': '0.1.0', 'env': 'development'}"
+    },
+    {
+      "name": "jobspy_ok",
+      "ok": true,
+      "detail": "{'status': 'ok', 'enabled': True, 'worker_python': 'd:/resume-agent/backend/venv312/Scripts/python.exe', 'jobspy_python_"
+    },
+    {
+      "name": "db_has_job",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "policy_confirm_shortcut",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "policy_never_submit_ui",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "policy_no_auto_send",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "policy_apply_always_visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "policy_soft_confirm_star",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_ranked",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_jobspy_chip",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_tailor_cta",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_flow_jobs",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_slash_focus_search",
+      "ok": true,
+      "detail": "jobs-search"
+    },
+    {
+      "name": "ui_detail",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_scored_or_score",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_customize_cta",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_apply_panel_early",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_never_submit",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_tailor_version",
+      "ok": true,
+      "detail": "760e97f4-789b-435b-bf63-eca073c65845"
+    },
+    {
+      "name": "ui_confirm_btn",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_kbd_hints",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_chat",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_esc_closes_paste",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_outreach_panel",
+      "ok": true,
+      "detail": "760e97f4-789b-435b-bf63-eca073c65845"
+    },
+    {
+      "name": "ui_no_auto_send",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_hm_playbook",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_profile",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_profile_save",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "user_id": "251bd13a-aaa8-4fb9-90b3-f886bab730e6",
+  "job_id": "cc67489e-9804-42d4-ac4d-8a510fc67c59"
+}

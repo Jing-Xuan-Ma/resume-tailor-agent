@@ -1,0 +1,37 @@
+{
+  "jd_id": "jd09_weak_match",
+  "company": "Pixel Labs",
+  "title": "Frontend Engineer",
+  "format": {
+    "ok": false,
+    "score": 4,
+    "errors": [
+      "missing_experience_company:Shenwan Hongyuan Securities Co., Ltd.",
+      "missing_experience_company:Yinhua Fund Management Co., Ltd."
+    ],
+    "warnings": []
+  },
+  "quality_gate": {
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "stats": {
+      "bullet_count": 12,
+      "approx_chars": 3102,
+      "jd_core_covered": 0,
+      "jd_core_missing_in_projection": [],
+      "hidden_entries": 1
+    }
+  },
+  "scores": {
+    "format": 4,
+    "match": 6,
+    "honesty": 10,
+    "one_page_heuristic": 10
+  },
+  "screenshot": true,
+  "agent_notes": [
+    "FORMAT FAIL \u2014 content score discarded until format lock fixed.",
+    "Match weak or intentionally honest for off-target JD."
+  ]
+}

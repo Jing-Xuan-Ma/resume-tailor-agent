@@ -39,6 +39,7 @@ class RemotiveProvider(BaseJobProvider):
                     "category": item.get("category"),
                     "salary": item.get("salary"),
                     "tags": item.get("tags", []),
+                    "publication_date": item.get("publication_date"),
                 },
             ))
         return results

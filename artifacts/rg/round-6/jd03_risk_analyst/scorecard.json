@@ -1,0 +1,54 @@
+{
+  "jd_id": "jd03_risk_analyst",
+  "company": "Harbor Insurance",
+  "title": "Risk Analyst Intern",
+  "format": {
+    "ok": false,
+    "score": 3,
+    "errors": [
+      "paragraph_count_grew 48->49"
+    ],
+    "warnings": []
+  },
+  "quality_gate": {
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "stats": {
+      "bullet_count": 15,
+      "approx_chars": 3621,
+      "jd_core_covered": 2,
+      "jd_core_missing_in_projection": [],
+      "hidden_entries": 1
+    }
+  },
+  "scores": {
+    "format": 3,
+    "match": 10,
+    "honesty": 10,
+    "one_page": 10
+  },
+  "screenshot": true,
+  "pdf_pages": 1,
+  "hyperlinks": {
+    "ok": true,
+    "errors": [],
+    "master": {
+      "paragraphs": 48,
+      "hyperlinks": 3,
+      "external_rels": 3,
+      "para_ids": 48,
+      "unique_para_ids": 48
+    },
+    "generated": {
+      "paragraphs": 49,
+      "hyperlinks": 3,
+      "external_rels": 3,
+      "para_ids": 49,
+      "unique_para_ids": 49
+    }
+  },
+  "agent_notes": [
+    "FORMAT FAIL \u2014 keep iterating."
+  ]
+}

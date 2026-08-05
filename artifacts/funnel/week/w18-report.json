@@ -1,0 +1,26 @@
+{
+  "wave": 18,
+  "passed": true,
+  "checks": [
+    {
+      "name": "w57_shared_auth_util",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w57_detail_passes_user",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w58_pdf_pending_boot_notice",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w57_summary_scored_for_user",
+      "ok": true,
+      "detail": "True"
+    }
+  ]
+}

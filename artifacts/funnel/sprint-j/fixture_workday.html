@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><title>Workday Sandbox</title>
+<style>body{font-family:system-ui;max-width:520px;margin:32px auto}label{display:block;margin:10px 0 4px;font-weight:600}input,select,button{width:100%;padding:8px;box-sizing:border-box}button{margin-top:14px;background:#0057b8;color:#fff;border:0;font-weight:700}</style>
+</head><body>
+<h1 data-ats="workday">Workday Apply Sandbox (partial)</h1>
+<form onsubmit="event.preventDefault();document.getElementById('msg').textContent='SUBMITTED';">
+<label>First Name</label><input data-automation-id="legalNameSection_firstName" aria-label="First Name"/>
+<label>Last Name</label><input data-automation-id="legalNameSection_lastName" aria-label="Last Name"/>
+<label>Email</label><input data-automation-id="email" type="email" aria-label="Email"/>
+<label>Phone</label><input data-automation-id="phone" type="tel" aria-label="Phone Device Number"/>
+<label>How did you hear about us?</label>
+<select data-automation-id="source"><option>LinkedIn</option><option>Company Website</option><option>Referral</option><option>Other</option></select>
+<button data-automation-id="bottom-navigation-next-button" type="submit">Submit</button>
+</form><p id="msg"></p>
+</body></html>

@@ -8,7 +8,11 @@ from app.modules.resume_workspace.schemas import (
     KeywordMatchItem,
     RewriteRequest,
     RewriteResponse,
+    AgentTurnRequest,
+    AgentTurnResponse,
     ConfirmResponse,
+    ConfirmSubmitRequest,
+    ConfirmSubmitResponse,
     SuggestProjectRequest,
     SuggestProjectResponse,
     ListVersionsResponse,
@@ -18,10 +22,17 @@ from app.modules.resume_workspace.schemas import (
     StartApplyResponse,
 )
 from app.modules.resume_workspace.service import ResumeWorkspaceService
-from app.modules.resume_workspace.apply_flow import start_apply, get_apply
+from app.modules.resume_workspace.apply_flow import start_apply, start_apply_async, get_apply, confirm_submit
+from app.modules.resume_workspace.constitution import constitution_api_payload
 
 router = APIRouter()
 workspace_service = ResumeWorkspaceService()
+
+
+@router.get("/constitution")
+async def get_resume_constitution():
+    """Resume rules for Tailor UI + clients (RESUME_CONSTITUTION.md)."""
+    return constitution_api_payload()
 
 
 @router.post("/jd-session", response_model=CreateJdSessionResponse)
@@ -67,6 +78,31 @@ async def rewrite_resume(session_id: str, request: RewriteRequest):
     )
 
 
+@router.post("/jd-session/{session_id}/agent", response_model=AgentTurnResponse)
+async def agent_turn(session_id: str, request: AgentTurnRequest):
+    """Chat normally or rewrite the master-template resume when the user asks for edits."""
+    result = await workspace_service.agent_turn(
+        user_id=request.user_id,
+        session_id=session_id,
+        message=request.message,
+        base_version_id=request.base_version_id,
+        chat_history=request.chat_history,
+    )
+    return AgentTurnResponse(
+        session_id=result["session_id"],
+        agent_message=result["agent_message"],
+        intent=result["intent"],
+        did_rewrite=result["did_rewrite"],
+        new_version_id=result.get("new_version_id"),
+        version_index=result.get("version_index"),
+        full_resume=result.get("full_resume"),
+        keyword_matches=[KeywordMatchItem(**m) for m in (result.get("keyword_matches") or [])],
+        content_delta=result.get("content_delta") or {},
+        llm_provider=result.get("llm_provider"),
+        llm_model=result.get("llm_model"),
+    )
+
+
 @router.post("/resume-version/{version_id}/confirm", response_model=ConfirmResponse)
 async def confirm_version(version_id: str, user_id: str = Query(...)):
     result = workspace_service.confirm_version(version_id, user_id)
@@ -99,14 +135,28 @@ async def start_apply_endpoint(version_id: str, request: StartApplyRequest):
     if mode not in {"manual", "auto"}:
         raise HTTPException(status_code=400, detail="mode must be manual or auto")
     try:
-        payload = start_apply(
-            user_id=request.user_id,
-            version_id=version_id,
-            mode=mode,  # type: ignore[arg-type]
-            company=request.company,
-            position=request.position,
-            final_path=request.final_path,
-        )
+        if mode == "auto":
+            payload = await start_apply_async(
+                user_id=request.user_id,
+                version_id=version_id,
+                mode=mode,  # type: ignore[arg-type]
+                company=request.company,
+                position=request.position,
+                final_path=request.final_path,
+                job_id=request.job_id,
+                source_url=request.source_url,
+            )
+        else:
+            payload = start_apply(
+                user_id=request.user_id,
+                version_id=version_id,
+                mode=mode,  # type: ignore[arg-type]
+                company=request.company,
+                position=request.position,
+                final_path=request.final_path,
+                job_id=request.job_id,
+                source_url=request.source_url,
+            )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return StartApplyResponse(
@@ -117,8 +167,38 @@ async def start_apply_endpoint(version_id: str, request: StartApplyRequest):
         paused_before_submit=bool(payload.get("paused_before_submit")),
         message=payload["message"],
         filled_fields=payload.get("filled_fields") or [],
+        ats_fields=payload.get("ats_fields") or [],
+        ats_type=payload.get("ats_type"),
+        source_url=payload.get("source_url"),
+        board_url=payload.get("board_url"),
+        browser_fill=payload.get("browser_fill"),
         final_path=payload.get("final_path"),
+        confirmed_submit_at=payload.get("confirmed_submit_at"),
+        fill_plan=payload.get("fill_plan") or [],
+        map_provider=payload.get("map_provider"),
+        requires_human_review=bool(payload.get("requires_human_review")),
     )
+
+
+@router.post("/ats/map-fields", response_model=dict)
+async def map_ats_fields_endpoint(body: dict):
+    """Reusable DOM-field → profile mapping for Playwright and future extensions."""
+    from app.modules.ats_connectors.canonical_profile import canonical_apply_profile
+    from app.modules.ats_connectors.dom_scan import normalize_client_fields
+    from app.modules.ats_connectors.field_mapper import map_fields
+
+    user_id = str(body.get("user_id") or "")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id required")
+    fields = normalize_client_fields(list(body.get("fields") or []))
+    profile = canonical_apply_profile(
+        user_id,
+        final_path=body.get("final_path"),
+        version_id=body.get("version_id"),
+    )
+    prefer_llm = bool(body.get("prefer_llm", True))
+    result = await map_fields(fields, profile, prefer_llm=prefer_llm)
+    return result
 
 
 @router.get("/apply/{apply_id}", response_model=StartApplyResponse)
@@ -134,7 +214,37 @@ async def get_apply_endpoint(apply_id: str):
         paused_before_submit=bool(payload.get("paused_before_submit")),
         message=payload["message"],
         filled_fields=payload.get("filled_fields") or [],
+        ats_fields=payload.get("ats_fields") or [],
+        ats_type=payload.get("ats_type"),
+        source_url=payload.get("source_url"),
+        browser_fill=payload.get("browser_fill"),
         final_path=payload.get("final_path"),
+        confirmed_submit_at=payload.get("confirmed_submit_at"),
+        fill_plan=payload.get("fill_plan") or [],
+        map_provider=payload.get("map_provider"),
+        requires_human_review=bool(payload.get("requires_human_review")),
+    )
+
+
+@router.post("/apply/{apply_id}/confirm-submit", response_model=ConfirmSubmitResponse)
+async def confirm_submit_endpoint(apply_id: str, request: ConfirmSubmitRequest):
+    """User explicitly confirms after pause-before-submit (audit; does not click live Submit)."""
+    try:
+        payload = confirm_submit(
+            apply_id=apply_id,
+            user_id=request.user_id,
+            acknowledge=bool(request.acknowledge),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return ConfirmSubmitResponse(
+        apply_id=payload["id"],
+        status=payload["status"],
+        submitted=bool(payload.get("submitted")),
+        paused_before_submit=bool(payload.get("paused_before_submit")),
+        message=payload["message"],
+        confirmed_submit_at=payload.get("confirmed_submit_at"),
+        source_url=payload.get("source_url"),
     )
 
 

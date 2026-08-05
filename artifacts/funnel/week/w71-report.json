@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w71_scored_for_user_visible",
+      "ok": true,
+      "detail": "Scored for your resume"
+    }
+  ]
+}

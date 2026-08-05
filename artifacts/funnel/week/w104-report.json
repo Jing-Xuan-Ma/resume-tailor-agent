@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w103_outreach_no_send",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w104_freshest_source",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w104_freshest_visible",
+      "ok": true,
+      "detail": "Freshest 21 hours ago"
+    }
+  ]
+}

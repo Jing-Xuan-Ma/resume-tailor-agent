@@ -1,0 +1,329 @@
+{
+  "agent": 3,
+  "module": "apply_ats",
+  "passed": true,
+  "submitted": false,
+  "suites": {
+    "greenhouse": {
+      "status": "filled_paused_before_submit",
+      "submitted": false,
+      "filled": 5,
+      "sandbox": true
+    },
+    "lever": {
+      "status": "filled_paused_before_submit",
+      "submitted": false,
+      "filled": 4,
+      "sandbox": true
+    },
+    "workday": {
+      "status": "filled_paused_before_submit",
+      "submitted": false,
+      "filled": 5,
+      "sandbox": true
+    },
+    "ashby": {
+      "status": "filled_paused_before_submit",
+      "submitted": false,
+      "filled": 4,
+      "sandbox": true
+    }
+  },
+  "checks": [
+    {
+      "name": "greenhouse_ats_type",
+      "ok": true,
+      "detail": "greenhouse"
+    },
+    {
+      "name": "greenhouse_sandbox_resolved",
+      "ok": true,
+      "detail": "D:\\resume-agent\\artifacts\\funnel\\sprint-i\\fixture_greenhouse.html"
+    },
+    {
+      "name": "greenhouse_not_submitted",
+      "ok": true,
+      "detail": "False"
+    },
+    {
+      "name": "greenhouse_paused_status",
+      "ok": true,
+      "detail": "filled_paused_before_submit"
+    },
+    {
+      "name": "greenhouse_filled_ge_4",
+      "ok": true,
+      "detail": "5"
+    },
+    {
+      "name": "greenhouse_screenshot",
+      "ok": true,
+      "detail": "d:\\resume-agent\\artifacts\\funnel\\agent3\\01-greenhouse-filled-paused.png"
+    },
+    {
+      "name": "greenhouse_no_submit_leak",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "greenhouse_msg_pause",
+      "ok": true,
+      "detail": "Filled form fields and stopped before Submit."
+    },
+    {
+      "name": "lever_ats_type",
+      "ok": true,
+      "detail": "lever"
+    },
+    {
+      "name": "lever_sandbox_resolved",
+      "ok": true,
+      "detail": "D:\\resume-agent\\artifacts\\funnel\\sprint-i\\fixture_lever.html"
+    },
+    {
+      "name": "lever_not_submitted",
+      "ok": true,
+      "detail": "False"
+    },
+    {
+      "name": "lever_paused_status",
+      "ok": true,
+      "detail": "filled_paused_before_submit"
+    },
+    {
+      "name": "lever_filled_ge_3",
+      "ok": true,
+      "detail": "4"
+    },
+    {
+      "name": "lever_screenshot",
+      "ok": true,
+      "detail": "d:\\resume-agent\\artifacts\\funnel\\agent3\\02-lever-filled-paused.png"
+    },
+    {
+      "name": "lever_no_submit_leak",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lever_msg_pause",
+      "ok": true,
+      "detail": "Filled form fields and stopped before Submit."
+    },
+    {
+      "name": "workday_ats_type",
+      "ok": true,
+      "detail": "workday"
+    },
+    {
+      "name": "workday_sandbox_resolved",
+      "ok": true,
+      "detail": "D:\\resume-agent\\artifacts\\funnel\\sprint-j\\fixture_workday.html"
+    },
+    {
+      "name": "workday_not_submitted",
+      "ok": true,
+      "detail": "False"
+    },
+    {
+      "name": "workday_paused_status",
+      "ok": true,
+      "detail": "filled_paused_before_submit"
+    },
+    {
+      "name": "workday_filled_ge_4",
+      "ok": true,
+      "detail": "5"
+    },
+    {
+      "name": "workday_screenshot",
+      "ok": true,
+      "detail": "d:\\resume-agent\\artifacts\\funnel\\agent3\\03-workday-filled-paused.png"
+    },
+    {
+      "name": "workday_no_submit_leak",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "workday_msg_pause",
+      "ok": true,
+      "detail": "Filled form fields and stopped before Submit."
+    },
+    {
+      "name": "ashby_ats_type",
+      "ok": true,
+      "detail": "ashby"
+    },
+    {
+      "name": "ashby_sandbox_resolved",
+      "ok": true,
+      "detail": "D:\\resume-agent\\artifacts\\funnel\\agent3\\fixture_ashby.html"
+    },
+    {
+      "name": "bonus_ashby_not_submitted",
+      "ok": true,
+      "detail": "False"
+    },
+    {
+      "name": "bonus_ashby_paused_status",
+      "ok": true,
+      "detail": "filled_paused_before_submit"
+    },
+    {
+      "name": "bonus_ashby_filled_ge_3",
+      "ok": true,
+      "detail": "4"
+    },
+    {
+      "name": "bonus_ashby_screenshot",
+      "ok": true,
+      "detail": "d:\\resume-agent\\artifacts\\funnel\\agent3\\04-ashby-filled-paused.png"
+    },
+    {
+      "name": "bonus_ashby_no_submit_leak",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "bonus_ashby_msg_pause",
+      "ok": true,
+      "detail": "Filled form fields and stopped before Submit."
+    },
+    {
+      "name": "ui_panel_screenshot",
+      "ok": true,
+      "detail": "05-ui-browser-fill-panel.png"
+    }
+  ],
+  "results": {
+    "greenhouse": {
+      "submitted": false,
+      "status": "filled_paused_before_submit",
+      "mode": "playwright_fill_pause",
+      "filled": [
+        {
+          "field": "first_name",
+          "status": "filled"
+        },
+        {
+          "field": "last_name",
+          "status": "filled"
+        },
+        {
+          "field": "email",
+          "status": "filled"
+        },
+        {
+          "field": "phone",
+          "status": "filled"
+        },
+        {
+          "field": "linkedin",
+          "status": "filled"
+        }
+      ],
+      "screenshot_path": "d:\\resume-agent\\artifacts\\funnel\\agent3\\01-greenhouse-filled-paused.png",
+      "message": "Filled form fields and stopped before Submit.",
+      "paused_before_submit": true,
+      "submit_marker": "",
+      "submit_leaked": false,
+      "ats_type": "greenhouse",
+      "sandbox": true
+    },
+    "lever": {
+      "submitted": false,
+      "status": "filled_paused_before_submit",
+      "mode": "playwright_fill_pause",
+      "filled": [
+        {
+          "field": "full_name",
+          "status": "filled"
+        },
+        {
+          "field": "email",
+          "status": "filled"
+        },
+        {
+          "field": "phone",
+          "status": "filled"
+        },
+        {
+          "field": "linkedin",
+          "status": "filled"
+        }
+      ],
+      "screenshot_path": "d:\\resume-agent\\artifacts\\funnel\\agent3\\02-lever-filled-paused.png",
+      "message": "Filled form fields and stopped before Submit.",
+      "paused_before_submit": true,
+      "submit_marker": "",
+      "submit_leaked": false,
+      "ats_type": "lever",
+      "sandbox": true
+    },
+    "workday": {
+      "submitted": false,
+      "status": "filled_paused_before_submit",
+      "mode": "playwright_fill_pause",
+      "filled": [
+        {
+          "field": "first_name",
+          "status": "filled"
+        },
+        {
+          "field": "last_name",
+          "status": "filled"
+        },
+        {
+          "field": "email",
+          "status": "filled"
+        },
+        {
+          "field": "phone",
+          "status": "filled"
+        },
+        {
+          "field": "source",
+          "status": "filled"
+        }
+      ],
+      "screenshot_path": "d:\\resume-agent\\artifacts\\funnel\\agent3\\03-workday-filled-paused.png",
+      "message": "Filled form fields and stopped before Submit.",
+      "paused_before_submit": true,
+      "submit_marker": "",
+      "submit_leaked": false,
+      "ats_type": "workday",
+      "sandbox": true
+    },
+    "ashby": {
+      "submitted": false,
+      "status": "filled_paused_before_submit",
+      "mode": "playwright_fill_pause",
+      "filled": [
+        {
+          "field": "full_name",
+          "status": "filled"
+        },
+        {
+          "field": "email",
+          "status": "filled"
+        },
+        {
+          "field": "phone",
+          "status": "filled"
+        },
+        {
+          "field": "linkedin",
+          "status": "filled"
+        }
+      ],
+      "screenshot_path": "d:\\resume-agent\\artifacts\\funnel\\agent3\\04-ashby-filled-paused.png",
+      "message": "Filled form fields and stopped before Submit.",
+      "paused_before_submit": true,
+      "submit_marker": "",
+      "submit_leaked": false,
+      "ats_type": "ashby",
+      "sandbox": true
+    }
+  }
+}

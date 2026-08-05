@@ -1,0 +1,52 @@
+{
+  "jd_id": "jd06_junior_ds",
+  "company": "ModelWorks",
+  "title": "Junior Data Scientist",
+  "format": {
+    "ok": true,
+    "score": 10,
+    "errors": [],
+    "warnings": []
+  },
+  "quality_gate": {
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "stats": {
+      "bullet_count": 15,
+      "approx_chars": 3621,
+      "jd_core_covered": 2,
+      "jd_core_missing_in_projection": [],
+      "hidden_entries": 1
+    }
+  },
+  "scores": {
+    "format": 10,
+    "match": 10,
+    "honesty": 10,
+    "one_page": 10
+  },
+  "screenshot": true,
+  "pdf_pages": 1,
+  "hyperlinks": {
+    "ok": true,
+    "errors": [],
+    "master": {
+      "paragraphs": 48,
+      "hyperlinks": 3,
+      "external_rels": 3,
+      "para_ids": 48,
+      "unique_para_ids": 48
+    },
+    "generated": {
+      "paragraphs": 48,
+      "hyperlinks": 3,
+      "external_rels": 3,
+      "para_ids": 48,
+      "unique_para_ids": 48
+    }
+  },
+  "agent_notes": [
+    "Word PDF 1-page + hyperlinks OK."
+  ]
+}

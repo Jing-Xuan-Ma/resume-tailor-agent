@@ -1,0 +1,17 @@
+{
+  "pass_criteria": {
+    "work_model_remote_only": true,
+    "work_model_onsite_only": true,
+    "source_platform_filter": true,
+    "max_age_excludes_stale": true,
+    "discover_min_score": true
+  },
+  "all_pass": true,
+  "counts": {
+    "remote": 2,
+    "onsite": 1,
+    "platform": 2,
+    "fresh": 2,
+    "discover": 2
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w91_chip_in_source",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w91_chip_visible",
+      "ok": true,
+      "detail": "JobSpy ok"
+    }
+  ]
+}

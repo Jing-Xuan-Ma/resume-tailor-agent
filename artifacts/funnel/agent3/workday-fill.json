@@ -1,0 +1,34 @@
+{
+  "submitted": false,
+  "status": "filled_paused_before_submit",
+  "mode": "playwright_fill_pause",
+  "filled": [
+    {
+      "field": "first_name",
+      "status": "filled"
+    },
+    {
+      "field": "last_name",
+      "status": "filled"
+    },
+    {
+      "field": "email",
+      "status": "filled"
+    },
+    {
+      "field": "phone",
+      "status": "filled"
+    },
+    {
+      "field": "source",
+      "status": "filled"
+    }
+  ],
+  "screenshot_path": "d:\\resume-agent\\artifacts\\funnel\\agent3\\03-workday-filled-paused.png",
+  "message": "Filled form fields and stopped before Submit.",
+  "paused_before_submit": true,
+  "submit_marker": "",
+  "submit_leaked": false,
+  "ats_type": "workday",
+  "sandbox": true
+}

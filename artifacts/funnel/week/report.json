@@ -1,0 +1,107 @@
+{
+  "status": "PASS",
+  "passed": 18,
+  "total": 18,
+  "ux_scores": {
+    "tailor_speed": 4.2,
+    "apply_gate": 4.5,
+    "outreach": 4.3,
+    "discover": 4.0,
+    "e2e": 4.0,
+    "polish": 4.0
+  },
+  "ux_avg": 4.17,
+  "checks": [
+    {
+      "name": "w1_pdf_async_flag",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w1_html_first_paint",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w1_updating_banner",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w2_live_blocked_without_flag",
+      "ok": true,
+      "detail": "{'url': 'file:///D:/resume-agent/artifacts/funnel/sprint-i/fixture_greenhouse.html', 'ats_type': 'greenhouse', 'sandbox'"
+    },
+    {
+      "name": "w2_never_submit_documented",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w2_live_allowed_when_flag",
+      "ok": true,
+      "detail": "{'url': 'https://boards.greenhouse.io/demo/jobs/1', 'ats_type': 'greenhouse', 'sandbox': False, 'original_url': 'https:/"
+    },
+    {
+      "name": "w3_reply_status_stored",
+      "ok": true,
+      "detail": "awaiting"
+    },
+    {
+      "name": "w3_coffee_slots",
+      "ok": true,
+      "detail": "['Tue/Thu mornings PT']"
+    },
+    {
+      "name": "w3_crm_export_csv",
+      "ok": true,
+      "detail": "id,name,role,company,email,linkedin_url,status,reply_status,coffee_availability,"
+    },
+    {
+      "name": "w3_ui_reply_coffee_export",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w4_stale_badge_ui",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w4_jobspy_health_endpoint",
+      "ok": true,
+      "detail": "{'status': 'ok', 'enabled': True, 'worker_python': 'd:/resume-agent/backend/venv312/Scripts/python.exe', 'jobspy_python_configured': True, 'worker_script_exists"
+    },
+    {
+      "name": "w5_api_health",
+      "ok": true,
+      "detail": "{'status': 'healthy', 'version': '0.1.0', 'env': 'development'}"
+    },
+    {
+      "name": "w5_crm_roundtrip",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w5_sandbox_fill_target",
+      "ok": true,
+      "detail": "{'url': 'file:///D:/resume-agent/artifacts/funnel/sprint-i/fixture_lever.html', 'ats_type': 'lever',"
+    },
+    {
+      "name": "w6_flow_outreach_step",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w6_preview_empty_skeleton",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w6_jobs_empty_copy",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "finished_at": "2026-08-03T21:11:16.120655+00:00"
+}

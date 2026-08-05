@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w98_search_debounce",
+      "ok": true
+    },
+    {
+      "name": "w99_soft_confirm_copy",
+      "ok": true
+    }
+  ]
+}

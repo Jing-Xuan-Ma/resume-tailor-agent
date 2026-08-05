@@ -1,0 +1,18 @@
+{
+  "active": 161,
+  "median_age_hours": 14.7,
+  "under72h_share": 0.64,
+  "skillful_share": 0.776,
+  "preferred_source_share": 0.994,
+  "closed_thin": 0,
+  "baseline_skillful": {
+    "ingest_fetched_gt0": true,
+    "jobspy_present": true,
+    "adzuna_ads_not_active": true,
+    "active_quality_ratio_ge_70pct": true,
+    "median_body_len_ge_800": true,
+    "skillful_share_ge_40pct": true,
+    "sample_scores_not_stuck_at_35": true,
+    "rejected_or_closed_thin": true
+  }
+}

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><title>Lever Sandbox</title>
+<style>body{font-family:system-ui;max-width:520px;margin:32px auto}label{display:block;margin:10px 0 4px;font-weight:600}input,select,textarea,button{width:100%;padding:8px;box-sizing:border-box}button{margin-top:14px;background:#111;color:#fff;border:0;font-weight:700}.hint{font-size:12px;color:#64748b;margin:0 0 8px}</style>
+</head><body>
+<h1 data-ats="lever">Lever Apply Sandbox</h1>
+<p class="hint">Sandbox form — Submit only sets a marker; automation must never click it.</p>
+<form id="application-form" onsubmit="event.preventDefault();document.getElementById('msg').textContent='SUBMITTED';">
+<label for="name">Full name</label>
+<input name="name" id="name" autocomplete="name" required/>
+<label for="email">Email</label>
+<input name="email" id="email" type="email" autocomplete="email" required/>
+<label for="phone">Phone</label>
+<input name="phone" id="phone" type="tel" autocomplete="tel"/>
+<label for="linkedin">LinkedIn</label>
+<input name="urls[LinkedIn]" id="linkedin"/>
+<label for="website">Website</label>
+<input name="urls[Portfolio]" id="website"/>
+<label for="resume-upload">Resume</label>
+<input id="resume-upload" name="resume" type="file" accept=".pdf,.doc,.docx"/>
+<label for="sponsorship">Will you now or in the future require visa sponsorship?</label>
+<select id="sponsorship" name="customQuestions[sponsorship]">
+  <option value="">Select…</option>
+  <option value="Yes">Yes</option>
+  <option value="No">No</option>
+</select>
+<label for="screening_lever">Why do you want to work here?</label>
+<textarea id="screening_lever" name="customQuestions[why]" rows="3" placeholder="Open-ended — do not auto-fill"></textarea>
+<button type="submit">Submit application</button>
+</form><p id="msg"></p>
+</body></html>

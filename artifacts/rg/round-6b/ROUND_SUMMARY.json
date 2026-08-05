@@ -1,0 +1,552 @@
+{
+  "round": "round-6b",
+  "timestamp": "2026-08-03T07:36:44.300203+00:00",
+  "identity_pages": 1,
+  "n": 10,
+  "format_pass": 10,
+  "avg_format": 10.0,
+  "avg_match": 9.6,
+  "avg_honesty": 10.0,
+  "all_format_pass": true,
+  "results": [
+    {
+      "jd_id": "jd01_da_sql_tableau",
+      "company": "Contoso Insights",
+      "title": "Data Analyst",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 15,
+          "approx_chars": 3621,
+          "jd_core_covered": 4,
+          "jd_core_missing_in_projection": [
+            "excel"
+          ],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page": 10
+      },
+      "screenshot": true,
+      "pdf_pages": 1,
+      "hyperlinks": {
+        "ok": true,
+        "errors": [],
+        "master": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        },
+        "generated": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        }
+      },
+      "agent_notes": [
+        "Word PDF 1-page + hyperlinks OK."
+      ]
+    },
+    {
+      "jd_id": "jd02_analytics_engineer",
+      "company": "Streamly",
+      "title": "Analytics Engineer",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 15,
+          "approx_chars": 3621,
+          "jd_core_covered": 5,
+          "jd_core_missing_in_projection": [],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page": 10
+      },
+      "screenshot": true,
+      "pdf_pages": 1,
+      "hyperlinks": {
+        "ok": true,
+        "errors": [],
+        "master": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        },
+        "generated": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        }
+      },
+      "agent_notes": [
+        "Word PDF 1-page + hyperlinks OK."
+      ]
+    },
+    {
+      "jd_id": "jd03_risk_analyst",
+      "company": "Harbor Insurance",
+      "title": "Risk Analyst Intern",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": [
+          "paragraph_count_grew 48->49 (carve/swap spacer)"
+        ]
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 15,
+          "approx_chars": 3621,
+          "jd_core_covered": 2,
+          "jd_core_missing_in_projection": [],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page": 10
+      },
+      "screenshot": true,
+      "pdf_pages": 1,
+      "hyperlinks": {
+        "ok": true,
+        "errors": [],
+        "master": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        },
+        "generated": {
+          "paragraphs": 49,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 49,
+          "unique_para_ids": 49
+        }
+      },
+      "agent_notes": [
+        "Word PDF 1-page + hyperlinks OK."
+      ]
+    },
+    {
+      "jd_id": "jd04_quant_analytics",
+      "company": "Shen Capital Desk",
+      "title": "Quantitative Analytics Intern",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 15,
+          "approx_chars": 3621,
+          "jd_core_covered": 2,
+          "jd_core_missing_in_projection": [],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page": 10
+      },
+      "screenshot": true,
+      "pdf_pages": 1,
+      "hyperlinks": {
+        "ok": true,
+        "errors": [],
+        "master": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        },
+        "generated": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        }
+      },
+      "agent_notes": [
+        "Word PDF 1-page + hyperlinks OK."
+      ]
+    },
+    {
+      "jd_id": "jd05_bi_analyst",
+      "company": "Northwind Retail",
+      "title": "Business Intelligence Analyst",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [
+          "bullet may lack strong opening: Automated format and honesty checks (one-page PD...",
+          "bullet may lack strong opening: Translated quantitative match heuristics into co..."
+        ],
+        "stats": {
+          "bullet_count": 15,
+          "approx_chars": 3621,
+          "jd_core_covered": 2,
+          "jd_core_missing_in_projection": [
+            "excel"
+          ],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page": 10
+      },
+      "screenshot": true,
+      "pdf_pages": 1,
+      "hyperlinks": {
+        "ok": true,
+        "errors": [],
+        "master": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        },
+        "generated": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        }
+      },
+      "agent_notes": [
+        "Word PDF 1-page + hyperlinks OK."
+      ]
+    },
+    {
+      "jd_id": "jd06_junior_ds",
+      "company": "ModelWorks",
+      "title": "Junior Data Scientist",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 15,
+          "approx_chars": 3621,
+          "jd_core_covered": 2,
+          "jd_core_missing_in_projection": [],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page": 10
+      },
+      "screenshot": true,
+      "pdf_pages": 1,
+      "hyperlinks": {
+        "ok": true,
+        "errors": [],
+        "master": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        },
+        "generated": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        }
+      },
+      "agent_notes": [
+        "Word PDF 1-page + hyperlinks OK."
+      ]
+    },
+    {
+      "jd_id": "jd07_short_jd",
+      "company": "BriefCo",
+      "title": "Data Analyst",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 15,
+          "approx_chars": 3621,
+          "jd_core_covered": 2,
+          "jd_core_missing_in_projection": [],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page": 10
+      },
+      "screenshot": true,
+      "pdf_pages": 1,
+      "hyperlinks": {
+        "ok": true,
+        "errors": [],
+        "master": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        },
+        "generated": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        }
+      },
+      "agent_notes": [
+        "Word PDF 1-page + hyperlinks OK."
+      ]
+    },
+    {
+      "jd_id": "jd08_long_jd",
+      "company": "OmniCorp",
+      "title": "Senior Data Analyst",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": [
+          "paragraph_count_grew 48->49 (carve/swap spacer)"
+        ]
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 15,
+          "approx_chars": 3621,
+          "jd_core_covered": 5,
+          "jd_core_missing_in_projection": [
+            "excel"
+          ],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page": 10
+      },
+      "screenshot": true,
+      "pdf_pages": 1,
+      "hyperlinks": {
+        "ok": true,
+        "errors": [],
+        "master": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        },
+        "generated": {
+          "paragraphs": 49,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 49,
+          "unique_para_ids": 49
+        }
+      },
+      "agent_notes": [
+        "Word PDF 1-page + hyperlinks OK."
+      ]
+    },
+    {
+      "jd_id": "jd09_weak_match",
+      "company": "Pixel Labs",
+      "title": "Frontend Engineer",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 15,
+          "approx_chars": 3621,
+          "jd_core_covered": 0,
+          "jd_core_missing_in_projection": [],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 6,
+        "honesty": 10,
+        "one_page": 10
+      },
+      "screenshot": true,
+      "pdf_pages": 1,
+      "hyperlinks": {
+        "ok": true,
+        "errors": [],
+        "master": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        },
+        "generated": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        }
+      },
+      "agent_notes": [
+        "Word PDF 1-page + hyperlinks OK.",
+        "Match weak or intentionally honest for off-target JD."
+      ]
+    },
+    {
+      "jd_id": "jd10_ops_analytics",
+      "company": "FleetMetrics",
+      "title": "Operations Analyst",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [
+          "bullet may lack strong opening: Automated end-to-end job-application prep: JD pa...",
+          "bullet may lack strong opening: Documented failure modes (multi-page spill, brok..."
+        ],
+        "stats": {
+          "bullet_count": 15,
+          "approx_chars": 3621,
+          "jd_core_covered": 2,
+          "jd_core_missing_in_projection": [
+            "excel"
+          ],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page": 10
+      },
+      "screenshot": true,
+      "pdf_pages": 1,
+      "hyperlinks": {
+        "ok": true,
+        "errors": [],
+        "master": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        },
+        "generated": {
+          "paragraphs": 48,
+          "hyperlinks": 3,
+          "external_rels": 3,
+          "para_ids": 48,
+          "unique_para_ids": 48
+        }
+      },
+      "agent_notes": [
+        "Word PDF 1-page + hyperlinks OK."
+      ]
+    }
+  ]
+}

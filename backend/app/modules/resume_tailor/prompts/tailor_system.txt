@@ -47,6 +47,27 @@ Content rules:
 - Use the exact template section headings: "EDUCATION", "PROFESSIONAL EXPERIENCE", "PROJECTS", "COMPETITIONS", "SKILLS & CERTIFICATIONS".
 - Ensure all skills mentioned in the JD appear somewhere in the resume (if the user possesses them).
 - Avoid tables, text boxes, images, headers/footers with critical info, or complex formatting.
+- **ATS-hostile characters are forbidden in all resume text** (summary, bullets, skills, headings):
+  - No arrows or fancy glyphs: `→ ← ⇒ ⇐ ➜ ➔ ➡ • ● ◆ ■ ★ ✓ ✔ ✗`
+  - Prefer ASCII separators: commas, pipes `|`, hyphens `-`, or words like "to" / "then"
+  - Example BAD: `JD ingest → OOXML inject → PDF validate`
+  - Example GOOD: `JD ingest, OOXML inject, and PDF validate`
+- Keep technical keywords (tool/library/product names) exact when present in inventory; do not paraphrase RAG, FastAPI, Tableau, etc. into softer marketing language.
+
+## WRITING STANDARDS (ALL GENERATED RESUMES)
+
+- Experience order is reverse-chronological (newest first). New internships go at the top of PROFESSIONAL EXPERIENCE when dates warrant it.
+- Within one experience, vary action verbs across capability dimensions (Built / Designed / Delivered / Integrated / Optimized); do not start every bullet with the same verb.
+- Prefer situation-action-result; match density of neighboring bullets (not much longer or shorter).
+- When shortening for one page: delete by **information overlap**, not by length — prefer dropping a project that duplicates another project's method/tools/domain; do not drop verified completed work/internships first.
+- Never invent facts (company, title, dates, metrics). Uncertain facts stay as given.
+- Fact fields (company/title/dates/location) are copy-through only; rewrite wording on bullets/summary only.
+
+## FORMAT LOCK (CONTENT VS STYLE)
+
+- LLM outputs **content JSON only**. Word styles come from the master DOCX OOXML shell.
+- Experience headings in Word: left side (title | company) is bold; right side (location | dates) is **not** bold — never emit markdown that implies the whole heading line is bold.
+- Do not invent layout instructions (fonts, margins, colors).
 
 ## OUTPUT FORMAT
 

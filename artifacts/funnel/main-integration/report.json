@@ -1,0 +1,115 @@
+{
+  "main_integration": true,
+  "passed": true,
+  "ux_avg": 4.4,
+  "ux": [
+    {
+      "name": "jobs_clarity",
+      "score": 4,
+      "note": "source+age+scores visible"
+    },
+    {
+      "name": "detail_trust",
+      "score": 4,
+      "note": "honest match labels"
+    },
+    {
+      "name": "tailor_speed",
+      "score": 5,
+      "note": "HTML first-paint or master PDF"
+    },
+    {
+      "name": "apply_safety",
+      "score": 5,
+      "note": "pause before submit explicit"
+    },
+    {
+      "name": "outreach_flow",
+      "score": 4,
+      "note": "playbook + draft works"
+    }
+  ],
+  "checks": [
+    {
+      "name": "prior_agent1",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "prior_agent2",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "prior_agent3",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "prior_agent4",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "jobs_available",
+      "ok": true,
+      "detail": "18"
+    },
+    {
+      "name": "scores_varied",
+      "ok": true,
+      "detail": "[37, 38, 48, 51, 53, 54, 58, 59, 60, 64]"
+    },
+    {
+      "name": "ui_jobs",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_detail_honest_labels",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_tailor",
+      "ok": true,
+      "detail": "2059618c-25f4-4d8a-baca-f4ff452e7de4"
+    },
+    {
+      "name": "ui_stepper",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "db_version_confirmed",
+      "ok": true,
+      "detail": "2059618c-25f4-4d8a-baca-f4ff452e7de4 (1,)"
+    },
+    {
+      "name": "ui_apply_checklist",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_paused",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_outreach",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_hm_playbook",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ui_outreach_draft_or_crm",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "job_id": "5c6399fa-352c-4ef9-998e-8c47ebd41eb3"
+}

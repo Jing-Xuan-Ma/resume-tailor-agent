@@ -1,15 +1,43 @@
-"""JobSpy integration with a deterministic fallback.
+"""JobSpy integration with subprocess isolation.
 
-`python-jobspy` is an optional runtime dependency. When it is not installed, or
-when a job board blocks the request, this provider returns an empty list so the
-router can fall back to local synthetic leads and keep the product usable.
+Why isolate:
+  `python-jobspy` (pinned numpy) can hard-crash the interpreter on Windows
+  Python 3.14 — ACCESS_VIOLATION kills the whole API process. Scraping in a
+  child process keeps uvicorn alive even when JobSpy dies.
+
+Why that can still drag the API:
+  A sync `subprocess.run` inside an async route blocks the event loop for the
+  full scrape (up to timeout). Callers must run `discover` via
+  `asyncio.to_thread` (orchestrator does this). Prefer `JOBSPY_PYTHON` pointing
+  at a dedicated 3.12 venv so the API stays on 3.14 while JobSpy stays stable.
 """
 
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 from typing import Any
+
+from app.config import settings
+
+_SCRAPER = Path(__file__).with_name("_jobspy_scrape_worker.py")
+
+
+def _worker_python() -> str:
+    configured = (settings.JOBSPY_PYTHON or "").strip()
+    if configured:
+        return configured
+    return sys.executable
 
 
 class JobSpyProvider:
     name = "jobspy"
+
+    def __init__(self) -> None:
+        self.last_error: str | None = None
 
     def discover(
         self,
@@ -21,54 +49,85 @@ class JobSpyProvider:
         hours_old: int | None = None,
         country_indeed: str = "USA",
     ) -> list[dict[str, Any]]:
-        try:
-            from jobspy import scrape_jobs
-        except Exception:
-            return []
+        """Blocking scrape — always invoke from a worker thread, not the event loop."""
+        self.last_error = None
+        site_name = sites or ["indeed"]
+        payload = {
+            "query": query,
+            "location": location,
+            "limit": int(limit),
+            "sites": site_name,
+            "hours_old": hours_old,
+            "country_indeed": country_indeed,
+        }
+        python_bin = _worker_python()
 
-        site_name = sites or ["indeed", "linkedin", "zip_recruiter", "google"]
-        try:
-            frame = scrape_jobs(
-                site_name=site_name,
-                search_term=query,
-                google_search_term=f"{query} jobs {location or ''}".strip(),
-                location=location,
-                results_wanted=limit,
-                hours_old=hours_old,
-                country_indeed=country_indeed,
-                verbose=0,
-                description_format="markdown",
-            )
-        except Exception:
-            return []
+        # System HTTP(S)_PROXY (e.g. 127.0.0.1:1080) often points at a local
+        # VPN that is down — JobSpy then fails with ProxyError while direct
+        # Indeed access works. Prefer a clean env for the scrape child.
+        child_env = {
+            k: v
+            for k, v in __import__("os").environ.items()
+            if k.upper()
+            not in {
+                "HTTP_PROXY",
+                "HTTPS_PROXY",
+                "ALL_PROXY",
+                "http_proxy",
+                "https_proxy",
+                "all_proxy",
+            }
+        }
 
-        records = frame.to_dict("records") if hasattr(frame, "to_dict") else []
-        jobs = []
-        for item in records[:limit]:
-            title = item.get("title") or item.get("TITLE") or "Untitled Job"
-            company = item.get("company") or item.get("COMPANY")
-            city = item.get("city") or item.get("CITY")
-            state = item.get("state") or item.get("STATE")
-            country = item.get("country") or item.get("COUNTRY")
-            job_location = ", ".join(str(v) for v in [city, state, country] if v) or location
-            description = item.get("description") or item.get("DESCRIPTION") or ""
-            job_url = item.get("job_url") or item.get("JOB_URL")
-            site = item.get("site") or item.get("SITE") or "jobspy"
-            raw_text = f"""{title}
-Company: {company or ''}
-Location: {job_location or ''}
-Source: {site}
-URL: {job_url or ''}
+        with tempfile.TemporaryDirectory(prefix="jobspy_") as tmp:
+            in_path = Path(tmp) / "in.json"
+            out_path = Path(tmp) / "out.json"
+            in_path.write_text(json.dumps(payload), encoding="utf-8")
+            try:
+                proc = subprocess.run(
+                    [python_bin, str(_SCRAPER), str(in_path), str(out_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    check=False,
+                    env=child_env,
+                )
+            except subprocess.TimeoutExpired:
+                self.last_error = "scrape_timeout_120s"
+                return []
+            except Exception as exc:  # noqa: BLE001
+                self.last_error = f"subprocess_failed: {exc}"
+                return []
 
-{description}
-""".strip()
-            jobs.append({
-                "title": str(title),
-                "company": str(company) if company else None,
-                "location": str(job_location) if job_location else None,
-                "source_url": str(job_url) if job_url else None,
-                "source_platform": f"jobspy:{site}",
-                "raw_text": raw_text,
-                "metadata": item,
-            })
-        return jobs
+            if proc.returncode != 0:
+                err_tail = (proc.stderr or proc.stdout or "").strip()[-400:]
+                # Worker may still write a JSON error payload on non-zero exit.
+                if out_path.exists():
+                    try:
+                        data = json.loads(out_path.read_text(encoding="utf-8"))
+                        if data.get("error"):
+                            self.last_error = str(data["error"])
+                            return []
+                    except Exception:  # noqa: BLE001
+                        pass
+                self.last_error = f"scrape_exit_{proc.returncode}: {err_tail or 'no_stderr'}"
+                return []
+
+            if not out_path.exists():
+                self.last_error = "missing_output"
+                return []
+
+            try:
+                data = json.loads(out_path.read_text(encoding="utf-8"))
+            except Exception as exc:  # noqa: BLE001
+                self.last_error = f"bad_output: {exc}"
+                return []
+
+            if data.get("error"):
+                self.last_error = str(data["error"])
+                return []
+
+            jobs = data.get("jobs") or []
+            if not jobs:
+                self.last_error = "empty_result"
+            return jobs

@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w120_category_ls_key",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w120_category_restored",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w120_category_active_style",
+      "ok": true,
+      "detail": "whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transiti"
+    }
+  ]
+}

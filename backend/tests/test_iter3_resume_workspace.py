@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from uuid import uuid4
 
@@ -76,9 +77,32 @@ def test_iter3_tailor_loop_confirm_and_version_cap() -> None:
     files = list(final_path.glob("*"))
     assert any(p.suffix == ".txt" for p in files), files
     assert any(p.name == "meta.json" for p in files), files
-    assert any(p.suffix == ".docx" for p in files) or any(
-        p.suffix == ".pdf" for p in files
-    ), files
+    assert any(p.suffix == ".docx" for p in files), files
+    assert any(p.suffix == ".pdf" for p in files), files
+    meta = json.loads((final_path / "meta.json").read_text(encoding="utf-8"))
+    assert "job_id" in meta
+    assert meta.get("job_id") == "mock_job_da_001"
+    assert meta.get("confirmed_at")
+    assert meta.get("apply_status") == "not_started"
+    assert meta.get("outreach_status") == "not_started"
+
+    # Preview must be Word-ish PDF without Markdown markers in extracted text
+    preview = client.get(
+        f"/api/v1/resume-workspace/resume-version/{latest}/preview",
+        params={"user_id": user},
+    )
+    assert preview.status_code == 200, preview.text
+    assert preview.headers["content-type"].startswith("application/pdf")
+    assert len(preview.content) > 5000
+    # Word PDFs may contain b'##' in compressed streams — check text layer only
+    try:
+        import fitz
+
+        text = fitz.open(stream=preview.content, filetype="pdf")[0].get_text("text")
+        assert "##" not in text
+        assert "**" not in text
+    except ImportError:
+        pass
 
     export = client.get(
         f"/api/v1/resume-workspace/resume-version/{latest}/export",

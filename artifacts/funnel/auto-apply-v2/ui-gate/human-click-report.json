@@ -1,0 +1,139 @@
+{
+  "pass": true,
+  "hard_pass": true,
+  "score_over_5": 5.0,
+  "version_id": "9e308f0f-962b-4d5c-be31-8952e4212127",
+  "session_id": "287428ef-5e98-49b1-a41f-4576e0153bf7",
+  "checks": [
+    {
+      "name": "apply_page",
+      "ok": true,
+      "detail": "http://127.0.0.1:3000/apply?versionId=9e308f0f-962b-4d5c-be31-8952e4212127&sessionId=287428ef-5e98-49b1-a41f-4576e0153bf7&company=Greenhouse+Demo&position=Data+Analyst&sourceUrl=https%3A%2F%2Fboards.greenhouse.io%2Fairbnb%2Fjobs%2F1234567&finalPath=d%3A%5Cresume-agent%5Cdata%5Cfinal_resumes%5C_ui_gate_Greenhouse_Demo_Data_Analyst"
+    },
+    {
+      "name": "no_404",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "confirmed_badge",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "auto_btn_visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "auto_btn_enabled",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "auto_result_visible",
+      "ok": true,
+      "detail": "12.7s status=paused_before_submit"
+    },
+    {
+      "name": "not_error_status",
+      "ok": true,
+      "detail": "paused_before_submit"
+    },
+    {
+      "name": "paused_banner",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tiers_visible",
+      "ok": true,
+      "detail": "fill_plan=9"
+    },
+    {
+      "name": "api_submitted_false",
+      "ok": true,
+      "detail": "False"
+    },
+    {
+      "name": "browser_filled_or_checklist",
+      "ok": true,
+      "detail": "filled_paused_before_submit"
+    },
+    {
+      "name": "gate_checkbox",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "confirm_locked_before",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "confirm_btn_clickable",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "company_tab_opened",
+      "ok": true,
+      "detail": "https://careers.airbnb.com/positions/"
+    },
+    {
+      "name": "post_confirm_panel",
+      "ok": true,
+      "detail": "submitted_by_user_confirm"
+    },
+    {
+      "name": "final_path_shown",
+      "ok": true,
+      "detail": "d:\\resume-agent\\data\\final_resumes\\_ui_gate_Greenhouse_Demo_Data_Analyst"
+    },
+    {
+      "name": "download_still_there",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "reopen_or_official",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "back_tailor_link",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "back_has_versionId",
+      "ok": true,
+      "detail": "/?view=resume&step=tailor&sessionId=287428ef-5e98-49b1-a41f-4576e0153bf7&versionId=9e308f0f-962b-4d5c-be31-8952e4212127"
+    },
+    {
+      "name": "back_has_sessionId",
+      "ok": true,
+      "detail": "/?view=resume&step=tailor&sessionId=287428ef-5e98-49b1-a41f-4576e0153bf7&versionId=9e308f0f-962b-4d5c-be31-8952e4212127"
+    },
+    {
+      "name": "tailor_restored_version",
+      "ok": true,
+      "detail": "RESUME AGENT Demo User Ranked jobs Profile Tailor Pipeline Records Logout ← Jobs 1. Archive / 2. Match / 3. JD / 4. Tailor / 5. Apply / 6. Outreach Paste JD Confirm DOCX PDF Shortcuts: Confirm Ctrl+Sh"
+    },
+    {
+      "name": "tailor_not_empty_hint_only",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "notes": [],
+  "api_fill_plan_len": 9,
+  "map_provider": "rules",
+  "browser_fill_status": "filled_paused_before_submit",
+  "confirm_status": "submitted_by_user_confirm",
+  "opened_urls": [
+    "https://careers.airbnb.com/positions/",
+    "https://careers.airbnb.com/positions/"
+  ],
+  "popup_sample": "https://careers.airbnb.com/positions/"
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { isLivePostingUrl } from "@/lib/posting-url";
 
 interface Stage3Result {
   atsScore: number;
@@ -40,6 +41,16 @@ interface JobSummary {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 function pct(v: number) { return Math.round(v * 100); }
+
+function relativeDate(iso: string) {
+  if (!iso) return "—";
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms)) return "—";
+  const hours = Math.max(1, Math.round(ms / 3600000));
+  if (hours < 48) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
 
 function colorClass(score: number): string {
   if (score >= 85) return "bg-green-50 text-green-800 ring-1 ring-green-200";
@@ -159,7 +170,14 @@ export default function JobsWorkspace({ userId, onGoToWorkspace }: JobsWorkspace
   };
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col bg-[#eef2f7]">
+    <div className="flex min-w-0 flex-1 flex-col bg-[#eef2f7]" data-testid="jobs-archive">
+      <div
+        className="border-b border-amber-200 bg-amber-50 px-6 py-2.5 text-xs text-amber-950"
+        data-testid="jobs-secondary-banner"
+      >
+        <strong>Archive / inventory</strong> — primary discovery is the Jobright Chrome extension
+        (Tailor · Apply · Outreach). This list is history and multi-source stock, not the main entry.
+      </div>
       {/* Top Filter Bar */}
       <div className="flex items-center gap-3 border-b border-slate-200 bg-white/95 px-6 py-3 shadow-sm backdrop-blur">
         <div className="flex items-center gap-2">
@@ -239,14 +257,37 @@ export default function JobsWorkspace({ userId, onGoToWorkspace }: JobsWorkspace
         <div className="flex w-[62%] min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             <span className="flex-1">Company / Position</span>
-            <span className="w-16 text-center">Match</span>
+            <span className="w-16 text-center" title="Match = resume↔JD heuristic (skills + ATS keywords), not interview odds">
+              Match
+            </span>
             <span className="w-16 text-center">Source</span>
+            <span className="w-16 text-center">Posted</span>
             <span className="w-24 text-center">Status</span>
           </div>
           <div className="flex-1 overflow-y-auto">
             {jobs.length === 0 ? (
-              <div className="flex items-center justify-center py-16 text-sm text-slate-400">
-                {loading ? "Loading..." : "No jobs match your criteria."}
+              <div
+                className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center"
+                data-testid="pipeline-jobs-empty"
+              >
+                <p className="text-sm font-semibold text-slate-800">
+                  {loading ? "Loading pipeline…" : "No jobs match your criteria"}
+                </p>
+                {!loading ? (
+                <p className="max-w-sm text-xs text-slate-500">
+                  Lower the match threshold, clear filters, or open Ranked Jobs to browse the full catalog.
+                  Match scores are resume↔JD heuristics — not interview odds.
+                </p>
+                ) : null}
+                {!loading ? (
+                  <a
+                    href="/jobs"
+                    className="mt-2 inline-flex h-8 items-center rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700"
+                    data-testid="pipeline-goto-ranked"
+                  >
+                    Open ranked jobs
+                  </a>
+                ) : null}
               </div>
             ) : (
               <div className="divide-y divide-slate-50">
@@ -259,11 +300,15 @@ export default function JobsWorkspace({ userId, onGoToWorkspace }: JobsWorkspace
                       onClick={() => handleSelectJob(job.id)}
                       className={`flex cursor-pointer items-center gap-4 px-5 py-3 transition hover:bg-slate-50 ${isSelected ? "bg-blue-50/60 ring-1 ring-blue-200" : ""}`}>
                       <div className="flex-1 min-w-0">
-                        <a href={job.originalUrl} target="_blank" rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-sm font-bold text-slate-950 hover:text-blue-600 hover:underline">
-                          {job.company}
-                        </a>
+                        {isLivePostingUrl(job.originalUrl) ? (
+                          <a href={job.originalUrl} target="_blank" rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-sm font-bold text-slate-950 hover:text-blue-600 hover:underline">
+                            {job.company}
+                          </a>
+                        ) : (
+                          <span className="text-sm font-bold text-slate-950">{job.company}</span>
+                        )}
                         <p className="truncate text-xs text-slate-500">{job.title}</p>
                       </div>
                       <div className="w-16 text-center">
@@ -276,7 +321,14 @@ export default function JobsWorkspace({ userId, onGoToWorkspace }: JobsWorkspace
                         )}
                       </div>
                       <div className="w-16 text-center">
-                        <span className="text-xs text-slate-500">{job.source}</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500" data-testid="job-source">
+                          {job.source}
+                        </span>
+                      </div>
+                      <div className="w-16 text-center">
+                        <span className="text-[11px] text-slate-500" data-testid="job-posted-age">
+                          {relativeDate(job.scrapedAt)}
+                        </span>
                       </div>
                       <div className="w-24 text-center">
                         <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${sb.className}`}>
@@ -360,8 +412,11 @@ export default function JobsWorkspace({ userId, onGoToWorkspace }: JobsWorkspace
 
               {/* Actions */}
               <div className="mt-auto flex flex-col gap-2">
-                <button onClick={handleToWorkspace}
-                  className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+                <button
+                  onClick={handleToWorkspace}
+                  data-testid="pipeline-goto-workspace"
+                  className="w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+                >
                   Go to Resume Workspace
                 </button>
                 <div className="flex gap-2">
@@ -369,10 +424,31 @@ export default function JobsWorkspace({ userId, onGoToWorkspace }: JobsWorkspace
                     className="flex-1 rounded-xl border border-slate-200 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
                     Re-score
                   </button>
-                  <a href={selectedJob.originalUrl} target="_blank" rel="noreferrer"
-                    className="flex-1 rounded-xl border border-slate-200 py-2 text-center text-xs font-semibold text-slate-600 hover:bg-slate-50">
-                    Open Original
-                  </a>
+                  {isLivePostingUrl(selectedJob.originalUrl) ? (
+                    <>
+                      <a href={selectedJob.originalUrl} target="_blank" rel="noreferrer"
+                        className="flex-1 rounded-xl border border-slate-200 py-2 text-center text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                        Open Original
+                      </a>
+                      <button
+                        type="button"
+                        data-testid="pipeline-copy-url"
+                        className="flex-1 rounded-xl border border-slate-200 py-2 text-center text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(selectedJob.originalUrl).then(
+                            () => setMessage("Posting URL copied"),
+                            () => setMessage("Copy failed")
+                          );
+                        }}
+                      >
+                        Copy URL
+                      </button>
+                    </>
+                  ) : (
+                    <span className="flex-1 rounded-xl border border-dashed border-slate-200 bg-slate-50 py-2 text-center text-xs font-semibold text-slate-400">
+                      Demo — no live URL
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

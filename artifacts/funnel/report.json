@@ -1,0 +1,29 @@
+{
+  "agent": "agent2-tailor-store",
+  "passed": true,
+  "ready": "READY_FOR_MAIN_AGENT",
+  "final_path": "D:\\resume-agent\\data\\final_resumes\\Agent2_Gate_Co_Data_Analyst",
+  "meta_contract": {
+    "job_id": "agent2_gate_job_da_001",
+    "confirmed_at": "2026-08-03T14:58:56.633340+00:00",
+    "apply_status": "not_started",
+    "outreach_status": "not_started"
+  },
+  "preview": {
+    "engine": "ooxml_word_pdf",
+    "pdf_size": 321572,
+    "pages": 1,
+    "markdown_markers_in_text": false
+  },
+  "tests": {
+    "test_iter3_resume_workspace": "2 passed",
+    "gate": "artifacts/funnel/agent2/report.json"
+  },
+  "screenshots": [
+    "artifacts/funnel/agent2/01-preview-page.png",
+    "artifacts/funnel/agent2/02-word-pdf-preview.png",
+    "artifacts/funnel/agent2/03-tailor-workspace.png",
+    "artifacts/funnel/agent2/04-after-confirm.png"
+  ],
+  "out_of_scope": ["ats_fill", "cold_email", "apply_flow"]
+}

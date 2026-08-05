@@ -1,0 +1,56 @@
+{
+  "checks": [
+    {
+      "name": "api_health",
+      "passed": true,
+      "detail": "{\"status\":\"healthy\",\"version\":\"0.1.0\",\"env\":\"development\"}"
+    },
+    {
+      "name": "upsert_lead",
+      "passed": true,
+      "detail": "{\"id\":\"27e7d5d7-b780-45aa-9ae4-3ed403fefd0d\",\"created\":false,\"source_platform\":\"jobright_extension\",\"quality_ok\":true,\"quality_reason\":\"pass\",\"workspace_url\":\"http://localhost:3000/?view=resume&jobId=27e7d5d7-b780-45aa-9ae4-3ed403fefd0d\",\"apply_step_url\":\"http://localhost:3000/?view=resume&jobId=27e"
+    },
+    {
+      "name": "mock_title",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "mock_jd_len",
+      "passed": true,
+      "detail": "1147"
+    },
+    {
+      "name": "fab_visible",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "sidepanel_steps",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "workspace_open",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "apply_panel_present",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "outreach_panel_present",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "ok": true,
+  "job_id": "27e7d5d7-b780-45aa-9ae4-3ed403fefd0d",
+  "urls": {
+    "workspace": "http://localhost:3000/?view=resume&jobId=27e7d5d7-b780-45aa-9ae4-3ed403fefd0d",
+    "apply": "http://localhost:3000/?view=resume&jobId=27e7d5d7-b780-45aa-9ae4-3ed403fefd0d&step=apply",
+    "outreach": "http://localhost:3000/?view=resume&jobId=27e7d5d7-b780-45aa-9ae4-3ed403fefd0d&step=outreach"
+  }
+}

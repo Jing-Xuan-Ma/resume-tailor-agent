@@ -1,0 +1,59 @@
+{
+  "sample": [
+    {
+      "title": "Business Intel Architect - Self-Pay, Analytics & Revenue Cyc",
+      "final": 66,
+      "ats": 77,
+      "skill": 81
+    },
+    {
+      "title": "Security Assistance Data Analyst",
+      "final": 66,
+      "ats": 83,
+      "skill": 88
+    },
+    {
+      "title": "Online Data Analyst Canada (French Language) (C)",
+      "final": 64,
+      "ats": 100,
+      "skill": 100
+    },
+    {
+      "title": "Mgr Data Analytics & Business Intelligence",
+      "final": 63,
+      "ats": 75,
+      "skill": 81
+    },
+    {
+      "title": "BUSINESS ANALYST",
+      "final": 62,
+      "ats": 75,
+      "skill": 85
+    },
+    {
+      "title": "Sr Specialist Data Analytics & Business Intelligence",
+      "final": 62,
+      "ats": 71,
+      "skill": 77
+    },
+    {
+      "title": "Program Analyst - Data and Analytics",
+      "final": 61,
+      "ats": 71,
+      "skill": 80
+    },
+    {
+      "title": "Aviation Data Analyst - Multiple Levels",
+      "final": 61,
+      "ats": 62,
+      "skill": 70
+    }
+  ],
+  "unique": [
+    61,
+    62,
+    63,
+    64,
+    66
+  ]
+}

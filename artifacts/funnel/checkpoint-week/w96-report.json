@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w96_copy_url_btn",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w97_threshold_debounce",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w96_copy_feedback",
+      "ok": true,
+      "detail": "Posting URL copied"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
-Autonomous iteration ENABLED.
-
-Cursor stop-hook will auto-continue Agent turns while this file exists.
-
-To pause: create artifacts/AUTONOMOUS_PAUSE (or delete this file).
-To mark finished: create artifacts/AUTONOMOUS_DONE (also auto-created after Iter-8).
+status: unattended_running
+mission: jobright_extension_workbench_phase1
+phase1: PASS
+report: artifacts/jr-bridge-report.md
+screenshots: artifacts/ui/jobright-bridge/
+next: phase2_sidepanel_iframe_embed (optional)
+pause: artifacts/AUTONOMOUS_PAUSE

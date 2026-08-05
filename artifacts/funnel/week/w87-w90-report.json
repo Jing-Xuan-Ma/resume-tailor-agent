@@ -1,0 +1,41 @@
+{
+  "wave": "26-28",
+  "passed": true,
+  "checks": [
+    {
+      "name": "w81_confirm_shortcut",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w83_hide_stale_ready_guard",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w87_escape_paste_jd",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w87_confirm_next_apply",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w87_scroll_apply_after_confirm",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w88_pipeline_match_honesty",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w90_stepper_jump",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "jd_id": "jd05_bi_analyst",
+  "company": "Northwind Retail",
+  "title": "Business Intelligence Analyst",
+  "format": {
+    "ok": true,
+    "score": 10,
+    "errors": [],
+    "warnings": []
+  },
+  "quality_gate": {
+    "ok": true,
+    "errors": [],
+    "warnings": [
+      "bullet may lack strong opening: Automated format and honesty checks (one-page PD...",
+      "bullet may lack strong opening: Translated quantitative match heuristics into co..."
+    ],
+    "stats": {
+      "bullet_count": 15,
+      "approx_chars": 3621,
+      "jd_core_covered": 2,
+      "jd_core_missing_in_projection": [
+        "excel"
+      ],
+      "hidden_entries": 1
+    }
+  },
+  "scores": {
+    "format": 10,
+    "match": 10,
+    "honesty": 10,
+    "one_page": 10
+  },
+  "screenshot": true,
+  "pdf_pages": 1,
+  "hyperlinks": {
+    "ok": true,
+    "errors": [],
+    "master": {
+      "paragraphs": 48,
+      "hyperlinks": 3,
+      "external_rels": 3,
+      "para_ids": 48,
+      "unique_para_ids": 48
+    },
+    "generated": {
+      "paragraphs": 48,
+      "hyperlinks": 3,
+      "external_rels": 3,
+      "para_ids": 48,
+      "unique_para_ids": 48
+    }
+  },
+  "agent_notes": [
+    "Word PDF 1-page + hyperlinks OK."
+  ]
+}

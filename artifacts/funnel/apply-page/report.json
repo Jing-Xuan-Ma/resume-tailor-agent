@@ -1,0 +1,57 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "apply_page_loaded",
+      "ok": true,
+      "detail": "http://127.0.0.1:3000/apply?versionId=071d01b0-ba09-4dae-a2c1-d6bec452d707&company=TestCo&position=Data+Analyst"
+    },
+    {
+      "name": "confirm_gate_visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "version_confirmed_ui",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "manual_enabled",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "manual_status",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "auto_review_steps",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "paused_or_checklist",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "review_navigation",
+      "ok": true,
+      "detail": "flipped profile\u2192ats\u2192resume\u2192pause"
+    },
+    {
+      "name": "tailor_apply_panel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "unconfirmed_shows_confirm_cta",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "version_id": "071d01b0-ba09-4dae-a2c1-d6bec452d707",
+  "user_id": "251bd13a-aaa8-4fb9-90b3-f886bab730e6"
+}

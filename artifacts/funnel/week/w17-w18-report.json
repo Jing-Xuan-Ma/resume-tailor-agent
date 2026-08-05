@@ -1,0 +1,21 @@
+{
+  "wave": 4,
+  "passed": true,
+  "checks": [
+    {
+      "name": "w17_hide_stale_toggle",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w17_filters_stale_rows",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w18_goto_confirm_cta",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

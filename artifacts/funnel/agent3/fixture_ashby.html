@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><title>Ashby Sandbox</title>
+<style>body{font-family:system-ui;max-width:520px;margin:32px auto}label{display:block;margin:10px 0 4px;font-weight:600}input,button{width:100%;padding:8px;box-sizing:border-box}button{margin-top:14px;background:#5b4cff;color:#fff;border:0;font-weight:700}</style>
+</head><body>
+<h1 data-ats="ashby">Ashby Apply Sandbox</h1>
+<form onsubmit="event.preventDefault();document.getElementById('msg').textContent='SUBMITTED';">
+<label>Full name</label><input name="name" id="name" autocomplete="name"/>
+<label>Email</label><input name="email" id="email" type="email"/>
+<label>Phone</label><input name="phone" id="phone" type="tel"/>
+<label>LinkedIn</label><input name="linkedin" id="linkedin"/>
+<label>Website</label><input name="website" id="website"/>
+<button type="submit">Submit Application</button>
+</form><p id="msg"></p>
+</body></html>

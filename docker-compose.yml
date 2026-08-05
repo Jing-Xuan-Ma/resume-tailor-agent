@@ -41,6 +41,35 @@ services:
     volumes:
       - redis_data:/data
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: resume_agent_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      APP_ENV: production
+      STORAGE_BACKEND: postgres
+      DATABASE_URL: postgresql+psycopg://resume_agent:resume_agent_dev@postgres:5432/resume_agent
+      REDIS_URL: redis://redis:6379/0
+      CHROMA_HOST: chroma
+      CHROMA_PORT: 8000
+      ENABLE_BROWSER_FILL_PAUSE: "true"
+      ALLOW_LIVE_BROWSER_FILL: "false"
+      ENABLE_GMAIL_SEND: "false"
+      ENABLE_MULTI_TENANT: "false"
+      ENABLE_BILLING: "false"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./artifacts:/app/artifacts
+
 volumes:
   postgres_data:
   chroma_data:

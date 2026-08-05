@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w59_paste_jd_box",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w59_outreach_panel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w59_copy_or_export",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

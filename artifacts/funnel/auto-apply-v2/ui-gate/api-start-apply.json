@@ -1,0 +1,599 @@
+{
+  "version_id": "a3c99b11-ca17-4e71-80a9-810ec4515f4a",
+  "final_path": "d:\\resume-agent\\data\\final_resumes\\_ui_gate_Greenhouse_Demo_Data_Analyst",
+  "payload": {
+    "apply_id": "6c337100-176f-491d-b4bb-a1fbd4975634",
+    "mode": "auto",
+    "status": "paused_before_submit",
+    "submitted": false,
+    "paused_before_submit": true,
+    "message": "Auto-apply scanned the form, mapped fields to your profile, filled what it could, then stopped before Submit — review the confidence tiers, then you click Submit.",
+    "filled_fields": [
+      {
+        "field": "full_name",
+        "value": "Jingxuan Ma",
+        "tier": "auto"
+      },
+      {
+        "field": "email",
+        "value": "jma107@jh.edu",
+        "tier": "auto"
+      },
+      {
+        "field": "phone",
+        "value": "+1 (410) 240-4366",
+        "tier": "auto"
+      },
+      {
+        "field": "linkedin",
+        "value": "",
+        "tier": "review"
+      },
+      {
+        "field": "portfolio",
+        "value": "",
+        "tier": "review"
+      },
+      {
+        "field": "github",
+        "value": "https://github.com/Jing-Xuan-Ma/resume-tailor-agent",
+        "tier": "review"
+      },
+      {
+        "field": "location",
+        "value": "Baltimore, MD",
+        "tier": "review"
+      },
+      {
+        "field": "work_authorization",
+        "value": "Yes",
+        "tier": "review"
+      },
+      {
+        "field": "needs_sponsorship",
+        "value": "Yes",
+        "tier": "review"
+      },
+      {
+        "field": "resume_upload",
+        "value": "D:\\resume-agent\\data\\final_resumes\\_ui_gate_Greenhouse_Demo_Data_Analyst\\resume.pdf",
+        "tier": "auto",
+        "note": null
+      },
+      {
+        "field": "submit_button",
+        "value": "NOT_CLICKED",
+        "note": "hard stop — pause before submit",
+        "tier": "empty"
+      },
+      {
+        "field": "ats:First name",
+        "value": "Jingxuan",
+        "tier": "auto",
+        "confidence": 0.95,
+        "needs_review": false,
+        "note": "rules:first name",
+        "profile_key": "first_name",
+        "action": "fill"
+      },
+      {
+        "field": "ats:Last name",
+        "value": "Ma",
+        "tier": "auto",
+        "confidence": 0.95,
+        "needs_review": false,
+        "note": "rules:last name",
+        "profile_key": "last_name",
+        "action": "fill"
+      },
+      {
+        "field": "ats:Email",
+        "value": "jma107@jh.edu",
+        "tier": "auto",
+        "confidence": 0.95,
+        "needs_review": false,
+        "note": "rules:email",
+        "profile_key": "email",
+        "action": "fill"
+      },
+      {
+        "field": "ats:Phone",
+        "value": "+1 (410) 240-4366",
+        "tier": "auto",
+        "confidence": 0.92,
+        "needs_review": false,
+        "note": "rules:phone",
+        "profile_key": "phone",
+        "action": "fill"
+      },
+      {
+        "field": "ats:LinkedIn Profile",
+        "value": "",
+        "tier": "empty",
+        "confidence": 0.45,
+        "needs_review": true,
+        "note": "matched linkedin but profile empty",
+        "profile_key": "linkedin",
+        "action": "leave_empty"
+      },
+      {
+        "field": "ats:Website",
+        "value": "",
+        "tier": "empty",
+        "confidence": 0.425,
+        "needs_review": true,
+        "note": "matched portfolio but profile empty",
+        "profile_key": "portfolio",
+        "action": "leave_empty"
+      },
+      {
+        "field": "ats:Resume / CV",
+        "value": "D:\\resume-agent\\data\\final_resumes\\_ui_gate_Greenhouse_Demo_Data_Analyst\\resume.pdf",
+        "tier": "auto",
+        "confidence": 0.9,
+        "needs_review": false,
+        "note": "rules:resume",
+        "profile_key": "resume_path",
+        "action": "upload"
+      },
+      {
+        "field": "ats:Are you legally authorized to work in the United States?",
+        "value": "Yes",
+        "tier": "review",
+        "confidence": 0.75,
+        "needs_review": true,
+        "note": "rules:authorized to work",
+        "profile_key": "work_authorized",
+        "action": "fill"
+      },
+      {
+        "field": "ats:Describe a time you led a cross-functional analytics project",
+        "value": "",
+        "tier": "empty",
+        "confidence": 0.0,
+        "needs_review": true,
+        "note": "unmapped",
+        "profile_key": null,
+        "action": "leave_empty"
+      }
+    ],
+    "ats_fields": [
+      {
+        "field": "first_name",
+        "value": "Jingxuan",
+        "required": true,
+        "type": "text",
+        "ats_type": "greenhouse",
+        "note": "ats_template_map"
+      },
+      {
+        "field": "last_name",
+        "value": "Ma",
+        "required": true,
+        "type": "text",
+        "ats_type": "greenhouse",
+        "note": "ats_template_map"
+      },
+      {
+        "field": "email",
+        "value": "jma107@jh.edu",
+        "required": true,
+        "type": "text",
+        "ats_type": "greenhouse",
+        "note": "ats_template_map"
+      },
+      {
+        "field": "phone",
+        "value": "+1 (410) 240-4366",
+        "required": false,
+        "type": "text",
+        "ats_type": "greenhouse",
+        "note": "ats_template_map"
+      },
+      {
+        "field": "resume",
+        "value": "D:\\resume-agent\\data\\final_resumes\\_ui_gate_Greenhouse_Demo_Data_Analyst\\resume.pdf",
+        "required": true,
+        "type": "file",
+        "ats_type": "greenhouse",
+        "note": "ats_template_map"
+      },
+      {
+        "field": "cover_letter",
+        "value": "(optional — not auto-generated in dry-run)",
+        "required": false,
+        "type": "file",
+        "ats_type": "greenhouse",
+        "note": "ats_template_map"
+      },
+      {
+        "field": "work_authorization",
+        "value": "Yes",
+        "required": true,
+        "type": "select",
+        "ats_type": "greenhouse",
+        "note": "ats_template_map"
+      },
+      {
+        "field": "linkedin",
+        "value": "(empty — review)",
+        "required": false,
+        "type": "text",
+        "ats_type": "greenhouse",
+        "note": "ats_template_map"
+      },
+      {
+        "field": "website",
+        "value": "https://github.com/Jing-Xuan-Ma/resume-tailor-agent",
+        "required": false,
+        "type": "text",
+        "ats_type": "greenhouse",
+        "note": "ats_template_map"
+      }
+    ],
+    "ats_type": "greenhouse",
+    "source_url": "https://boards.greenhouse.io/demo/jobs/1",
+    "browser_fill": {
+      "submitted": false,
+      "status": "filled_paused_before_submit",
+      "mode": "playwright_fill_pause",
+      "filled": [
+        {
+          "field": "First name",
+          "field_id": "fr0_f0",
+          "status": "filled",
+          "tier": "auto",
+          "confidence": 0.95,
+          "needs_review": false,
+          "profile_key": "first_name",
+          "value": "Jingxuan"
+        },
+        {
+          "field": "Last name",
+          "field_id": "fr0_f1",
+          "status": "filled",
+          "tier": "auto",
+          "confidence": 0.95,
+          "needs_review": false,
+          "profile_key": "last_name",
+          "value": "Ma"
+        },
+        {
+          "field": "Email",
+          "field_id": "fr0_f2",
+          "status": "filled",
+          "tier": "auto",
+          "confidence": 0.95,
+          "needs_review": false,
+          "profile_key": "email",
+          "value": "jma107@jh.edu"
+        },
+        {
+          "field": "Phone",
+          "field_id": "fr0_f3",
+          "status": "filled",
+          "tier": "auto",
+          "confidence": 0.92,
+          "needs_review": false,
+          "profile_key": "phone",
+          "value": "+1 (410) 240-4366"
+        },
+        {
+          "field": "LinkedIn Profile",
+          "field_id": "fr0_f4",
+          "status": "left_empty",
+          "tier": "empty",
+          "confidence": 0.45,
+          "needs_review": true
+        },
+        {
+          "field": "Website",
+          "field_id": "fr0_f5",
+          "status": "left_empty",
+          "tier": "empty",
+          "confidence": 0.425,
+          "needs_review": true
+        },
+        {
+          "field": "Resume / CV",
+          "field_id": "fr0_f6",
+          "status": "filled",
+          "tier": "auto",
+          "confidence": 0.9,
+          "needs_review": false,
+          "profile_key": "resume_path",
+          "value": "D:\\resume-agent\\data\\final_resumes\\_ui_gate_Greenhouse_Demo_Data_Analyst\\resume.pdf"
+        },
+        {
+          "field": "Are you legally authorized to work in the United States?",
+          "field_id": "fr0_f7",
+          "status": "filled",
+          "tier": "review",
+          "confidence": 0.75,
+          "needs_review": true,
+          "profile_key": "work_authorized",
+          "value": "Yes"
+        },
+        {
+          "field": "Describe a time you led a cross-functional analytics project",
+          "field_id": "fr0_f8",
+          "status": "left_empty",
+          "tier": "empty",
+          "confidence": 0.0,
+          "needs_review": true
+        }
+      ],
+      "fill_plan": [
+        {
+          "field_id": "fr0_f0",
+          "profile_key": "first_name",
+          "value": "Jingxuan",
+          "confidence": 0.95,
+          "needs_review": false,
+          "action": "fill",
+          "reason": "rules:first name",
+          "label": "First name",
+          "selector": "#first_name",
+          "frame_index": 0,
+          "type": "input",
+          "tier": "auto"
+        },
+        {
+          "field_id": "fr0_f1",
+          "profile_key": "last_name",
+          "value": "Ma",
+          "confidence": 0.95,
+          "needs_review": false,
+          "action": "fill",
+          "reason": "rules:last name",
+          "label": "Last name",
+          "selector": "#last_name",
+          "frame_index": 0,
+          "type": "input",
+          "tier": "auto"
+        },
+        {
+          "field_id": "fr0_f2",
+          "profile_key": "email",
+          "value": "jma107@jh.edu",
+          "confidence": 0.95,
+          "needs_review": false,
+          "action": "fill",
+          "reason": "rules:email",
+          "label": "Email",
+          "selector": "#email",
+          "frame_index": 0,
+          "type": "email",
+          "tier": "auto"
+        },
+        {
+          "field_id": "fr0_f3",
+          "profile_key": "phone",
+          "value": "+1 (410) 240-4366",
+          "confidence": 0.92,
+          "needs_review": false,
+          "action": "fill",
+          "reason": "rules:phone",
+          "label": "Phone",
+          "selector": "#phone",
+          "frame_index": 0,
+          "type": "tel",
+          "tier": "auto"
+        },
+        {
+          "field_id": "fr0_f4",
+          "profile_key": "linkedin",
+          "value": "",
+          "confidence": 0.45,
+          "needs_review": true,
+          "action": "leave_empty",
+          "reason": "matched linkedin but profile empty",
+          "label": "LinkedIn Profile",
+          "selector": "#linkedin",
+          "frame_index": 0,
+          "type": "input",
+          "tier": "empty"
+        },
+        {
+          "field_id": "fr0_f5",
+          "profile_key": "portfolio",
+          "value": "",
+          "confidence": 0.425,
+          "needs_review": true,
+          "action": "leave_empty",
+          "reason": "matched portfolio but profile empty",
+          "label": "Website",
+          "selector": "#website",
+          "frame_index": 0,
+          "type": "input",
+          "tier": "empty"
+        },
+        {
+          "field_id": "fr0_f6",
+          "profile_key": "resume_path",
+          "value": "D:\\resume-agent\\data\\final_resumes\\_ui_gate_Greenhouse_Demo_Data_Analyst\\resume.pdf",
+          "confidence": 0.9,
+          "needs_review": false,
+          "action": "upload",
+          "reason": "rules:resume",
+          "label": "Resume / CV",
+          "selector": "#resume",
+          "frame_index": 0,
+          "type": "file",
+          "tier": "auto"
+        },
+        {
+          "field_id": "fr0_f7",
+          "profile_key": "work_authorized",
+          "value": "Yes",
+          "confidence": 0.75,
+          "needs_review": true,
+          "action": "fill",
+          "reason": "rules:authorized to work",
+          "label": "Are you legally authorized to work in the United States?",
+          "selector": "#work_auth",
+          "frame_index": 0,
+          "type": "select",
+          "tier": "review"
+        },
+        {
+          "field_id": "fr0_f8",
+          "profile_key": null,
+          "value": "",
+          "confidence": 0.0,
+          "needs_review": true,
+          "action": "leave_empty",
+          "reason": "unmapped",
+          "label": "Describe a time you led a cross-functional analytics project",
+          "selector": "#screening_unknown",
+          "frame_index": 0,
+          "type": "textarea",
+          "tier": "empty"
+        }
+      ],
+      "scanned_field_count": 9,
+      "screenshot_path": "D:\\resume-agent\\artifacts\\funnel\\auto-apply-v2\\browser-fill-greenhouse-6c337100.png",
+      "message": "Filled form fields and stopped before Submit.",
+      "paused_before_submit": true,
+      "submit_marker": "",
+      "submit_leaked": false,
+      "ats_type": "greenhouse",
+      "sandbox": true,
+      "original_url": "https://boards.greenhouse.io/demo/jobs/1",
+      "fill_url": "file:///D:/resume-agent/artifacts/funnel/sprint-i/fixture_greenhouse.html",
+      "map_provider": "rules"
+    },
+    "final_path": "d:\\resume-agent\\data\\final_resumes\\_ui_gate_Greenhouse_Demo_Data_Analyst",
+    "confirmed_submit_at": null,
+    "fill_plan": [
+      {
+        "field_id": "fr0_f0",
+        "profile_key": "first_name",
+        "value": "Jingxuan",
+        "confidence": 0.95,
+        "needs_review": false,
+        "action": "fill",
+        "reason": "rules:first name",
+        "label": "First name",
+        "selector": "#first_name",
+        "frame_index": 0,
+        "type": "input",
+        "tier": "auto"
+      },
+      {
+        "field_id": "fr0_f1",
+        "profile_key": "last_name",
+        "value": "Ma",
+        "confidence": 0.95,
+        "needs_review": false,
+        "action": "fill",
+        "reason": "rules:last name",
+        "label": "Last name",
+        "selector": "#last_name",
+        "frame_index": 0,
+        "type": "input",
+        "tier": "auto"
+      },
+      {
+        "field_id": "fr0_f2",
+        "profile_key": "email",
+        "value": "jma107@jh.edu",
+        "confidence": 0.95,
+        "needs_review": false,
+        "action": "fill",
+        "reason": "rules:email",
+        "label": "Email",
+        "selector": "#email",
+        "frame_index": 0,
+        "type": "email",
+        "tier": "auto"
+      },
+      {
+        "field_id": "fr0_f3",
+        "profile_key": "phone",
+        "value": "+1 (410) 240-4366",
+        "confidence": 0.92,
+        "needs_review": false,
+        "action": "fill",
+        "reason": "rules:phone",
+        "label": "Phone",
+        "selector": "#phone",
+        "frame_index": 0,
+        "type": "tel",
+        "tier": "auto"
+      },
+      {
+        "field_id": "fr0_f4",
+        "profile_key": "linkedin",
+        "value": "",
+        "confidence": 0.45,
+        "needs_review": true,
+        "action": "leave_empty",
+        "reason": "matched linkedin but profile empty",
+        "label": "LinkedIn Profile",
+        "selector": "#linkedin",
+        "frame_index": 0,
+        "type": "input",
+        "tier": "empty"
+      },
+      {
+        "field_id": "fr0_f5",
+        "profile_key": "portfolio",
+        "value": "",
+        "confidence": 0.425,
+        "needs_review": true,
+        "action": "leave_empty",
+        "reason": "matched portfolio but profile empty",
+        "label": "Website",
+        "selector": "#website",
+        "frame_index": 0,
+        "type": "input",
+        "tier": "empty"
+      },
+      {
+        "field_id": "fr0_f6",
+        "profile_key": "resume_path",
+        "value": "D:\\resume-agent\\data\\final_resumes\\_ui_gate_Greenhouse_Demo_Data_Analyst\\resume.pdf",
+        "confidence": 0.9,
+        "needs_review": false,
+        "action": "upload",
+        "reason": "rules:resume",
+        "label": "Resume / CV",
+        "selector": "#resume",
+        "frame_index": 0,
+        "type": "file",
+        "tier": "auto"
+      },
+      {
+        "field_id": "fr0_f7",
+        "profile_key": "work_authorized",
+        "value": "Yes",
+        "confidence": 0.75,
+        "needs_review": true,
+        "action": "fill",
+        "reason": "rules:authorized to work",
+        "label": "Are you legally authorized to work in the United States?",
+        "selector": "#work_auth",
+        "frame_index": 0,
+        "type": "select",
+        "tier": "review"
+      },
+      {
+        "field_id": "fr0_f8",
+        "profile_key": null,
+        "value": "",
+        "confidence": 0.0,
+        "needs_review": true,
+        "action": "leave_empty",
+        "reason": "unmapped",
+        "label": "Describe a time you led a cross-functional analytics project",
+        "selector": "#screening_unknown",
+        "frame_index": 0,
+        "type": "textarea",
+        "tier": "empty"
+      }
+    ],
+    "map_provider": "rules",
+    "requires_human_review": true
+  }
+}

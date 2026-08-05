@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><title>Greenhouse Sandbox</title>
+<style>body{font-family:system-ui;max-width:520px;margin:32px auto}label{display:block;margin:10px 0 4px;font-weight:600}input,select,textarea,button{width:100%;padding:8px;box-sizing:border-box}button{margin-top:14px;background:#0f766e;color:#fff;border:0;font-weight:700}.hint{font-size:12px;color:#64748b;margin:0 0 8px}</style>
+</head><body>
+<h1 data-ats="greenhouse">Greenhouse Apply Sandbox</h1>
+<p class="hint">Sandbox form — Submit only sets a marker; automation must never click it.</p>
+<form id="application_form" onsubmit="event.preventDefault();document.getElementById('msg').textContent='SUBMITTED';">
+<label for="first_name">First name</label>
+<input id="first_name" name="job_application[first_name]" autocomplete="given-name" required/>
+<label for="last_name">Last name</label>
+<input id="last_name" name="job_application[last_name]" autocomplete="family-name" required/>
+<label for="email">Email</label>
+<input id="email" name="job_application[email]" type="email" autocomplete="email" required/>
+<label for="phone">Phone</label>
+<input id="phone" name="job_application[phone]" type="tel" autocomplete="tel"/>
+<label for="linkedin">LinkedIn Profile</label>
+<input id="linkedin" name="job_application[linkedin]" placeholder="https://linkedin.com/in/..."/>
+<label for="website">Website</label>
+<input id="website" name="job_application[website]" placeholder="Portfolio URL"/>
+<label for="resume">Resume / CV</label>
+<input id="resume" name="job_application[resume]" type="file" accept=".pdf,.doc,.docx"/>
+<label for="work_auth">Are you legally authorized to work in the United States?</label>
+<select id="work_auth" name="job_application[work_authorized]">
+  <option value="">Select…</option>
+  <option value="Yes">Yes</option>
+  <option value="No">No</option>
+</select>
+<label for="screening_unknown">Describe a time you led a cross-functional analytics project</label>
+<textarea id="screening_unknown" name="job_application[screening_essay]" rows="3" placeholder="Open-ended — do not auto-fill"></textarea>
+<button id="submit_app" type="submit">Submit application</button>
+</form><p id="msg"></p>
+</body></html>

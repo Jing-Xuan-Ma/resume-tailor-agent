@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w130_source_key",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w130_soft_count",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w130_source_restored",
+      "ok": true,
+      "detail": "indeed==indeed"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "active": 161,
+  "median_age_hours": 14.9,
+  "under72h_share": 0.64,
+  "skillful_share": 0.776,
+  "preferred_source_share": 0.994,
+  "closed_thin": 0,
+  "platforms": {
+    "jobspy:indeed": 127,
+    "remotive": 33,
+    "remoteok": 1
+  }
+}

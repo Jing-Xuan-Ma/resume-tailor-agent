@@ -1,0 +1,35 @@
+{
+  "jd_id": "jd01_da_sql_tableau",
+  "company": "Contoso Insights",
+  "title": "Data Analyst",
+  "format": {
+    "ok": true,
+    "score": 10,
+    "errors": [],
+    "warnings": []
+  },
+  "quality_gate": {
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "stats": {
+      "bullet_count": 9,
+      "approx_chars": 2635,
+      "jd_core_covered": 4,
+      "jd_core_missing_in_projection": [
+        "excel"
+      ],
+      "hidden_entries": 0
+    }
+  },
+  "scores": {
+    "format": 10,
+    "match": 10,
+    "honesty": 10,
+    "one_page_heuristic": 10
+  },
+  "screenshot": true,
+  "agent_notes": [
+    "Format lock OK (paragraph/style fingerprint)."
+  ]
+}

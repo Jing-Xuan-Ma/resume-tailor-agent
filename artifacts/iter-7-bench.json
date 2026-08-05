@@ -1,8 +1,17 @@
 {
-  "discover_jobs": 5,
-  "discover_ms": 10306.0,
-  "list_ms": 2.7,
-  "llm_calls_estimate": 0,
-  "notes": "List/scoring uses local mock scores; discover uses providers with local fallback (low/zero LLM).",
+  "before": {
+    "discover_ms": 10306.0,
+    "list_ms": 2.7,
+    "llm_calls_estimate": "N (LLM JD parse per job on discover)",
+    "notes": "Baseline measured before Iter-7 cache + local parse"
+  },
+  "after": {
+    "discover_cold_ms": 11450.4,
+    "discover_warm_ms": 37.3,
+    "discover_jobs": 5,
+    "list_ms": 2.6,
+    "llm_calls_estimate": 0,
+    "notes": "Dedupe in orchestrator; 300s TTL discover cache; discover path uses local tokenize parse (no LLM)."
+  },
   "pass": true
 }

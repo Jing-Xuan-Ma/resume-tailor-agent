@@ -1,0 +1,148 @@
+# Flow chrome selftest
+
+**Result:** PASS
+
+- ✅ `api_health` {"status":"healthy","version":"0.1.0","env":"development"}
+- ✅ `upsert_lead` {"id":"77f29726-27e3-4074-8d01-287c65936cdf","created":false,"source_platform":"jobright_extension","quality_ok":true,"quality_reason":"pass","workspace_url":"http://localhost:3000/?view=resume&jobId=
+- ✅ `stepper_present_jobs` 
+- ✅ `no_confirm_in_stepper_jobs` 1. Jobs | / | 2. Match | / | 3. JD | / | 4. Tailor | / | 5. Apply | / | 6. Outreach
+- ✅ `step_jobs_exists_jobs` 
+- ✅ `step_jobs_label_jobs` got='1. Jobs'
+- ✅ `step_detail_exists_jobs` 
+- ✅ `step_detail_label_jobs` got='2. Match'
+- ✅ `step_jd_exists_jobs` 
+- ✅ `step_jd_label_jobs` got='3. JD'
+- ✅ `step_tailor_exists_jobs` 
+- ✅ `step_tailor_label_jobs` got='4. Tailor'
+- ✅ `step_apply_exists_jobs` 
+- ✅ `step_apply_label_jobs` got='5. Apply'
+- ✅ `step_outreach_exists_jobs` 
+- ✅ `step_outreach_label_jobs` got='6. Outreach'
+- ✅ `step_count_6_jobs` n=6
+- ✅ `active_jobs_jobs` rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-emerald-600 text-white ring-emerald-600 cursor-pointer hove
+- ✅ `stepper_present_match` 
+- ✅ `no_confirm_in_stepper_match` 1. Jobs | / | 2. Match | / | 3. JD | / | 4. Tailor | / | 5. Apply | / | 6. Outreach
+- ✅ `step_jobs_exists_match` 
+- ✅ `step_jobs_label_match` got='1. Jobs'
+- ✅ `step_detail_exists_match` 
+- ✅ `step_detail_label_match` got='2. Match'
+- ✅ `step_jd_exists_match` 
+- ✅ `step_jd_label_match` got='3. JD'
+- ✅ `step_tailor_exists_match` 
+- ✅ `step_tailor_label_match` got='4. Tailor'
+- ✅ `step_apply_exists_match` 
+- ✅ `step_apply_label_match` got='5. Apply'
+- ✅ `step_outreach_exists_match` 
+- ✅ `step_outreach_label_match` got='6. Outreach'
+- ✅ `step_count_6_match` n=6
+- ✅ `active_detail_match` rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-emerald-600 text-white ring-emerald-600 cursor-pointer hove
+- ✅ `stepper_present_jd` 
+- ✅ `no_confirm_in_stepper_jd` 1. Jobs | / | 2. Match | / | 3. JD | / | 4. Tailor | / | 5. Apply | / | 6. Outreach
+- ✅ `step_jobs_exists_jd` 
+- ✅ `step_jobs_label_jd` got='1. Jobs'
+- ✅ `step_detail_exists_jd` 
+- ✅ `step_detail_label_jd` got='2. Match'
+- ✅ `step_jd_exists_jd` 
+- ✅ `step_jd_label_jd` got='3. JD'
+- ✅ `step_tailor_exists_jd` 
+- ✅ `step_tailor_label_jd` got='4. Tailor'
+- ✅ `step_apply_exists_jd` 
+- ✅ `step_apply_label_jd` got='5. Apply'
+- ✅ `step_outreach_exists_jd` 
+- ✅ `step_outreach_label_jd` got='6. Outreach'
+- ✅ `step_count_6_jd` n=6
+- ✅ `active_jd_jd` rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-emerald-600 text-white ring-emerald-600 cursor-pointer hove
+- ✅ `jd_panel_visible` 
+- ✅ `no_qualification_tags` 
+- ✅ `jd_required_or_plaintext` 
+- ✅ `no_workspace_subtabs` 
+- ✅ `tailor_chip_clickable` 
+- ✅ `stepper_present_tailor` 
+- ✅ `no_confirm_in_stepper_tailor` 1. Jobs | / | 2. Match | / | 3. JD | / | 4. Tailor | / | 5. Apply | / | 6. Outreach
+- ✅ `step_jobs_exists_tailor` 
+- ✅ `step_jobs_label_tailor` got='1. Jobs'
+- ✅ `step_detail_exists_tailor` 
+- ✅ `step_detail_label_tailor` got='2. Match'
+- ✅ `step_jd_exists_tailor` 
+- ✅ `step_jd_label_tailor` got='3. JD'
+- ✅ `step_tailor_exists_tailor` 
+- ✅ `step_tailor_label_tailor` got='4. Tailor'
+- ✅ `step_apply_exists_tailor` 
+- ✅ `step_apply_label_tailor` got='5. Apply'
+- ✅ `step_outreach_exists_tailor` 
+- ✅ `step_outreach_label_tailor` got='6. Outreach'
+- ✅ `step_count_6_tailor` n=6
+- ✅ `active_tailor_tailor` rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-emerald-600 text-white ring-emerald-600 cursor-pointer hove
+- ✅ `tailor_panel_visible` 
+- ✅ `chat_visible` 
+- ✅ `preview_visible` 
+- ✅ `jd_not_in_tailor_panel` 
+- ✅ `confirm_action_btn` 
+- ✅ `confirm_not_step_chip` 
+- ✅ `stepper_present_apply_scroll` 
+- ✅ `no_confirm_in_stepper_apply_scroll` 1. Jobs | / | 2. Match | / | 3. JD | / | 4. Tailor | / | 5. Apply | / | 6. Outreach
+- ✅ `step_jobs_exists_apply_scroll` 
+- ✅ `step_jobs_label_apply_scroll` got='1. Jobs'
+- ✅ `step_detail_exists_apply_scroll` 
+- ✅ `step_detail_label_apply_scroll` got='2. Match'
+- ✅ `step_jd_exists_apply_scroll` 
+- ✅ `step_jd_label_apply_scroll` got='3. JD'
+- ✅ `step_tailor_exists_apply_scroll` 
+- ✅ `step_tailor_label_apply_scroll` got='4. Tailor'
+- ✅ `step_apply_exists_apply_scroll` 
+- ✅ `step_apply_label_apply_scroll` got='5. Apply'
+- ✅ `step_outreach_exists_apply_scroll` 
+- ✅ `step_outreach_label_apply_scroll` got='6. Outreach'
+- ✅ `step_count_6_apply_scroll` n=6
+- ✅ `active_apply_apply_scroll` rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-emerald-600 text-white ring-emerald-600 cursor-pointer hove
+- ✅ `apply_says_step_5` Step 5 · How do you want to apply?
+- ✅ `stepper_present_outreach` 
+- ✅ `no_confirm_in_stepper_outreach` 1. Jobs | / | 2. Match | / | 3. JD | / | 4. Tailor | / | 5. Apply | / | 6. Outreach
+- ✅ `step_jobs_exists_outreach` 
+- ✅ `step_jobs_label_outreach` got='1. Jobs'
+- ✅ `step_detail_exists_outreach` 
+- ✅ `step_detail_label_outreach` got='2. Match'
+- ✅ `step_jd_exists_outreach` 
+- ✅ `step_jd_label_outreach` got='3. JD'
+- ✅ `step_tailor_exists_outreach` 
+- ✅ `step_tailor_label_outreach` got='4. Tailor'
+- ✅ `step_apply_exists_outreach` 
+- ✅ `step_apply_label_outreach` got='5. Apply'
+- ✅ `step_outreach_exists_outreach` 
+- ✅ `step_outreach_label_outreach` got='6. Outreach'
+- ✅ `step_count_6_outreach` n=6
+- ✅ `active_outreach_outreach` rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-emerald-600 text-white ring-emerald-600
+- ✅ `outreach_says_step_6` Step 6 · Find people / Cold outreach
+- ✅ `outreach_not_step_7` Step 6 · Find people / Cold outreach
+- ✅ `jobright_lands_on_tailor` 
+- ✅ `jobright_back_link` 
+- ✅ `stepper_present_jobright_deeplink` 
+- ✅ `no_confirm_in_stepper_jobright_deeplink` 1. Jobs | / | 2. Match | / | 3. JD | / | 4. Tailor | / | 5. Apply | / | 6. Outreach
+- ✅ `step_jobs_exists_jobright_deeplink` 
+- ✅ `step_jobs_label_jobright_deeplink` got='1. Jobs'
+- ✅ `step_detail_exists_jobright_deeplink` 
+- ✅ `step_detail_label_jobright_deeplink` got='2. Match'
+- ✅ `step_jd_exists_jobright_deeplink` 
+- ✅ `step_jd_label_jobright_deeplink` got='3. JD'
+- ✅ `step_tailor_exists_jobright_deeplink` 
+- ✅ `step_tailor_label_jobright_deeplink` got='4. Tailor'
+- ✅ `step_apply_exists_jobright_deeplink` 
+- ✅ `step_apply_label_jobright_deeplink` got='5. Apply'
+- ✅ `step_outreach_exists_jobright_deeplink` 
+- ✅ `step_outreach_label_jobright_deeplink` got='6. Outreach'
+- ✅ `step_count_6_jobright_deeplink` n=6
+- ✅ `active_tailor_jobright_deeplink` rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-emerald-600 text-white ring-emerald-600 cursor-pointer hove
+- ✅ `inapp_back_is_jobs` 
+- ✅ `inapp_no_jobright_back` 
+- ✅ `jd_hides_confirm_btn` 
+- ✅ `header_height_reasonable` h=47
+
+## Screenshots
+- `01-jobs.png`
+- `02-match.png`
+- `03-jd.png`
+- `04-tailor.png`
+- `05-apply-scroll.png`
+- `06-outreach.png`
+- `07-jobright-deeplink-tailor.png`
+- `08-inapp-jd-back-jobs.png`

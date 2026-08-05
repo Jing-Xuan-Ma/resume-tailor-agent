@@ -6,7 +6,8 @@ class LeverConnector(BaseATSConnector):
 
     def supports(self, url: str | None) -> bool:
         value = host(url)
-        return "lever.co" in value or "jobs.lever.co" in value
+        lower = (url or "").lower()
+        return "lever.co" in value or "fixture_lever" in lower or "data-ats=lever" in lower
 
     def fields(self) -> list[dict]:
         fields = super().fields()

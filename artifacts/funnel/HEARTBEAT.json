@@ -1,0 +1,9 @@
+{
+  "at": "2026-08-04T05:11:25.225289+08:00",
+  "note": "selftest-satisfied-stop",
+  "pause": false,
+  "waves": "1-56",
+  "api": "up",
+  "main_ux": 4.4,
+  "selftest": "PASS 28/28"
+}

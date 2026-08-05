@@ -1,0 +1,103 @@
+{
+  "passed": true,
+  "pdf_url": "http://127.0.0.1:8000/api/v1/resume-workspace/resume-version/dc23c907-3705-4d60-be98-9aefe8c4cf24/preview?user_id=251bd13a-aaa8-4fb9-90b3-f886bab730e6&v=1785762785733",
+  "pdf_size": 321576,
+  "content_png": "d:\\resume-agent\\artifacts\\ui\\constitution-tailor\\11-live-preview.png",
+  "checks": [
+    {
+      "name": "ui_master_iframe",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "09-master-template_one_page",
+      "ok": true,
+      "detail": "pages=1"
+    },
+    {
+      "name": "09-master-template_word_size",
+      "ok": true,
+      "detail": "size=321704"
+    },
+    {
+      "name": "09-master-template_no_md_##",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "09-master-template_no_md_**",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "09-master-template_EDUCATION",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "09-master-template_EXPERIENCE",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "09-master-template_SKILLS",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "09-master-template_section_order",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "09-master-template_pipe_contact",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "11-live-preview_one_page",
+      "ok": true,
+      "detail": "pages=1"
+    },
+    {
+      "name": "11-live-preview_word_size",
+      "ok": true,
+      "detail": "size=321576"
+    },
+    {
+      "name": "11-live-preview_no_md_##",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "11-live-preview_no_md_**",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "11-live-preview_EDUCATION",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "11-live-preview_EXPERIENCE",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "11-live-preview_SKILLS",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "11-live-preview_section_order",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "11-live-preview_pipe_contact",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

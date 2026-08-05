@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Sandbox ATS Apply</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 520px; margin: 40px auto; }
+    label { display: block; margin: 12px 0 4px; font-weight: 600; }
+    input, select, button { width: 100%; padding: 8px; box-sizing: border-box; }
+    button { margin-top: 16px; background: #0f766e; color: white; border: 0; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>Sandbox Greenhouse-style Apply</h1>
+  <form id="app" onsubmit="event.preventDefault(); document.getElementById('msg').textContent='SUBMITTED (should never happen in dry-run)';">
+    <label for="first_name">First name</label>
+    <input id="first_name" name="job_application[first_name]" />
+    <label for="last_name">Last name</label>
+    <input id="last_name" name="job_application[last_name]" />
+    <label for="email">Email</label>
+    <input id="email" name="job_application[email]" type="email" />
+    <label for="phone">Phone</label>
+    <input id="phone" name="job_application[phone]" type="tel" />
+    <label for="linkedin">LinkedIn Profile</label>
+    <input id="linkedin" name="job_application[linkedin]" />
+    <label for="resume">Resume</label>
+    <input id="resume" name="resume" type="file" />
+    <button id="submit_app" type="submit">Submit application</button>
+  </form>
+  <p id="msg"></p>
+</body>
+</html>

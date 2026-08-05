@@ -1,0 +1,110 @@
+{
+  "pass": true,
+  "hard_pass": true,
+  "score_over_5": 5.0,
+  "version_id": "a3c99b11-ca17-4e71-80a9-810ec4515f4a",
+  "user_id": "251bd13a-aaa8-4fb9-90b3-f886bab730e6",
+  "checks": [
+    {
+      "name": "apply_page",
+      "ok": true,
+      "detail": "http://127.0.0.1:3000/apply?versionId=a3c99b11-ca17-4e71-80a9-810ec4515f4a&company=Greenhouse+Demo&position=Data+Analyst&sourceUrl=https://boards.greenhouse.io/demo/jobs/1&finalPath=d%3A%5Cresume-agent%5Cdata%5Cfinal_resumes%5C_ui_gate_Greenhouse_Demo_Data_Analyst"
+    },
+    {
+      "name": "no_404",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "confirmed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "auto_enabled",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "result_section",
+      "ok": true,
+      "detail": "13.0s"
+    },
+    {
+      "name": "paused_banner",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "fill_plan_tiers_ui",
+      "ok": true,
+      "detail": "api_fill_plan=9"
+    },
+    {
+      "name": "tier_auto",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tier_review",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tier_empty",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "human_gate_visible",
+      "ok": true,
+      "detail": "gate=1 locked=1 btn=0"
+    },
+    {
+      "name": "confirm_locked_before_check",
+      "ok": true,
+      "detail": "btn_visible=False"
+    },
+    {
+      "name": "confirm_unlocked_after_check",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "review_steps",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "user_confirm_recorded",
+      "ok": true,
+      "detail": "confirm_api=submitted_by_user_confirm"
+    },
+    {
+      "name": "api_submitted_false",
+      "ok": true,
+      "detail": "False"
+    },
+    {
+      "name": "api_has_fill_plan",
+      "ok": true,
+      "detail": "9"
+    },
+    {
+      "name": "api_unknown_left_empty",
+      "ok": true,
+      "detail": "3"
+    },
+    {
+      "name": "api_browser_not_submitted",
+      "ok": true,
+      "detail": "filled_paused_before_submit"
+    }
+  ],
+  "notes": [
+    "Human-review gate and auto pause look usable."
+  ],
+  "api_fill_plan_len": 9,
+  "map_provider": "rules",
+  "browser_fill_status": "filled_paused_before_submit"
+}

@@ -1,0 +1,197 @@
+{
+  "candidate_name": "Jingxuan Ma",
+  "contact_line": "+1 (410) 240-4366 | jma107@jh.edu | LinkedIn | Portfolio",
+  "summary": "Data Science M.S. student at Johns Hopkins with a background in Applied Statistics and data analytics. Skilled in R, advanced SQL, Python ETL pipelines using Apache Airflow, Tableau dashboard development, operations automation, stakeholder collaboration, and AI prompt engineering to accelerate data analysis.",
+  "education": [
+    {
+      "institution": "Johns Hopkins University",
+      "degree": "Master of Science in Data Science",
+      "field": "Data Science",
+      "location": "Baltimore, US",
+      "date_range": "August 2025 - June 2027",
+      "coursework": [
+        "Database Systems",
+        "Introduction to Algorithms",
+        "Nonlinear Optimization",
+        "Human-Computer Interaction"
+      ]
+    },
+    {
+      "institution": "University College Cork",
+      "degree": "Bachelor of Science in Actuarial Sciences",
+      "field": "Actuarial Sciences",
+      "location": "Cork, Ireland | Beijing, China",
+      "date_range": "September 2021 - June 2025",
+      "coursework": [
+        "Probability & Statistics",
+        "Actuarial Mathematics",
+        "Financial Mathematics",
+        "Regression Analysis",
+        "Statistical Computing"
+      ]
+    }
+  ],
+  "experiences": [
+    {
+      "company": "Beijing Yiling Network Technology Co., Ltd.",
+      "company_zh": "北京依零网络科技有限公司",
+      "title": "AI Agent Intern",
+      "location": "Beijing, China",
+      "date_range": "June 2026 - Present",
+      "tags": [
+        "ai-agent",
+        "python",
+        "fastapi",
+        "nextjs",
+        "ooxml",
+        "resume",
+        "jd-matching",
+        "quality-gate",
+        "prompt-engineering",
+        "etl-pipeline"
+      ],
+      "bullets": [
+        {
+          "text": "Engineered a multi-stage resume-tailoring pipeline (JD ingest → inventory projection → OOXML inject → Word PDF validate) with explicit stage contracts and failure gates, similar to an analytics ETL workflow",
+          "evidence_from": "yiling_exp_1",
+          "original_text": "Faced with producing JD-matched one-page resumes without breaking a locked Word template, built a Python/FastAPI + Next.js AI agent that ranks roles, extracts keywords, and injects tailored content into the master DOCX via OOXML edits"
+        },
+        {
+          "text": "Built Python services that transform unstructured JD text into structured projection JSON and write only content slots in a locked DOCX shell, keeping numbering/styles intact",
+          "evidence_from": "yiling_exp_2",
+          "original_text": "Designed format-lock and quality-gate checks (shell fingerprint, hyperlink preservation, Word PDF one-page validation, evidence-linked bullets) so delivery copies keep master fonts, margins, and list styles without rebuilding the document"
+        },
+        {
+          "text": "Implemented JD-conditioned show/hide of experiences and projects plus content-only rewrites with prompt engineering; ran fixture-JD eval loops with PDF/page gates to catch layout and honesty regressions before human review",
+          "evidence_from": "yiling_exp_3",
+          "original_text": "Implemented JD-conditioned show/hide of experiences and projects plus content-only rewrites with prompt engineering; ran fixture-JD eval loops with PDF/page gates to catch layout and honesty regressions before human review"
+        }
+      ],
+      "jd_cluster": "analytics_eng"
+    },
+    {
+      "company": "Shenwan Hongyuan Securities Co., Ltd.",
+      "title": "Data Analyst Intern",
+      "location": "Beijing, China",
+      "date_range": "June 2024 - August 2024",
+      "bullets": [
+        {
+          "text": "Faced with the need to evaluate whether a pricing model library could meet both runtime and maintainability requirements, conducted a structured feasibility analysis across Python, pure & optimized C++, Eigen vectorization, OpenMP, and ctypes-based Python/C++ integration",
+          "evidence_from": "shenwan_exp_1",
+          "original_text": "Faced with the need to evaluate whether a pricing model library could meet both runtime and maintainability requirements, conducted a structured feasibility analysis across Python, pure & optimized C++, Eigen vectorization, OpenMP, and ctypes-based Python/C++ integration"
+        },
+        {
+          "text": "Built and benchmarked a 100,000-path Monte Carlo pricing simulation, applying compiler optimization, vectorized matrix operations, and multithreaded random-path generation to isolate major bottlenecks in computation-intensive pricing workflows",
+          "evidence_from": "shenwan_exp_2",
+          "original_text": "Built and benchmarked a 100,000-path Monte Carlo pricing simulation, applying compiler optimization, vectorized matrix operations, and multithreaded random-path generation to isolate major bottlenecks in computation-intensive pricing workflows"
+        },
+        {
+          "text": "Delivered a hybrid architecture recommendation that assigned heavy simulation and statistical computation to C++ while keeping configuration, preprocessing, and visualization in Python; reduced runtime from approx. 33.4s to approx. 1.4s with OpenMP optimization",
+          "evidence_from": "shenwan_exp_3",
+          "original_text": "Delivered a hybrid architecture recommendation that assigned heavy simulation and statistical computation to C++ while keeping configuration, preprocessing, and visualization in Python; reduced runtime from approx. 33.4s to approx. 1.4s with OpenMP optimization"
+        }
+      ]
+    },
+    {
+      "company": "Yinhua Fund Management Co., Ltd.",
+      "title": "Data Analyst Intern",
+      "location": "Beijing, China",
+      "date_range": "June 2023 - August 2023",
+      "bullets": [
+        {
+          "text": "Given the need to support campaign review and market reporting, collected, organized, and cleaned market and customer data from multiple business materials, creating structured datasets for trend analysis and management communication",
+          "evidence_from": "yinhua_exp_1",
+          "original_text": "Given the need to support campaign review and market reporting, collected, organized, and cleaned market and customer data from multiple business materials, creating structured datasets for trend analysis and management communication"
+        },
+        {
+          "text": "Used Python, Excel, and visualization techniques to analyze market patterns, prepare charts and analytical materials, and convert raw performance data into insights that could support investment-product marketing decisions",
+          "evidence_from": "yinhua_exp_2",
+          "original_text": "Used Python, Excel, and visualization techniques to analyze market patterns, prepare charts and analytical materials, and convert raw performance data into insights that could support investment-product marketing decisions"
+        },
+        {
+          "text": "Prepared concise reporting assets for internal stakeholders by translating quantitative findings into business narratives, improving clarity around customer behavior, campaign performance, and market trends",
+          "evidence_from": "yinhua_exp_3",
+          "original_text": "Prepared concise reporting assets for internal stakeholders by translating quantitative findings into business narratives, improving clarity around customer behavior, campaign performance, and market trends"
+        }
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Tesla Vehicle Quality & Risk Analytics Pipeline",
+      "tools": [
+        "Python",
+        "Apache Airflow",
+        "SQL",
+        "Tableau",
+        "NHTSA API"
+      ],
+      "context": "Independent Project",
+      "date_range": "",
+      "bullets": [
+        {
+          "text": "Built an end-to-end ETL pipeline extracting 11,349 NHTSA complaints and 60 recall actions across Tesla Models 3/S/X/Y (2015–2024); engineered dynamic model-name discovery and ID-based deduplication to reduce 30,777 raw records to 11,349 verified distinct complaints",
+          "evidence_from": "tesla_proj_1",
+          "original_text": "Built an end-to-end ETL pipeline extracting 11,349 NHTSA complaints and 60 recall actions across Tesla Models 3/S/X/Y (2015–2024); engineered dynamic model-name discovery and ID-based deduplication to reduce 30,777 raw records to 11,349 verified distinct complaints"
+        },
+        {
+          "text": "Engineered frequency- and severity-based risk indicators (crash/fire/injury-weighted scores by model-year and component) in SQL, applying an actuarial-style frequency × severity loss framework to quantify and rank vehicle quality risk across product lines",
+          "evidence_from": "tesla_proj_2",
+          "original_text": "Engineered frequency- and severity-based risk indicators (crash/fire/injury-weighted scores by model-year and component) in SQL, applying an actuarial-style frequency × severity loss framework to quantify and rank vehicle quality risk across product lines"
+        },
+        {
+          "text": "Built and published an interactive Tableau dashboard visualizing component-level risk rankings and recall-lag trends (first complaint to official recall), translating 11,349 complaint records into decision-ready risk insights for quality and safety stakeholders.",
+          "evidence_from": "tesla_proj_3",
+          "original_text": "Built and published an interactive Tableau dashboard visualizing component-level risk rankings and recall-lag trends (first complaint to official recall), translating 11,349 complaint records into decision-ready risk insights for quality and safety stakeholders."
+        }
+      ]
+    },
+    {
+      "name": "Credit Risk Prediction Model",
+      "tools": [
+        "Python",
+        "SQL",
+        "scikit-learn",
+        "XGBoost",
+        "R"
+      ],
+      "context": "Independent Project",
+      "date_range": "",
+      "bullets": [
+        {
+          "text": "To build and adapt algorithms for complex risk use cases, designed an end-to-end predictive pipeline integrating SQL-style extraction, missing-value treatment, feature engineering, and statistical modeling to estimate expected claim costs and credit default behavior",
+          "evidence_from": "credit_proj_1",
+          "original_text": "To build and adapt algorithms for complex risk use cases, designed an end-to-end predictive pipeline integrating SQL-style extraction, missing-value treatment, feature engineering, and statistical modeling to estimate expected claim costs and credit default behavior"
+        },
+        {
+          "text": "Applied advanced statistics and machine learning libraries (scikit-learn, XGBoost) to train, evaluate, and benchmark regression and tree-based models, leveraging ROC-AUC, F1-score, and cost drivers to balance predictive accuracy with business interpretability.",
+          "evidence_from": "credit_proj_2",
+          "original_text": "Applied advanced statistics and machine learning libraries (scikit-learn, XGBoost) to train, evaluate, and benchmark regression and tree-based models, leveraging ROC-AUC, F1-score, and cost drivers to balance predictive accuracy with business interpretability."
+        },
+        {
+          "text": "Extended the framework with stochastic modeling via Monte Carlo simulations to analyze skewed loss distributions, interpreting error patterns to translate quantitative outputs into risk-monitoring thresholds and optimized decision-making insights.",
+          "evidence_from": "credit_proj_3",
+          "original_text": "Extended the framework with stochastic modeling via Monte Carlo simulations to analyze skewed loss distributions, interpreting error patterns to translate quantitative outputs into risk-monitoring thresholds and optimized decision-making insights."
+        }
+      ]
+    }
+  ],
+  "competitions": [],
+  "skills_certifications": "Python, R, SQL, Tableau, Apache Airflow, data cleaning, feature engineering, exploratory analysis, Pandas, NumPy, scikit-learn, XGBoost, Monte Carlo Simulation, Credit Risk, Claims Modeling, stakeholder reporting",
+  "hidden_entries": [
+    {
+      "kind": "project",
+      "key": "Insurance Claims Severity Modeling",
+      "score": -1.0
+    }
+  ],
+  "format_check": {
+    "single_page": true,
+    "section_order_ok": true,
+    "fabrication": false
+  },
+  "evidence_check": {
+    "ok": true,
+    "notes": "Inventory preserved; summary not lengthened for one-page lock."
+  }
+}

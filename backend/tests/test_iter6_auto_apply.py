@@ -69,3 +69,38 @@ def test_manual_apply_does_not_claim_submit() -> None:
     assert body["status"] == "ready_for_manual_apply"
     assert body["paused_before_submit"] is False
     assert body["submitted"] is False
+
+
+def test_confirm_submit_after_pause() -> None:
+    user = str(uuid4())
+    version_id, conf = _confirmed_version(user)
+    auto = client.post(
+        f"/api/v1/resume-workspace/resume-version/{version_id}/start-apply",
+        json={
+            "user_id": user,
+            "mode": "auto",
+            "company": conf.get("company"),
+            "position": conf.get("position"),
+            "final_path": conf.get("final_path"),
+        },
+    )
+    assert auto.status_code == 200, auto.text
+    apply_id = auto.json()["apply_id"]
+    assert auto.json()["paused_before_submit"] is True
+
+    denied = client.post(
+        f"/api/v1/resume-workspace/apply/{apply_id}/confirm-submit",
+        json={"user_id": user, "acknowledge": False},
+    )
+    assert denied.status_code == 400
+
+    confirmed = client.post(
+        f"/api/v1/resume-workspace/apply/{apply_id}/confirm-submit",
+        json={"user_id": user, "acknowledge": True},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    body = confirmed.json()
+    assert body["status"] == "submitted_by_user_confirm"
+    assert body["submitted"] is True
+    assert body["paused_before_submit"] is False
+    assert body["confirmed_submit_at"]

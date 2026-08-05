@@ -1,0 +1,24 @@
+{
+  "pass_criteria": {
+    "ai_agent_before_swe": true,
+    "da_classify": true,
+    "swe_classify": true,
+    "risk_classify": true,
+    "slug_label": true,
+    "backfill_ran": true,
+    "filter_da": true,
+    "filter_swe": true,
+    "list_api_ok": true,
+    "list_filtered": true,
+    "categories_api": true
+  },
+  "all_pass": true,
+  "counts": {
+    "ai_agent": 2,
+    "data_analysis": 21,
+    "other": 8,
+    "software_engineering": 10
+  },
+  "list_jobs": 1,
+  "backfill": 41
+}

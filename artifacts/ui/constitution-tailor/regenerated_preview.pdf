@@ -1,0 +1,184 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Length 5747 >>
+stream
+BT
+/F1 7.4 Tf
+48 752 Td
+9.0 TL
+/F2 8.9 Tf
+(JINGXUAN MA) Tj
+T*
+/F1 7.4 Tf
+(+1 \(410\) 240-4366 | jma107@jh.edu) Tj
+T*
+() Tj
+T*
+(Data Science M.S. student at Johns Hopkins with a background in Applied Statistics and data analytics. Skilled) Tj
+T*
+(in R, advanced SQL, Python ETL pipelines using Apache Airflow, Tableau dashboard development, operations) Tj
+T*
+(automation, stakeholder collaboration, and AI prompt engineering to accelerate data analysis.) Tj
+T*
+() Tj
+T*
+/F2 7.4 Tf
+(EDUCATION) Tj
+T*
+/F1 7.4 Tf
+(Johns Hopkins University | August 2025 - June 2027) Tj
+T*
+(Master of Science in Data Science | Data Science | Baltimore, US) Tj
+T*
+(University College Cork | September 2021 - June 2025) Tj
+T*
+(Bachelor of Science in Actuarial Sciences | Actuarial Sciences | Cork, Ireland | Beijing, China) Tj
+T*
+() Tj
+T*
+/F2 7.4 Tf
+(PROFESSIONAL EXPERIENCE) Tj
+T*
+/F1 7.4 Tf
+(AI Agent Intern | Beijing Yiling Network Technology Co., Ltd.  —  Beijing, China | June 2026 - Present) Tj
+T*
+(- Faced with producing JD-matched one-page resumes without breaking a locked Word template, built a) Tj
+T*
+(  Python/FastAPI + Next.js AI agent that ranks roles, extracts keywords, and injects tailored content into the) Tj
+T*
+(  master DOCX via OOXML edits) Tj
+T*
+(- Designed format-lock and quality-gate checks \(shell fingerprint, hyperlink preservation, Word PDF one-page) Tj
+T*
+(  validation, evidence-linked bullets\) so delivery copies keep master fonts, margins, and list styles without) Tj
+T*
+(  rebuilding the document) Tj
+T*
+(- Delivered JD-aware resume projections by scoring inventory entries on SQL/Tableau/Python keyword overlap,) Tj
+T*
+(  reordering skills, and preserving evidence links on every bullet) Tj
+T*
+(Data Analyst Intern | Yinhua Fund Management Co., Ltd.  —  Beijing, China | June 2023 - August 2023) Tj
+T*
+(- Given the need to support campaign review and market reporting, collected, organized, and cleaned market and) Tj
+T*
+(  customer data from multiple business materials, creating structured datasets for trend analysis and) Tj
+T*
+(  management communication) Tj
+T*
+(- Used Python, Excel, and visualization techniques to analyze market patterns, prepare charts and analytical) Tj
+T*
+(  materials, and convert raw performance data into insights that could support investment-product marketing) Tj
+T*
+(  decisions) Tj
+T*
+(- Prepared concise reporting assets for internal stakeholders by translating quantitative findings into) Tj
+T*
+(  business narratives, improving clarity around customer behavior, campaign performance, and market trends) Tj
+T*
+(Data Analyst Intern | Shenwan Hongyuan Securities Co., Ltd.  —  Beijing, China | June 2024 - August 2024) Tj
+T*
+(- Faced with the need to evaluate whether a pricing model library could meet both runtime and maintainability) Tj
+T*
+(  requirements, conducted a structured feasibility analysis across Python, pure & optimized C++, Eigen) Tj
+T*
+(  vectorization, OpenMP, and ctypes-based Python/C++ integration) Tj
+T*
+(- Built and benchmarked a 100,000-path Monte Carlo pricing simulation, applying compiler optimization,) Tj
+T*
+(  vectorized matrix operations, and multithreaded random-path generation to isolate major bottlenecks in) Tj
+T*
+(  computation-intensive pricing workflows) Tj
+T*
+(- Delivered a hybrid architecture recommendation that assigned heavy simulation and statistical computation to) Tj
+T*
+(  C++ while keeping configuration, preprocessing, and visualization in Python; reduced runtime from approx.) Tj
+T*
+(  33.4s to approx. 1.4s with OpenMP optimization) Tj
+T*
+() Tj
+T*
+/F2 7.4 Tf
+(PROJECTS) Tj
+T*
+/F1 7.4 Tf
+(Insurance Claims Severity Modeling | Python, R, pandas, scikit-learn, Monte Carlo Simulation) Tj
+T*
+(- To estimate claim severity across heterogeneous policy segments, collected and cleaned historical claims) Tj
+T*
+(  data and engineered exposure- and policy-level features to support distributional analysis of loss costs) Tj
+T*
+(- Analyzed skewed loss distributions, outliers, and cost drivers; compared regression and tree-based) Tj
+T*
+(  approaches to evaluate trade-offs among predictive accuracy, robustness, and business interpretability for) Tj
+T*
+(  underwriting and reserving use cases) Tj
+T*
+(- Extended the modeling framework with Monte Carlo simulation and performance-benchmarking concepts to) Tj
+T*
+(  evaluate scalable pricing workflows, translating model outputs into risk segmentation, pricing review, and) Tj
+T*
+(  portfolio-level reporting insights) Tj
+T*
+(Tesla Vehicle Quality & Risk Analytics Pipeline | Python, Apache Airflow, SQL, Tableau, NHTSA API) Tj
+T*
+(- Built an end-to-end ETL pipeline extracting 11,349 NHTSA complaints and 60 recall actions across Tesla) Tj
+T*
+(  Models 3/S/X/Y \(2015–2024\); engineered dynamic model-name discovery and ID-based deduplication to reduce) Tj
+T*
+(  30,777 raw records to 11,349 verified distinct complaints) Tj
+T*
+(- Engineered frequency- and severity-based risk indicators \(crash/fire/injury-weighted scores by model-year) Tj
+T*
+(  and component\) in SQL, applying an actuarial-style frequency × severity loss framework to quantify and rank) Tj
+T*
+(  vehicle quality risk across product lines) Tj
+T*
+(- Built and published an interactive Tableau dashboard visualizing component-level risk rankings and recall-) Tj
+T*
+(  lag trends \(first complaint to official recall\), translating 11,349 complaint records into decision-ready) Tj
+T*
+(  risk insights for quality and safety stakeholders.) Tj
+T*
+() Tj
+T*
+/F2 7.4 Tf
+(SKILLS & CERTIFICATIONS) Tj
+T*
+/F1 7.4 Tf
+(Python, R, SQL, Tableau, Apache Airflow, data cleaning, feature engineering, exploratory analysis, Pandas,) Tj
+T*
+(NumPy, scikit-learn, XGBoost, Monte Carlo Simulation, Credit Risk, Claims Modeling, stakeholder reporting) Tj
+T*
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 5 0 R >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000185 00000 n 
+0000000260 00000 n 
+0000006059 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+6195
+%%EOF

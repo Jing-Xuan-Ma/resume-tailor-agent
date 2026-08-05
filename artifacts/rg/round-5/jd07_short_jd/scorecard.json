@@ -1,0 +1,54 @@
+{
+  "jd_id": "jd07_short_jd",
+  "company": "BriefCo",
+  "title": "Data Analyst",
+  "format": {
+    "ok": true,
+    "score": 10,
+    "errors": [],
+    "warnings": [
+      "paragraph_count_shrunk 48->44 (hide ok)"
+    ]
+  },
+  "quality_gate": {
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "stats": {
+      "bullet_count": 12,
+      "approx_chars": 3081,
+      "jd_core_covered": 2,
+      "jd_core_missing_in_projection": [],
+      "hidden_entries": 1
+    }
+  },
+  "scores": {
+    "format": 10,
+    "match": 10,
+    "honesty": 10,
+    "one_page": 10
+  },
+  "screenshot": true,
+  "pdf_pages": 1,
+  "hyperlinks": {
+    "ok": true,
+    "errors": [],
+    "master": {
+      "paragraphs": 48,
+      "hyperlinks": 3,
+      "external_rels": 3,
+      "para_ids": 48,
+      "unique_para_ids": 48
+    },
+    "generated": {
+      "paragraphs": 44,
+      "hyperlinks": 3,
+      "external_rels": 3,
+      "para_ids": 44,
+      "unique_para_ids": 44
+    }
+  },
+  "agent_notes": [
+    "Word PDF 1-page + hyperlinks OK."
+  ]
+}

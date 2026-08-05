@@ -1,0 +1,228 @@
+{
+  "passed": true,
+  "checks": {
+    "ingest_fetched_gt0": true,
+    "jobspy_present": true,
+    "adzuna_ads_not_active": true,
+    "active_quality_ratio_ge_70pct": true,
+    "median_body_len_ge_800": true,
+    "skillful_share_ge_40pct": true,
+    "sample_scores_not_stuck_at_35": true,
+    "rejected_or_closed_thin": true
+  },
+  "ingest": {
+    "fetched": 36,
+    "created": 0,
+    "updated": 10,
+    "rejected_quality": 26,
+    "reject_reasons": {
+      "empty_company": 4,
+      "adzuna_ad_board": 22
+    },
+    "closed_thin": 0,
+    "closed_adzuna": 68,
+    "closed_seed": 0,
+    "active_total": 71,
+    "hours_old": 72,
+    "quality_gate": true,
+    "provider_stats": {
+      "jobspy": {
+        "count": 36,
+        "errors": []
+      },
+      "remotive": {
+        "count": 72,
+        "errors": []
+      },
+      "remoteok": {
+        "count": 0,
+        "errors": []
+      },
+      "himalayas": {
+        "count": 60,
+        "errors": []
+      },
+      "jobicy": {
+        "count": 0,
+        "errors": []
+      },
+      "adzuna": {
+        "count": 72,
+        "errors": []
+      }
+    },
+    "errors": []
+  },
+  "active_total": 71,
+  "platforms": {
+    "jobspy:indeed": 37,
+    "remotive": 33,
+    "remoteok": 1
+  },
+  "quality_ok": 71,
+  "quality_bad": 0,
+  "jobspy_count": 37,
+  "adzuna_active": 0,
+  "median_body_len": 5433,
+  "skillful": 58,
+  "quality_ok_scraped_under_72h": 71,
+  "samples": [
+    {
+      "title": "Business Intelligence Analyst Senior",
+      "company": "TEEMA",
+      "platform": "jobspy:indeed",
+      "body_len": 2651,
+      "skills": [
+        "azure",
+        "dashboards",
+        "etl",
+        "powerbi",
+        "snowflake",
+        "sql"
+      ],
+      "match_score": 57.7,
+      "matched": [
+        "powerbi",
+        "sql"
+      ],
+      "missing": [
+        "azure",
+        "dashboards",
+        "etl",
+        "snowflake"
+      ]
+    },
+    {
+      "title": "Product Strategy and Operations, Artificial Intelligence and Infrastructure",
+      "company": "Google",
+      "platform": "jobspy:indeed",
+      "body_len": 4415,
+      "skills": [
+        "gcp"
+      ],
+      "match_score": 0.0,
+      "matched": [],
+      "missing": [
+        "gcp"
+      ]
+    },
+    {
+      "title": "Data Engineer - Platform Innovation and Engineering",
+      "company": "Humana",
+      "platform": "jobspy:indeed",
+      "body_len": 5433,
+      "skills": [
+        "azure",
+        "databricks",
+        "python",
+        "spark",
+        "sql"
+      ],
+      "match_score": 39.8,
+      "matched": [
+        "python",
+        "sql"
+      ],
+      "missing": [
+        "azure",
+        "databricks",
+        "spark"
+      ]
+    },
+    {
+      "title": "Senior DFT Methodology - Data Analytics and Applied AI Engineer",
+      "company": "NVIDIA",
+      "platform": "jobspy:indeed",
+      "body_len": 4349,
+      "skills": [
+        "aws",
+        "azure",
+        "etl",
+        "gcp",
+        "learning",
+        "machine",
+        "python",
+        "sql"
+      ],
+      "match_score": 35.8,
+      "matched": [
+        "python",
+        "sql"
+      ],
+      "missing": [
+        "aws",
+        "azure",
+        "etl",
+        "gcp",
+        "learning",
+        "machine",
+        "visualization"
+      ]
+    },
+    {
+      "title": "Asst Dir-QA Engineer",
+      "company": "Moody's",
+      "platform": "jobspy:indeed",
+      "body_len": 6664,
+      "skills": [],
+      "match_score": 17.5,
+      "matched": [],
+      "missing": []
+    },
+    {
+      "title": "Salesforce Business Analyst",
+      "company": "LTM Limited",
+      "platform": "jobspy:indeed",
+      "body_len": 6664,
+      "skills": [],
+      "match_score": 35.0,
+      "matched": [],
+      "missing": []
+    },
+    {
+      "title": "Senior Business Analyst – Life Sciences (AWS, Data & Analytics)",
+      "company": "ZoftSolutions Pvt Ltd",
+      "platform": "jobspy:indeed",
+      "body_len": 2552,
+      "skills": [
+        "aws"
+      ],
+      "match_score": 35.0,
+      "matched": [],
+      "missing": [
+        "aws"
+      ]
+    },
+    {
+      "title": "2027 Data & AI Program - Summer Internship - Analyst - United States",
+      "company": "JPMorganChase",
+      "platform": "jobspy:indeed",
+      "body_len": 9120,
+      "skills": [
+        "aws",
+        "dashboards",
+        "databricks",
+        "learning",
+        "machine",
+        "snowflake",
+        "sql",
+        "statistics"
+      ],
+      "match_score": 53.3,
+      "matched": [
+        "sql",
+        "statistics"
+      ],
+      "missing": [
+        "aws",
+        "dashboards",
+        "databricks",
+        "learning",
+        "machine",
+        "snowflake",
+        "visualization"
+      ]
+    }
+  ],
+  "bad_examples": []
+}

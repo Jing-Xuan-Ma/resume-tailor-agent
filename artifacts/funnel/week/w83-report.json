@@ -1,0 +1,25 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w83_hide_stale_control",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w83_persisted_to_ls",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "w83_restored_checked",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w81_confirm_shortcut",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

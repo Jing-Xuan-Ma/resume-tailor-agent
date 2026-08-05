@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Resume Agent Workbench</title>
+  <style>:root {
+  color-scheme: light;
+  --bg: #f4f6f4;
+  --card: #fff;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --brand: #047857;
+  --brand-ink: #ecfdf5;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 12px;
+  font: 13px/1.45 system-ui, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+.hdr { margin-bottom: 12px; }
+.brand {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+.sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.card h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.muted { color: var(--muted); margin: 0 0 8px; }
+.tiny { font-size: 11px; }
+.meta { margin: 0 0 8px; }
+.meta > div {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+.meta dt { color: var(--muted); }
+.meta dd { margin: 0; word-break: break-word; }
+.hidden { display: none; }
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.btn {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 10px 12px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.btn:hover { background: #f8fafc; }
+.btn.primary {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+.btn.primary:hover { filter: brightness(1.05); }
+.btn.ghost { width: auto; padding: 6px 10px; font-size: 12px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.force-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+label { display: block; margin: 6px 0; font-size: 12px; color: var(--muted); }
+input[type="text"], input[type="password"] {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  font: inherit;
+  color: var(--ink);
+}
+.msg {
+  min-height: 1.2em;
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--brand);
+}
+.msg.err { color: #b91c1c; }
+</style>
+</head>
+<body>
+  <header class="hdr">
+    <div class="brand">Resume Agent</div>
+    <div class="sub">Personal workbench on Jobright</div>
+  </header>
+
+  <section class="card" id="detect-card">
+    <h2>Current role</h2>
+    <p id="detect-status" class="muted">Open a job detail — JD is read automatically (no copy-paste).</p>
+    <dl id="detect-meta" class="meta hidden">
+      <div><dt>Title</dt><dd id="f-title">—</dd></div>
+      <div><dt>Company</dt><dd id="f-company">—</dd></div>
+      <div><dt>JD length</dt><dd id="f-jd">—</dd></div>
+      <div><dt>Apply URL</dt><dd id="f-apply">—</dd></div>
+    </dl>
+    <button type="button" id="btn-refresh" class="btn ghost">Re-scan page</button>
+  </section>
+
+  <section class="card">
+    <h2>Workbench funnel</h2>
+    <p class="muted tiny">Stays beside Jobright. Click a step when you decide to act — nothing auto-pops the tailor page.</p>
+    <ol class="steps">
+      <li><button type="button" class="btn primary" id="btn-tailor" data-testid="ra-step-tailor">1 · Tailor resume</button></li>
+      <li><button type="button" class="btn" id="btn-apply" data-testid="ra-step-apply">2 · Prepare apply (pause before Submit)</button></li>
+      <li><button type="button" class="btn" id="btn-outreach" data-testid="ra-step-outreach">3 · Cold email draft</button></li>
+    </ol>
+    <p class="muted tiny" style="margin-top:8px">Apply never clicks Submit. Email is draft-only — you send.</p>
+    <label class="force-row">
+      <input type="checkbox" id="force-gate" />
+      Force import if JD is thin
+    </label>
+    <p id="action-msg" class="msg" data-testid="ra-action-msg"></p>
+  </section>
+
+  <section class="card">
+    <h2>Settings</h2>
+    <label>API base <input id="cfg-api" type="text" /></label>
+    <label>Frontend <input id="cfg-fe" type="text" /></label>
+    <label>Token <input id="cfg-token" type="password" /></label>
+    <button type="button" id="btn-save-cfg" class="btn ghost">Save</button>
+  </section>
+
+  
+</body>
+</html>
+
+<script>
+document.getElementById('detect-status').textContent = 'Ready — pick a workbench step.';
+document.getElementById('detect-meta').classList.remove('hidden');
+document.getElementById('f-title').textContent = 'Data Analyst';
+document.getElementById('f-company').textContent = 'Northwind Analytics';
+document.getElementById('f-jd').textContent = '1200+ chars';
+document.getElementById('f-apply').textContent = 'https://boards.greenhouse.io/northwind/jobs/1234567';
+document.getElementById('action-msg').textContent = 'Importing + opening tailor…';
+</script>

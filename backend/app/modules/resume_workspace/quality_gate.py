@@ -31,7 +31,17 @@ def _bullets(entry: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def project_for_jd(master: dict[str, Any], jd_text: str) -> dict[str, Any]:
-    """Show/hide experiences & projects by JD keyword overlap; reorder skills."""
+    """Show/hide experiences & projects by JD keyword overlap; reorder skills.
+
+    When the Yiling AI-agent internship is in inventory, always surface it (JD-tuned bullets)
+    and hide one overlapping project so vertical space stays ≈ one page.
+    """
+    from app.modules.resume_workspace.yiling_experience import (
+        YILING_COMPANY,
+        swap_project_for_yiling,
+        yiling_entry_for_jd,
+    )
+
     jd = (jd_text or "").lower()
     projected = {
         "candidate_name": master.get("candidate_name"),
@@ -52,6 +62,7 @@ def project_for_jd(master: dict[str, Any], jd_text: str) -> dict[str, Any]:
                 str(entry.get("company") or ""),
                 str(entry.get("name") or ""),
                 " ".join(str(t) for t in (entry.get("tools") or [])),
+                " ".join(str(t) for t in (entry.get("tags") or [])),
                 " ".join(str(b.get("text") or "") for b in _bullets(entry)),
             ]
         ).lower()
@@ -59,42 +70,85 @@ def project_for_jd(master: dict[str, Any], jd_text: str) -> dict[str, Any]:
         if not tokens:
             return 0.0
         hits = sum(1 for t in tokens if t in blob)
-        return hits / max(len(tokens), 1)
+        bonus = 0.15 if "yiling" in str(entry.get("company") or "").lower() else 0.0
+        return hits / max(len(tokens), 1) + bonus
+
+    experiences = list(master.get("experiences") or [])
+    yiling_in_master = any(YILING_COMPANY.lower() in str(e.get("company") or "").lower() for e in experiences)
+
+    # Refresh Yiling bullets for this JD when present
+    if yiling_in_master:
+        experiences = [
+            yiling_entry_for_jd(jd_text)
+            if YILING_COMPANY.lower() in str(e.get("company") or "").lower()
+            else e
+            for e in experiences
+        ]
 
     scored_exp = sorted(
-        ((score_entry(e), e) for e in (master.get("experiences") or [])),
-        key=lambda x: x[0],
-        reverse=True,
-    )
-    scored_proj = sorted(
-        ((score_entry(e), e) for e in (master.get("projects") or [])),
+        ((score_entry(e), e) for e in experiences),
         key=lambda x: x[0],
         reverse=True,
     )
 
-    # Budget: up to 2 experiences + 2 projects
-    for sc, e in scored_exp[:2]:
-        projected["experiences"].append(e)
-    for sc, e in scored_exp[2:]:
-        projected["hidden_entries"].append(
-            {"kind": "experience", "key": f"{e.get('company')}|{e.get('title')}", "score": sc}
+    # Budget with Yiling: show Yiling + both prior internships (3 exp),
+    # hide exactly one project (swap) so height ≈ master (2e+3p → 3e+2p).
+    chosen_exp: list[dict[str, Any]] = []
+    if yiling_in_master:
+        yiling = next(
+            e for _, e in scored_exp if YILING_COMPANY.lower() in str(e.get("company") or "").lower()
         )
+        chosen_exp.append(yiling)
+        for sc, e in scored_exp:
+            if YILING_COMPANY.lower() in str(e.get("company") or "").lower():
+                continue
+            chosen_exp.append(e)
+    else:
+        for sc, e in scored_exp[:2]:
+            chosen_exp.append(e)
+        for sc, e in scored_exp[2:]:
+            projected["hidden_entries"].append(
+                {"kind": "experience", "key": f"{e.get('company')}|{e.get('title')}", "score": sc}
+            )
+    projected["experiences"] = chosen_exp
 
-    for sc, e in scored_proj[:2]:
+    # Projects: when Yiling shown, swap out one project (≈ same height as new intern block)
+    projects = list(master.get("projects") or [])
+    swap_name = swap_project_for_yiling(jd_text) if yiling_in_master else None
+    remaining_proj = []
+    for e in projects:
+        name = str(e.get("name") or "")
+        if swap_name and name == swap_name:
+            projected["hidden_entries"].append({"kind": "project", "key": name, "score": -1.0})
+            continue
+        remaining_proj.append(e)
+
+    scored_proj = sorted(
+        ((score_entry(e), e) for e in remaining_proj),
+        key=lambda x: x[0],
+        reverse=True,
+    )
+    # After Yiling swap keep remaining projects (typically 2). Without Yiling, top 2 of 3.
+    limit = len(remaining_proj) if yiling_in_master else 2
+    for sc, e in scored_proj[:limit]:
         projected["projects"].append(e)
-    for sc, e in scored_proj[2:]:
+    for sc, e in scored_proj[limit:]:
         projected["hidden_entries"].append(
             {"kind": "project", "key": str(e.get("name")), "score": sc}
         )
 
-    # Hide competitions when JD is analytics-heavy and space tight
-    if projected["competitions"] and ("analyst" in jd or "sql" in jd or "tableau" in jd):
+    # Hide competitions only when space is still tight AND Yiling is absent
+    # (with Yiling+project-swap the page should stay full including competitions)
+    if projected["competitions"] and not yiling_in_master and (
+        "analyst" in jd or "sql" in jd or "tableau" in jd
+    ):
         for c in projected["competitions"]:
             projected["hidden_entries"].append(
                 {"kind": "competition", "key": str(c.get("name") or c), "score": 0.0}
             )
         projected["competitions"] = []
 
+    # Skills reorder only — never lengthen the skills string beyond master
     skills_raw = str(master.get("skills_certifications") or "")
     parts = [p.strip() for p in skills_raw.replace(";", ",").split(",") if p.strip()]
     hit, rest = [], []
@@ -103,17 +157,8 @@ def project_for_jd(master: dict[str, Any], jd_text: str) -> dict[str, Any]:
             hit.append(p)
         else:
             rest.append(p)
-    ordered = hit + rest
-    projected["skills_certifications"] = ", ".join(ordered[:15] + ([] if len(ordered) <= 15 else rest[:0]))
-    # Keep at most 15 skills in projection string for one-page
-    projected["skills_certifications"] = ", ".join((hit + rest)[:15])
-
-    # Summary boost using hit skills
-    if hit:
-        base = str(master.get("summary") or "")
-        projected["summary"] = f"Data Analyst targeting roles emphasizing {', '.join(hit[:4])}. {base}"
-        if len(projected["summary"]) > 420:
-            projected["summary"] = projected["summary"][:417].rstrip() + "..."
+    projected["skills_certifications"] = ", ".join(hit + rest) if (hit or rest) else skills_raw
+    projected["summary"] = master.get("summary")
 
     return projected
 

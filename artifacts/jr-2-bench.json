@@ -1,0 +1,14 @@
+{
+  "pass_criteria": {
+    "greenhouse_ats_merge": true,
+    "greenhouse_parse": true,
+    "lever_parse": true,
+    "lever_ats_prefix": true,
+    "ats_upsert_same_id": true,
+    "ats_no_duplicate_row": true,
+    "tc_fallback": true,
+    "stale_closed": true,
+    "closed_excluded": true
+  },
+  "all_pass": true
+}

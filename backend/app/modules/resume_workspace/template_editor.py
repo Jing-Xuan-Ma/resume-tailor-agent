@@ -1,5 +1,6 @@
 import json
 import re
+import tempfile
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
@@ -300,9 +301,28 @@ class ResumeTemplateEditor:
         return ResumeTemplateEditor.generate_preview_pdf(full_resume)
 
     @staticmethod
+    def convert_docx_to_pdf_via_word(docx_bytes: bytes, *, label: str = "preview") -> bytes:
+        """True master-layout PDF via Microsoft Word COM (Windows)."""
+        import sys
+        import tempfile
+        from pathlib import Path
+
+        repo_root = Path(__file__).resolve().parents[4]
+        scripts_dir = repo_root / "scripts"
+        if str(scripts_dir) not in sys.path:
+            sys.path.insert(0, str(scripts_dir))
+        from rg_word_pdf import word_export_pdf  # type: ignore
+
+        with tempfile.TemporaryDirectory(prefix="ws_word_pdf_") as td:
+            pdf_out = Path(td) / f"{label}.pdf"
+            word_export_pdf(docx_bytes, pdf_out, label=label)
+            return pdf_out.read_bytes()
+
+    @staticmethod
     def convert_to_pdf_via_libreoffice(docx_bytes: bytes, timeout_seconds: int = 30) -> bytes:
         import subprocess
         import tempfile
+        from pathlib import Path
 
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp_docx:
             tmp_docx.write(docx_bytes)
@@ -312,15 +332,22 @@ class ResumeTemplateEditor:
 
         try:
             result = subprocess.run(
-                ["soffice", "--headless", "--convert-to", "pdf", "--outdir", str(Path(pdf_path).parent), docx_path],
+                [
+                    "soffice",
+                    "--headless",
+                    "--convert-to",
+                    "pdf",
+                    "--outdir",
+                    str(Path(pdf_path).parent),
+                    docx_path,
+                ],
                 capture_output=True,
                 timeout=timeout_seconds,
             )
             if result.returncode != 0:
                 raise RuntimeError(f"LibreOffice conversion failed: {result.stderr.decode()}")
             with open(pdf_path, "rb") as f:
-                pdf_bytes = f.read()
-            return pdf_bytes
+                return f.read()
         except FileNotFoundError:
             raise RuntimeError("LibreOffice not found. Install it and ensure 'soffice' is on PATH.")
         except subprocess.TimeoutExpired:
@@ -331,17 +358,17 @@ class ResumeTemplateEditor:
 
     @staticmethod
     def generate_pdf_from_resume(full_resume: dict) -> bytes:
-        markdown = ResumeTemplateEditor._render_markdown(full_resume)
-        raw_lines = [line.strip() for line in markdown.splitlines() if line.strip()]
+        """Plain-text PDF preview — no Markdown markers (##, **, #)."""
+        raw_lines = ResumeTemplateEditor._render_plain_lines(full_resume)
 
         configs = [
-            {"font_size": 7.8, "leading": 9.1, "wrap_width": 132},
-            {"font_size": 7.2, "leading": 8.3, "wrap_width": 146},
-            {"font_size": 6.7, "leading": 7.7, "wrap_width": 158},
+            {"font_size": 9.0, "leading": 11.0, "wrap_width": 92},
+            {"font_size": 8.2, "leading": 10.0, "wrap_width": 100},
+            {"font_size": 7.4, "leading": 9.0, "wrap_width": 110},
         ]
         page_height = 792
         top = 752
-        bottom = 34
+        bottom = 36
 
         selected_lines = raw_lines
         selected = configs[-1]
@@ -362,51 +389,90 @@ class ResumeTemplateEditor:
         )
 
     @staticmethod
-    def _render_markdown(resume: dict) -> str:
-        lines = []
+    def _strip_md(text: str) -> str:
+        """Remove Markdown emphasis / heading markers from display text."""
+        s = str(text or "")
+        s = re.sub(r"^#{1,6}\s*", "", s)
+        s = s.replace("**", "").replace("__", "").replace("`", "")
+        # Constitution: no ATS-hostile bullets / arrows
+        for ch in ("→", "←", "⇒", "⇐", "➜", "➔", "➡", "●", "◆", "■", "★", "✓", "✔", "✗"):
+            s = s.replace(ch, "-")
+        return s.strip()
+
+    @staticmethod
+    def _render_plain_lines(resume: dict) -> list[str]:
+        """Clean resume lines for PDF preview (no Markdown syntax)."""
+        lines: list[str] = []
         if resume.get("candidate_name"):
-            lines.append(f"# {resume['candidate_name']}")
+            lines.append(str(resume["candidate_name"]).upper())
         if resume.get("contact_line"):
-            lines.append(resume["contact_line"])
+            lines.append(ResumeTemplateEditor._strip_md(str(resume["contact_line"])))
         if resume.get("summary"):
-            lines.append(f"\n{resume['summary']}")
+            lines.append("")
+            lines.append(ResumeTemplateEditor._strip_md(str(resume["summary"])))
         if resume.get("education"):
-            lines.append("\n## EDUCATION")
+            lines.append("")
+            lines.append("EDUCATION")
             for edu in resume["education"]:
                 parts = [p for p in [edu.get("institution"), edu.get("date_range")] if p]
                 if parts:
-                    lines.append(f"**{' | '.join(str(p) for p in parts)}**")
+                    lines.append(ResumeTemplateEditor._strip_md(" | ".join(str(p) for p in parts)))
+                degree_bits = [p for p in [edu.get("degree"), edu.get("field"), edu.get("location")] if p]
+                if degree_bits:
+                    lines.append(ResumeTemplateEditor._strip_md(" | ".join(str(p) for p in degree_bits)))
         for key, title in [("experiences", "PROFESSIONAL EXPERIENCE"), ("projects", "PROJECTS")]:
             items = resume.get(key, [])
-            if items:
-                lines.append(f"\n## {title}")
-                for item in items:
-                    left = item.get("title") or item.get("name", "")
-                    mid = item.get("company") or ", ".join(str(t) for t in (item.get("tools") or []))
-                    heading = " | ".join(str(p) for p in [left, mid] if p)
-                    if item.get("date_range"):
-                        heading += f" - {item['date_range']}"
-                    if heading:
-                        lines.append(f"**{heading}**")
-                    for bullet in item.get("bullets", []):
-                        text = bullet.get("text", "") if isinstance(bullet, dict) else str(bullet)
-                        lines.append(f"  • {text}")
+            if not items:
+                continue
+            lines.append("")
+            lines.append(title)
+            for item in items:
+                left = item.get("title") or item.get("name", "")
+                mid = item.get("company") or ", ".join(str(t) for t in (item.get("tools") or []))
+                heading = " | ".join(str(p) for p in [left, mid] if p)
+                right_bits = [p for p in [item.get("location"), item.get("date_range")] if p]
+                if right_bits:
+                    heading = f"{heading}  —  {' | '.join(str(p) for p in right_bits)}" if heading else " | ".join(str(p) for p in right_bits)
+                if heading:
+                    lines.append(ResumeTemplateEditor._strip_md(heading))
+                for bullet in item.get("bullets", []):
+                    text = bullet.get("text", "") if isinstance(bullet, dict) else str(bullet)
+                    text = ResumeTemplateEditor._strip_md(text)
+                    if text:
+                        lines.append(f"- {text}")
         skills = resume.get("skills_certifications") or ", ".join(resume.get("skills") or [])
         if skills:
-            lines.append(f"\n## SKILLS & CERTIFICATIONS\n{skills}")
-        return "\n".join(lines)
+            lines.append("")
+            lines.append("SKILLS & CERTIFICATIONS")
+            lines.append(ResumeTemplateEditor._strip_md(str(skills)))
+        return lines
+
+    @staticmethod
+    def _render_markdown(resume: dict) -> str:
+        # Kept for .txt export / legacy callers — plain text, no MD markers.
+        return "\n".join(ResumeTemplateEditor._render_plain_lines(resume))
 
     @staticmethod
     def _wrap_lines(raw_lines: list[str], width: int) -> list[str]:
         from textwrap import wrap
-        section_names = {"EDUCATION", "PROFESSIONAL EXPERIENCE", "PROJECTS", "COMPETITIONS", "SKILLS & CERTIFICATIONS"}
+        section_names = {
+            "EDUCATION",
+            "PROFESSIONAL EXPERIENCE",
+            "PROJECTS",
+            "COMPETITIONS",
+            "SKILLS & CERTIFICATIONS",
+        }
         lines = []
         for raw in raw_lines:
-            line = raw.replace("* ", "• ")
-            if line in section_names or line.startswith("#"):
+            line = ResumeTemplateEditor._strip_md(raw)
+            line = line.replace("* ", "- ")
+            if not line:
+                lines.append("")
+                continue
+            if line in section_names or (line.isupper() and len(line) < 40 and " | " not in line):
                 lines.append(line)
                 continue
-            is_bullet = line.startswith("•")
+            is_bullet = line.startswith("- ") or line.startswith("•")
             wrapped = wrap(line, width=width, subsequent_indent="  " if is_bullet else "") or [line]
             lines.extend(wrapped)
         return lines
@@ -419,18 +485,40 @@ class ResumeTemplateEditor:
             objects.append(obj.encode("cp1252", errors="replace"))
             return len(objects)
 
+        section_names = {
+            "EDUCATION",
+            "PROFESSIONAL EXPERIENCE",
+            "PROJECTS",
+            "COMPETITIONS",
+            "SKILLS & CERTIFICATIONS",
+        }
+
         add("<< /Type /Catalog /Pages 2 0 R >>")
         add("<< /Type /Pages /Kids [] /Count 0 >>")
-        font_id = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+        font_reg = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+        font_bold = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>")
         commands = ["BT", f"/F1 {font_size} Tf", f"48 {top} Td", f"{leading} TL"]
-        for line in lines:
+        current_bold = False
+        for i, line in enumerate(lines):
+            is_name = i == 0 and bool(line) and " | " not in line and "@" not in line
+            is_section = line in section_names
+            want_bold = is_name or is_section
+            if want_bold != current_bold:
+                commands.append(f"/F{'2' if want_bold else '1'} {font_size + (1.5 if is_name else 0)} Tf")
+                current_bold = want_bold
             safe = line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
             commands.append(f"({safe}) Tj")
             commands.append("T*")
         commands.append("ET")
         stream = "\n".join(commands)
-        content_id = add(f"<< /Length {len(stream.encode('cp1252', errors='replace'))} >>\nstream\n{stream}\nendstream")
-        page_id = add(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 {page_height}] /Resources << /Font << /F1 {font_id} 0 R >> >> /Contents {content_id} 0 R >>")
+        content_id = add(
+            f"<< /Length {len(stream.encode('cp1252', errors='replace'))} >>\nstream\n{stream}\nendstream"
+        )
+        page_id = add(
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 {page_height}] "
+            f"/Resources << /Font << /F1 {font_reg} 0 R /F2 {font_bold} 0 R >> >> "
+            f"/Contents {content_id} 0 R >>"
+        )
         objects[1] = f"<< /Type /Pages /Kids [{page_id} 0 R] /Count 1 >>".encode("latin-1")
 
         pdf = bytearray(b"%PDF-1.4\n")
@@ -444,5 +532,9 @@ class ResumeTemplateEditor:
         pdf.extend(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode("latin-1"))
         for offset in offsets:
             pdf.extend(f"{offset:010d} 00000 n \n".encode("latin-1"))
-        pdf.extend(f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF".encode("latin-1"))
+        pdf.extend(
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF".encode(
+                "latin-1"
+            )
+        )
         return bytes(pdf)

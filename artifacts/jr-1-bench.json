@@ -1,0 +1,12 @@
+{
+  "pass_criteria": {
+    "index_search_without_live": true,
+    "upsert_idempotent": true,
+    "discover_from_index_ms": 544.2,
+    "from_index_jobs": 5,
+    "active_total": 13,
+    "created_on_seed": 0,
+    "dup_delta": 0
+  },
+  "notes": "JR-1 default discover uses job_listings (live=false). Scheduler writes via JOB_INDEX_INGEST_INTERVAL_MINUTES; manual: python scripts/jr1_ingest_jobs.py --query 'data analyst'."
+}

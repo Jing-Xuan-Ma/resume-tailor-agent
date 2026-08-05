@@ -1,0 +1,26 @@
+{
+  "wave": 5,
+  "passed": true,
+  "checks": [
+    {
+      "name": "w20_detail_stale_badge",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w20_detail_honest_labels",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w21_records_recommended_empty",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w21_records_history_empty",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

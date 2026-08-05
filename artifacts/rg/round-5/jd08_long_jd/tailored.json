@@ -1,0 +1,160 @@
+{
+  "candidate_name": "Jingxuan Ma",
+  "contact_line": "+1 (410) 240-4366 | jma107@jh.edu | LinkedIn | Portfolio",
+  "summary": "Data Science M.S. student at Johns Hopkins with a background in Applied Statistics and data analytics. Skilled in R, advanced SQL, Python ETL pipelines using Apache Airflow, Tableau dashboard development, operations automation, stakeholder collaboration, and AI prompt engineering to accelerate data analysis.",
+  "education": [
+    {
+      "institution": "Johns Hopkins University",
+      "degree": "Master of Science in Data Science",
+      "field": "Data Science",
+      "location": "Baltimore, US",
+      "date_range": "August 2025 - June 2027",
+      "coursework": [
+        "Database Systems",
+        "Introduction to Algorithms",
+        "Nonlinear Optimization",
+        "Human-Computer Interaction"
+      ]
+    },
+    {
+      "institution": "University College Cork",
+      "degree": "Bachelor of Science in Actuarial Sciences",
+      "field": "Actuarial Sciences",
+      "location": "Cork, Ireland | Beijing, China",
+      "date_range": "September 2021 - June 2025",
+      "coursework": [
+        "Probability & Statistics",
+        "Actuarial Mathematics",
+        "Financial Mathematics",
+        "Regression Analysis",
+        "Statistical Computing"
+      ]
+    }
+  ],
+  "experiences": [
+    {
+      "company": "Shenwan Hongyuan Securities Co., Ltd.",
+      "title": "Data Analyst Intern",
+      "location": "Beijing, China",
+      "date_range": "June 2024 - August 2024",
+      "bullets": [
+        {
+          "text": "Faced with the need to evaluate whether a pricing model library could meet both runtime and maintainability requirements, conducted a structured feasibility analysis across Python, pure & optimized C++, Eigen vectorization, OpenMP, and ctypes-based Python/C++ integration",
+          "evidence_from": "shenwan_exp_1",
+          "original_text": "Faced with the need to evaluate whether a pricing model library could meet both runtime and maintainability requirements, conducted a structured feasibility analysis across Python, pure & optimized C++, Eigen vectorization, OpenMP, and ctypes-based Python/C++ integration"
+        },
+        {
+          "text": "Built and benchmarked a 100,000-path Monte Carlo pricing simulation, applying compiler optimization, vectorized matrix operations, and multithreaded random-path generation to isolate major bottlenecks in computation-intensive pricing workflows",
+          "evidence_from": "shenwan_exp_2",
+          "original_text": "Built and benchmarked a 100,000-path Monte Carlo pricing simulation, applying compiler optimization, vectorized matrix operations, and multithreaded random-path generation to isolate major bottlenecks in computation-intensive pricing workflows"
+        },
+        {
+          "text": "Delivered a hybrid architecture recommendation that assigned heavy simulation and statistical computation to C++ while keeping configuration, preprocessing, and visualization in Python; reduced runtime from approx. 33.4s to approx. 1.4s with OpenMP optimization",
+          "evidence_from": "shenwan_exp_3",
+          "original_text": "Delivered a hybrid architecture recommendation that assigned heavy simulation and statistical computation to C++ while keeping configuration, preprocessing, and visualization in Python; reduced runtime from approx. 33.4s to approx. 1.4s with OpenMP optimization"
+        }
+      ]
+    },
+    {
+      "company": "Yinhua Fund Management Co., Ltd.",
+      "title": "Data Analyst Intern",
+      "location": "Beijing, China",
+      "date_range": "June 2023 - August 2023",
+      "bullets": [
+        {
+          "text": "Given the need to support campaign review and market reporting, collected, organized, and cleaned market and customer data from multiple business materials, creating structured datasets for trend analysis and management communication",
+          "evidence_from": "yinhua_exp_1",
+          "original_text": "Given the need to support campaign review and market reporting, collected, organized, and cleaned market and customer data from multiple business materials, creating structured datasets for trend analysis and management communication"
+        },
+        {
+          "text": "Used Python, Excel, and visualization techniques to analyze market patterns, prepare charts and analytical materials, and convert raw performance data into insights that could support investment-product marketing decisions",
+          "evidence_from": "yinhua_exp_2",
+          "original_text": "Used Python, Excel, and visualization techniques to analyze market patterns, prepare charts and analytical materials, and convert raw performance data into insights that could support investment-product marketing decisions"
+        },
+        {
+          "text": "Prepared concise reporting assets for internal stakeholders by translating quantitative findings into business narratives, improving clarity around customer behavior, campaign performance, and market trends",
+          "evidence_from": "yinhua_exp_3",
+          "original_text": "Prepared concise reporting assets for internal stakeholders by translating quantitative findings into business narratives, improving clarity around customer behavior, campaign performance, and market trends"
+        }
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Credit Risk Prediction Model",
+      "tools": [
+        "Python",
+        "SQL",
+        "scikit-learn",
+        "XGBoost",
+        "R"
+      ],
+      "context": "Independent Project",
+      "date_range": "",
+      "bullets": [
+        {
+          "text": "To build and adapt algorithms for complex risk use cases, designed an end-to-end predictive pipeline integrating SQL-style extraction, missing-value treatment, feature engineering, and statistical modeling to estimate expected claim costs and credit default behavior",
+          "evidence_from": "credit_proj_1",
+          "original_text": "To build and adapt algorithms for complex risk use cases, designed an end-to-end predictive pipeline integrating SQL-style extraction, missing-value treatment, feature engineering, and statistical modeling to estimate expected claim costs and credit default behavior"
+        },
+        {
+          "text": "Applied advanced statistics and machine learning libraries (scikit-learn, XGBoost) to train, evaluate, and benchmark regression and tree-based models, leveraging ROC-AUC, F1-score, and cost drivers to balance predictive accuracy with business interpretability.",
+          "evidence_from": "credit_proj_2",
+          "original_text": "Applied advanced statistics and machine learning libraries (scikit-learn, XGBoost) to train, evaluate, and benchmark regression and tree-based models, leveraging ROC-AUC, F1-score, and cost drivers to balance predictive accuracy with business interpretability."
+        },
+        {
+          "text": "Extended the framework with stochastic modeling via Monte Carlo simulations to analyze skewed loss distributions, interpreting error patterns to translate quantitative outputs into risk-monitoring thresholds and optimized decision-making insights.",
+          "evidence_from": "credit_proj_3",
+          "original_text": "Extended the framework with stochastic modeling via Monte Carlo simulations to analyze skewed loss distributions, interpreting error patterns to translate quantitative outputs into risk-monitoring thresholds and optimized decision-making insights."
+        }
+      ]
+    },
+    {
+      "name": "Insurance Claims Severity Modeling",
+      "tools": [
+        "Python",
+        "R",
+        "pandas",
+        "scikit-learn",
+        "Monte Carlo Simulation"
+      ],
+      "context": "Independent Project",
+      "date_range": "",
+      "bullets": [
+        {
+          "text": "To estimate claim severity across heterogeneous policy segments, collected and cleaned historical claims data and engineered exposure- and policy-level features to support distributional analysis of loss costs",
+          "evidence_from": "claims_proj_1",
+          "original_text": "To estimate claim severity across heterogeneous policy segments, collected and cleaned historical claims data and engineered exposure- and policy-level features to support distributional analysis of loss costs"
+        },
+        {
+          "text": "Analyzed skewed loss distributions, outliers, and cost drivers; compared regression and tree-based approaches to evaluate trade-offs among predictive accuracy, robustness, and business interpretability for underwriting and reserving use cases",
+          "evidence_from": "claims_proj_2",
+          "original_text": "Analyzed skewed loss distributions, outliers, and cost drivers; compared regression and tree-based approaches to evaluate trade-offs among predictive accuracy, robustness, and business interpretability for underwriting and reserving use cases"
+        },
+        {
+          "text": "Extended the modeling framework with Monte Carlo simulation and performance-benchmarking concepts to evaluate scalable pricing workflows, translating model outputs into risk segmentation, pricing review, and portfolio-level reporting insights",
+          "evidence_from": "claims_proj_3",
+          "original_text": "Extended the modeling framework with Monte Carlo simulation and performance-benchmarking concepts to evaluate scalable pricing workflows, translating model outputs into risk segmentation, pricing review, and portfolio-level reporting insights"
+        }
+      ]
+    }
+  ],
+  "competitions": [],
+  "skills_certifications": "Python, R, SQL, Tableau, data cleaning, feature engineering, scikit-learn, XGBoost, Credit Risk, Apache Airflow, exploratory analysis, Pandas, NumPy, Monte Carlo Simulation, Claims Modeling, stakeholder reporting",
+  "hidden_entries": [
+    {
+      "kind": "project",
+      "key": "Tesla Vehicle Quality & Risk Analytics Pipeline",
+      "score": 0.15217391304347827
+    }
+  ],
+  "format_check": {
+    "single_page": true,
+    "section_order_ok": true,
+    "fabrication": false
+  },
+  "evidence_check": {
+    "ok": true,
+    "notes": "Inventory preserved; summary not lengthened for one-page lock."
+  }
+}

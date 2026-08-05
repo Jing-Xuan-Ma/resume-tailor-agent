@@ -14,6 +14,58 @@ class JobDiscoverRequest(BaseModel):
     hours_old: Optional[int] = None
     country_indeed: str = "USA"
     min_match_score: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    # JR-1: default read local index; opt into live provider fan-out.
+    live: bool = False
+    # JR-4 hard filters (server-side)
+    work_model: Optional[str] = None  # remote | hybrid | onsite
+    source_platform: Optional[str] = None
+    # Prefer 0–100; values <=1 still accepted as fraction for back-compat via search_index.
+    min_score_100: Optional[float] = Field(default=None, ge=0.0, le=100.0)
+    category: Optional[str] = None  # slug or display label
+
+
+class JobIndexIngestRequest(BaseModel):
+    queries: list[str] = Field(default_factory=list)
+    location: Optional[str] = None
+    limit_per_query: int = Field(default=50, ge=1, le=100)
+    hours_old: Optional[int] = None
+    country_indeed: str = "USA"
+    sites: list[str] = Field(default_factory=list)
+
+
+class JobIndexLeadRequest(BaseModel):
+    """Single lead upsert for Jobright extension / manual import bridge."""
+
+    title: str = Field(min_length=1)
+    company: str = Field(min_length=1)
+    raw_text: str = Field(min_length=1)
+    location: Optional[str] = None
+    source_url: Optional[str] = None
+    source_platform: str = "jobright_extension"
+    category: Optional[str] = None
+    work_model: Optional[str] = None
+    jobright_url: Optional[str] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    # When True, skip quality gate (thin JD still stored; tailor quality may suffer).
+    force: bool = False
+
+
+class JobIndexLeadResponse(BaseModel):
+    id: str
+    created: bool
+    source_platform: str
+    quality_ok: bool
+    quality_reason: str
+    workspace_url: str
+    apply_step_url: str
+    outreach_step_url: str
+
+
+class JobIndexStatsResponse(BaseModel):
+    active_total: int
+    enabled: bool
+    interval_minutes: int
+    default_queries: list[str]
 
 
 class JobIngestRequest(BaseModel):

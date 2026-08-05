@@ -83,22 +83,17 @@ branch from last checkpoint
 - Deleting files outside this repository
 ---
 
-## How to start (no long paste needed)
+## How to start
 
-Project files auto-load the mission:
+**Two different things:**
 
-- `AGENTS.md` — default Agent instructions
-- `.cursor/rules/*` — no-questions + data safety
-- `.cursor/hooks.json` — `sessionStart` injects mission; `stop` auto-continues
-
-**You only need to:** open this repo in Cursor → open **Agent** chat → send `go` (or `继续`).
-
-Auto-continue runs while `artifacts/AUTONOMOUS_RUN` exists and neither `AUTONOMOUS_PAUSE` nor `AUTONOMOUS_DONE` exists.
+1. **少点 Run 批准** → Cursor Settings → Agents → Approvals & Execution → 选 **Run Everything**（已尽量用 `~/.cursor/permissions.json` + settings 辅助）
+2. **长任务 ITERATION_PLAN** → 在一个 Agent 里发 `go` / `继续`（平时普通任务不要发 go）
 
 | Control | Action |
 |---------|--------|
-| Pause | create `artifacts/AUTONOMOUS_PAUSE` |
-| Resume | delete `AUTONOMOUS_PAUSE`, keep `AUTONOMOUS_RUN`, send `go` again |
+| Start long iteration | say `go` / `继续` / `start` |
+| Pause auto-continue | create `artifacts/AUTONOMOUS_PAUSE` or press Stop |
 | Finished | `AUTONOMOUS_DONE` (auto after Iter-8) |
 
 Note: Cursor must be open with an Agent session; hooks cannot start work if the app is closed or offline.

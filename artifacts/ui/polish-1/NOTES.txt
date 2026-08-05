@@ -1,0 +1,5 @@
+job_rows=10
+cta_visible=True
+cta_href=/?view=resume&jobId=mock_job_008
+stepper=2
+resume_ws=1

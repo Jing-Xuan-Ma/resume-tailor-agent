@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Inject autonomous mission context at every Agent session start."""
+﻿#!/usr/bin/env python3
+"""Inject light context only. Never auto-arm the ITERATION_PLAN loop."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ ARTIFACTS = ROOT / "artifacts"
 
 
 def latest_checkpoint() -> str:
-    # Prefer git tags when available; fall back to report files.
     try:
         import subprocess
 
@@ -42,45 +41,34 @@ def main() -> None:
 
     mode = (payload.get("composer_mode") or "agent").lower()
     if mode in {"ask", "edit"}:
-        # Do not force long-running iteration loops in Ask/Edit modes.
         print(json.dumps({}))
         return
 
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     run_flag = ARTIFACTS / "AUTONOMOUS_RUN"
-    if not run_flag.exists() and not (ARTIFACTS / "AUTONOMOUS_PAUSE").exists():
-        run_flag.write_text(
-            "Autonomous iteration enabled.\n"
-            "Delete this file or create AUTONOMOUS_PAUSE to stop auto-continue.\n",
-            encoding="utf-8",
-        )
-
     paused = (ARTIFACTS / "AUTONOMOUS_PAUSE").exists()
     done = (ARTIFACTS / "AUTONOMOUS_DONE").exists()
+    # Do NOT auto-create AUTONOMOUS_RUN. Only user "go" arms via before_submit.
     enabled = run_flag.exists() and not paused and not done
 
     context = f"""
-# Autonomous session bootstrap (injected by project hook)
+# Session bootstrap
 
 Project: resume-agent
-Mission file: AGENTS.md + ITERATION_PLAN.md
 Latest checkpoint hint: {latest_checkpoint()}
-Autonomous continue: {"ENABLED" if enabled else "DISABLED (paused/done/missing AUTONOMOUS_RUN)"}
+ITERATION_PLAN auto-continue: {"ARMED" if enabled else "OFF (say go only when you want the long iteration mission)"}
 
-Instructions for this session:
-1. Do not ask the user questions. Use ITERATION_PLAN.md defaults.
-2. Continue unfinished iterations until Iter-8 pass, safety stop, AUTONOMOUS_PAUSE, or AUTONOMOUS_DONE.
-3. Obey .cursor/rules data-safety: never delete files outside this repo; never real Submit; cold email frozen.
-4. If the user message is short (go/继续/start) or empty of new scope, execute the mission.
+Rules:
+1. For normal questions/tasks: just do that task. Do NOT start ITERATION_PLAN.
+2. Only when the user says go / 继续 / start: run ITERATION_PLAN.md autonomously.
+3. Obey data-safety: never delete outside this repo; never real Submit; cold email frozen.
 """.strip()
 
     print(
         json.dumps(
             {
                 "additional_context": context,
-                "env": {
-                    "RESUME_AGENT_AUTONOMOUS": "1" if enabled else "0",
-                },
+                "env": {"RESUME_AGENT_AUTONOMOUS": "1" if enabled else "0"},
             }
         )
     )

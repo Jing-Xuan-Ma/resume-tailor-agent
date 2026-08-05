@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w74_preview_or_stepper",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w74_outreach_empty_or_drafts",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w123_sort_testids",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w124_clear_filters",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w124_confirm_star",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w125_threshold_ls",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w126_soft_note_count",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w123_sort_restored_date",
+      "ok": true,
+      "detail": "rounded-lg px-3 py-1.5 bg-white text-slate-950 shadow-sm"
+    },
+    {
+      "name": "w125_threshold_restored",
+      "ok": true,
+      "detail": "35%"
+    },
+    {
+      "name": "w124_clear_visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w124_clear_resets_threshold",
+      "ok": true,
+      "detail": "0%"
+    }
+  ]
+}

@@ -47,6 +47,7 @@ export default function RecordsPanel({ userId }: RecordsPanelProps) {
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<string | undefined>();
   const [tab, setTab] = useState<"recommended" | "history">("recommended");
+  const [historyFilter, setHistoryFilter] = useState<string>("all");
 
   const refresh = async () => {
     setLoading("refresh");
@@ -149,15 +150,85 @@ export default function RecordsPanel({ userId }: RecordsPanelProps) {
                 </div>
               );
             }) : (
-              <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                <p className="text-sm font-semibold text-slate-500">No recommended jobs yet.</p>
-                <p className="mt-1 text-xs text-slate-400">Discover jobs to find high-match opportunities (≥85%).</p>
+              <div
+                className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm"
+                data-testid="records-recommended-empty"
+              >
+                <p className="text-sm font-semibold text-slate-800">No ≥85% matches yet</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Open Ranked Jobs, raise your profile coverage, then Refresh here.
+                </p>
+                <a
+                  href="/jobs"
+                  className="mt-4 inline-flex h-9 items-center rounded-xl bg-emerald-600 px-4 text-xs font-semibold text-white hover:bg-emerald-700"
+                  data-testid="records-goto-jobs"
+                >
+                  Browse ranked jobs
+                </a>
               </div>
             )}
           </div>
         ) : (
           <div className="space-y-3">
-            {history.length ? history.map((rec) => (
+            <div className="flex flex-wrap gap-1.5" data-testid="records-history-filters">
+              {[
+                { id: "all", label: "All" },
+                { id: "resume_prepared", label: "Prepared" },
+                { id: "prepared_for_submit", label: "Package" },
+                { id: "auto_submit_blocked", label: "Blocked" },
+                { id: "submitted_by_user", label: "Manual" },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  data-testid={`records-filter-${f.id}`}
+                  onClick={() => setHistoryFilter(f.id)}
+                  className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ring-1 ${
+                    historyFilter === f.id
+                      ? "bg-slate-900 text-white ring-slate-900"
+                      : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            {(() => {
+              const visible =
+                historyFilter === "all"
+                  ? history
+                  : history.filter((r) => r.action === historyFilter);
+              if (!history.length) {
+                return (
+              <div
+                className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm"
+                data-testid="records-history-empty"
+              >
+                <p className="text-sm font-semibold text-slate-800">No application history yet</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Tailor → Confirm → Apply on a job; records appear here after each dry-run or save.
+                </p>
+                <a
+                  href="/?view=resume"
+                  className="mt-4 inline-flex h-9 items-center rounded-xl border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                  data-testid="records-goto-tailor"
+                >
+                  Open Tailor workspace
+                </a>
+              </div>
+                );
+              }
+              if (!visible.length) {
+                return (
+                  <div
+                    className="rounded-3xl border border-dashed border-slate-200 bg-white p-6 text-center text-xs text-slate-500"
+                    data-testid="records-history-filter-empty"
+                  >
+                    No history rows for this filter.
+                  </div>
+                );
+              }
+              return visible.map((rec) => (
               <div key={rec.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -179,12 +250,8 @@ export default function RecordsPanel({ userId }: RecordsPanelProps) {
                   </div>
                 </div>
               </div>
-            )) : (
-              <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                <p className="text-sm font-semibold text-slate-500">No job history yet.</p>
-                <p className="mt-1 text-xs text-slate-400">Prepare applications or submit jobs to see records here.</p>
-              </div>
-            )}
+            ));
+            })()}
           </div>
         )}
       </div>

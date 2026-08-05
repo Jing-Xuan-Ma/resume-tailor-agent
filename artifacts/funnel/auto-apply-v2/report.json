@@ -1,0 +1,126 @@
+{
+  "pass": true,
+  "score_over_5": 5,
+  "checks": [
+    {
+      "name": "greenhouse_scan_count",
+      "ok": true,
+      "detail": "9"
+    },
+    {
+      "name": "greenhouse_auto_mapped",
+      "ok": true,
+      "detail": "auto=7"
+    },
+    {
+      "name": "greenhouse_has_empty",
+      "ok": true,
+      "detail": "empty=1"
+    },
+    {
+      "name": "greenhouse_screening_not_filled",
+      "ok": true,
+      "detail": "n=1"
+    },
+    {
+      "name": "greenhouse_not_submitted",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "greenhouse_filled_high_conf",
+      "ok": true,
+      "detail": "8"
+    },
+    {
+      "name": "greenhouse_left_unknown",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "greenhouse_resume_upload",
+      "ok": true,
+      "detail": "resume"
+    },
+    {
+      "name": "greenhouse_screenshot",
+      "ok": true,
+      "detail": "D:\\resume-agent\\artifacts\\funnel\\auto-apply-v2\\greenhouse-filled-paused.png"
+    },
+    {
+      "name": "lever_scan_count",
+      "ok": true,
+      "detail": "8"
+    },
+    {
+      "name": "lever_auto_mapped",
+      "ok": true,
+      "detail": "auto=6"
+    },
+    {
+      "name": "lever_has_empty",
+      "ok": true,
+      "detail": "empty=1"
+    },
+    {
+      "name": "lever_screening_not_filled",
+      "ok": true,
+      "detail": "n=1"
+    },
+    {
+      "name": "lever_not_submitted",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lever_filled_high_conf",
+      "ok": true,
+      "detail": "7"
+    },
+    {
+      "name": "lever_left_unknown",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "lever_resume_upload",
+      "ok": true,
+      "detail": "resume"
+    },
+    {
+      "name": "lever_screenshot",
+      "ok": true,
+      "detail": "D:\\resume-agent\\artifacts\\funnel\\auto-apply-v2\\lever-filled-paused.png"
+    },
+    {
+      "name": "greenhouse_and_lever_pass",
+      "ok": true,
+      "detail": "2/2"
+    }
+  ],
+  "suite": {
+    "ats": {
+      "greenhouse": {
+        "scan_count": 9,
+        "auto": 7,
+        "empty": 1,
+        "filled": 8,
+        "submitted": false,
+        "screenshot": "D:\\resume-agent\\artifacts\\funnel\\auto-apply-v2\\greenhouse-filled-paused.png"
+      },
+      "lever": {
+        "scan_count": 8,
+        "auto": 6,
+        "empty": 1,
+        "filled": 7,
+        "submitted": false,
+        "screenshot": "D:\\resume-agent\\artifacts\\funnel\\auto-apply-v2\\lever-filled-paused.png"
+      }
+    },
+    "live_greenhouse": "not_run"
+  },
+  "live_greenhouse": {
+    "status": "not_run",
+    "how": "After fixture PASS: set ENABLE_BROWSER_FILL_PAUSE=true and ALLOW_LIVE_BROWSER_FILL=true, then Auto-apply one Greenhouse job URL. Never click Submit in automation — you submit on the site."
+  }
+}

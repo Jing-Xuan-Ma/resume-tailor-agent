@@ -1,0 +1,25 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "w127_source_ls",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w128_reply_badge",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w129_tailor_cta",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "w129_tailor_visible",
+      "ok": true,
+      "detail": "Tailor"
+    }
+  ]
+}

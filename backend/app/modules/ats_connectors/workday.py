@@ -6,7 +6,13 @@ class WorkdayConnector(BaseATSConnector):
 
     def supports(self, url: str | None) -> bool:
         value = (url or "").lower()
-        return "myworkdayjobs.com" in value or "workdayjobs.com" in value or "wd1." in value or "wd5." in value
+        return (
+            "myworkdayjobs.com" in value
+            or "workdayjobs.com" in value
+            or "wd1." in value
+            or "wd5." in value
+            or "fixture_workday" in value
+        )
 
     def fields(self) -> list[dict]:
         fields = [field for field in super().fields() if field["name"] != "full_name"]

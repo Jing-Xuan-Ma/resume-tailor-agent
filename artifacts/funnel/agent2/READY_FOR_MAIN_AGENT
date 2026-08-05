@@ -1,0 +1,9 @@
+READY_FOR_MAIN_AGENT
+
+Agent2 Tailor & Store PASS
+- Word PDF preview (OOXML inject → Word COM), no Markdown headings in text
+- Confirm archives docx + pdf + meta.json under data/final_resumes/{Company}_{Position}/
+- meta includes job_id, confirmed_at, apply_status, outreach_status
+- Report: artifacts/funnel/agent2-tailor-report.md + artifacts/funnel/report.json
+- Screenshots: artifacts/funnel/agent2/
+- Did not touch ATS / cold email / apply_flow

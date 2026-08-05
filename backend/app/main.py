@@ -11,9 +11,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import db
 from app.config import settings
 from app.modules.application_engine.router import router as application_engine_router
+from app.modules.application_queue.router import router as application_queue_router
 from app.modules.auth.router import router as auth_router
 from app.modules.chat.router import router as chat_router
 from app.modules.cold_outreach.router import router as cold_outreach_router
+from app.modules.commercial.boundaries import router as commercial_router
 from app.modules.growth_advisor.router import router as growth_advisor_router
 from app.modules.job_discovery.router import router as job_discovery_router
 from app.modules.profile.router import router as profile_router
@@ -28,7 +30,11 @@ async def lifespan(app: FastAPI):
     """Application lifespan events."""
     logger.info("Starting up Resume Tailor Agent...", env=settings.APP_ENV)
     db.init_db()
+    from app.modules.job_discovery.scheduler import start_scheduler, stop_scheduler
+
+    start_scheduler()
     yield
+    await stop_scheduler()
     logger.info("Shutting down Resume Tailor Agent...")
 
 
@@ -39,19 +45,26 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS_LIST,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS (explicit origins + optional chrome-extension:// regex for Jobright bridge)
+_cors_kwargs: dict = {
+    "allow_origins": settings.CORS_ORIGINS_LIST,
+    "allow_credentials": True,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+}
+if settings.CORS_ORIGIN_REGEX_VALUE:
+    _cors_kwargs["allow_origin_regex"] = settings.CORS_ORIGIN_REGEX_VALUE
+app.add_middleware(CORSMiddleware, **_cors_kwargs)
 
 # Health check
 @app.get("/health", tags=["System"])
 async def health_check():
-    return {"status": "healthy", "version": "0.1.0", "env": settings.APP_ENV}
+    return {
+        "status": "healthy",
+        "version": "0.1.0",
+        "env": settings.APP_ENV,
+        "storage_backend": getattr(settings, "STORAGE_BACKEND", "sqlite"),
+    }
 
 # Routers
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
@@ -60,7 +73,9 @@ app.include_router(profile_router, prefix="/api/v1/profile", tags=["Profile"])
 app.include_router(resume_tailor_router, prefix="/api/v1/resume-tailor", tags=["Resume Tailor"])
 app.include_router(job_discovery_router, prefix="/api/v1/jobs", tags=["Job Discovery"])
 app.include_router(application_engine_router, prefix="/api/v1/applications", tags=["Application Engine"])
+app.include_router(application_queue_router, prefix="/api/v1/queue", tags=["Application Queue"])
 app.include_router(cold_outreach_router, prefix="/api/v1/outreach", tags=["Cold Outreach"])
+app.include_router(commercial_router, prefix="/api/v1/commercial", tags=["Commercial"])
 app.include_router(growth_advisor_router, prefix="/api/v1/growth", tags=["Growth Advisor"])
 app.include_router(resume_workspace_router, prefix="/api/v1/resume-workspace", tags=["Resume Workspace"])
 

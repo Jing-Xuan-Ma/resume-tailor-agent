@@ -1,0 +1,26 @@
+{
+  "pass_criteria": {
+    "discover_returns_index_job": true,
+    "parsed_has_skills_or_breakdown": true,
+    "summary_has_keywords": true,
+    "summary_matches_discover_id": true,
+    "tailor_handoff_session": true,
+    "no_real_submit": true,
+    "no_referral_scope": true
+  },
+  "all_pass": true,
+  "job_id": "e5618b66-5218-4e2f-b6b4-f3555445fa5a",
+  "coveredKeywords_sample": [
+    "dashboards",
+    "python",
+    "sql",
+    "tableau"
+  ],
+  "missingKeywords_sample": [
+    "dashboards",
+    "python",
+    "sql",
+    "tableau"
+  ],
+  "finalScore": 0.0
+}

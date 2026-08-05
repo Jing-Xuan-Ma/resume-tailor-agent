@@ -1,0 +1,351 @@
+{
+  "round": "round-1b",
+  "timestamp": "2026-08-03T06:08:16.942335+00:00",
+  "n": 10,
+  "format_pass": 10,
+  "avg_format": 10.0,
+  "avg_match": 9.6,
+  "avg_honesty": 10.0,
+  "all_format_pass": true,
+  "results": [
+    {
+      "jd_id": "jd01_da_sql_tableau",
+      "company": "Contoso Insights",
+      "title": "Data Analyst",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 12,
+          "approx_chars": 3175,
+          "jd_core_covered": 4,
+          "jd_core_missing_in_projection": [
+            "excel"
+          ],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page_heuristic": 10
+      },
+      "screenshot": true,
+      "agent_notes": [
+        "Format lock OK (paragraph/style fingerprint)."
+      ]
+    },
+    {
+      "jd_id": "jd02_analytics_engineer",
+      "company": "Streamly",
+      "title": "Analytics Engineer",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 12,
+          "approx_chars": 3169,
+          "jd_core_covered": 5,
+          "jd_core_missing_in_projection": [],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page_heuristic": 10
+      },
+      "screenshot": true,
+      "agent_notes": [
+        "Format lock OK (paragraph/style fingerprint)."
+      ]
+    },
+    {
+      "jd_id": "jd03_risk_analyst",
+      "company": "Harbor Insurance",
+      "title": "Risk Analyst Intern",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 12,
+          "approx_chars": 3169,
+          "jd_core_covered": 2,
+          "jd_core_missing_in_projection": [],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page_heuristic": 10
+      },
+      "screenshot": true,
+      "agent_notes": [
+        "Format lock OK (paragraph/style fingerprint)."
+      ]
+    },
+    {
+      "jd_id": "jd04_quant_analytics",
+      "company": "Shen Capital Desk",
+      "title": "Quantitative Analytics Intern",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 12,
+          "approx_chars": 3169,
+          "jd_core_covered": 2,
+          "jd_core_missing_in_projection": [],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page_heuristic": 10
+      },
+      "screenshot": true,
+      "agent_notes": [
+        "Format lock OK (paragraph/style fingerprint)."
+      ]
+    },
+    {
+      "jd_id": "jd05_bi_analyst",
+      "company": "Northwind Retail",
+      "title": "Business Intelligence Analyst",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 12,
+          "approx_chars": 3169,
+          "jd_core_covered": 2,
+          "jd_core_missing_in_projection": [
+            "excel"
+          ],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page_heuristic": 10
+      },
+      "screenshot": true,
+      "agent_notes": [
+        "Format lock OK (paragraph/style fingerprint)."
+      ]
+    },
+    {
+      "jd_id": "jd06_junior_ds",
+      "company": "ModelWorks",
+      "title": "Junior Data Scientist",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 12,
+          "approx_chars": 3169,
+          "jd_core_covered": 2,
+          "jd_core_missing_in_projection": [],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page_heuristic": 10
+      },
+      "screenshot": true,
+      "agent_notes": [
+        "Format lock OK (paragraph/style fingerprint)."
+      ]
+    },
+    {
+      "jd_id": "jd07_short_jd",
+      "company": "BriefCo",
+      "title": "Data Analyst",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 12,
+          "approx_chars": 3169,
+          "jd_core_covered": 2,
+          "jd_core_missing_in_projection": [],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page_heuristic": 10
+      },
+      "screenshot": true,
+      "agent_notes": [
+        "Format lock OK (paragraph/style fingerprint)."
+      ]
+    },
+    {
+      "jd_id": "jd08_long_jd",
+      "company": "OmniCorp",
+      "title": "Senior Data Analyst",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 12,
+          "approx_chars": 3169,
+          "jd_core_covered": 5,
+          "jd_core_missing_in_projection": [
+            "excel"
+          ],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page_heuristic": 10
+      },
+      "screenshot": true,
+      "agent_notes": [
+        "Format lock OK (paragraph/style fingerprint)."
+      ]
+    },
+    {
+      "jd_id": "jd09_weak_match",
+      "company": "Pixel Labs",
+      "title": "Frontend Engineer",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 12,
+          "approx_chars": 3102,
+          "jd_core_covered": 0,
+          "jd_core_missing_in_projection": [],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 6,
+        "honesty": 10,
+        "one_page_heuristic": 10
+      },
+      "screenshot": true,
+      "agent_notes": [
+        "Format lock OK (paragraph/style fingerprint).",
+        "Match weak or intentionally honest for off-target JD."
+      ]
+    },
+    {
+      "jd_id": "jd10_ops_analytics",
+      "company": "FleetMetrics",
+      "title": "Operations Analyst",
+      "format": {
+        "ok": true,
+        "score": 10,
+        "errors": [],
+        "warnings": []
+      },
+      "quality_gate": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "bullet_count": 12,
+          "approx_chars": 3175,
+          "jd_core_covered": 2,
+          "jd_core_missing_in_projection": [
+            "excel"
+          ],
+          "hidden_entries": 1
+        }
+      },
+      "scores": {
+        "format": 10,
+        "match": 10,
+        "honesty": 10,
+        "one_page_heuristic": 10
+      },
+      "screenshot": true,
+      "agent_notes": [
+        "Format lock OK (paragraph/style fingerprint)."
+      ]
+    }
+  ]
+}
