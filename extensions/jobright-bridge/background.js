@@ -47,7 +47,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === "UPLOAD_MANUAL_FALLBACK") {
     chrome.storage.local.set({
-      lastUploadHint: { reason: msg.reason, at: Date.now() },
+      lastUploadHint: {
+        reason: msg.reason,
+        file_path_hint: msg.file_path_hint,
+        at: Date.now(),
+      },
     });
     sendResponse({ ok: true });
     return false;

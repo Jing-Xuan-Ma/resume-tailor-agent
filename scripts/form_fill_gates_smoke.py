@@ -12,7 +12,7 @@ BACKEND = ROOT / "backend"
 sys.path.insert(0, str(BACKEND))
 sys.path.insert(0, str(ROOT))
 
-SHELL = BACKEND / "tests" / "engine" / "fixtures" / "fixture_ats_shell.html"
+SHELL = BACKEND / "tests" / "engine" / "fixtures" / "fixture_workday_shell.html"
 RESUME = BACKEND / "tests" / "engine" / "fixtures" / "sample_resume.pdf"
 OUT = ROOT / "artifacts" / "form-fill" / "gates-smoke.json"
 

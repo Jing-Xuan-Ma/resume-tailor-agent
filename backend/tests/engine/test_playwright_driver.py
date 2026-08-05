@@ -15,30 +15,50 @@ from app.modules.form_fill_engine.schemas import ActionInstruction, InteractiveE
 
 
 def test_build_selector_prefers_capture_selector():
-    # Import from entrypoints package on repo root
     from entrypoints.standalone_app.playwright_driver import build_selector_for
 
-    el = InteractiveElement(
-        index=0,
-        tag="input",
-        label="Email",
-        selector="#email",
-    )
+    el = InteractiveElement(index=0, tag="input", label="Email", selector="#email")
     assert build_selector_for(el) == "#email"
 
 
 @pytest.mark.asyncio
-async def test_execute_skips_pause_and_submit(monkeypatch):
+async def test_execute_skips_pause_and_submit():
     from entrypoints.standalone_app import playwright_driver as pd
+
+    class DummyLocator:
+        def __init__(self, page):
+            self.page = page
+
+        @property
+        def first(self):
+            return self
+
+        async def fill(self, val, timeout=0):
+            self.page.fills.append(val)
+
+        async def dispatch_event(self, *_a, **_k):
+            return None
+
+        async def click(self, timeout=0):
+            return None
+
+        async def count(self):
+            return 1
 
     class DummyPage:
         def __init__(self):
             self.fills = []
+            self.frames = []
+            self.main_frame = self
 
-        async def fill(self, sel, val):
-            self.fills.append((sel, val))
+        def locator(self, sel):
+            self.last_sel = sel
+            return DummyLocator(self)
 
         async def wait_for_timeout(self, ms):
+            return None
+
+        async def wait_for_load_state(self, *_a, **_k):
             return None
 
     page = DummyPage()
@@ -66,4 +86,5 @@ async def test_execute_skips_pause_and_submit(monkeypatch):
         ActionInstruction(action="fill", element_index=0, value="a@b.com"),
         els,
     )
-    assert page.fills == [("#email", "a@b.com")]
+    assert page.fills == ["a@b.com"]
+    assert page.last_sel == "#email"
