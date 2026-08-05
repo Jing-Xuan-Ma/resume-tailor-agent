@@ -2,35 +2,70 @@
 
 单容器 all-in-one：前端(Next.js :3000) + 后端(FastAPI :8000) + SQLite + Chroma 嵌入式，一个镜像全打包。
 
-## 构建
+## 快速开始
 
 ```bash
-docker build -t resume-agent .
+# 1. 构建推送镜像
+./deploy.sh build v1.0 --push
+
+# 2. 在部署服务器上
+cp .env.docker.example .env.docker   # 填入真实配置
+./deploy.sh run v1.0                  # 读 .env.docker 启动容器
 ```
 
-远程服务器需在构建时指定前端 API 地址（`NEXT_PUBLIC_API_URL` 是构建时注入）：
+## deploy.sh 命令
 
 ```bash
-docker build \
-  --build-arg NEXT_PUBLIC_API_URL=https://your-server:8000 \
-  -t resume-agent .
+./deploy.sh build [tag] [--push]   # 构建 (默认 tag=latest)，--push 推送到阿里云 ACR
+./deploy.sh run  [tag]             # 从镜像运行，读 .env.docker 注入环境变量
+./deploy.sh stop                   # 停止并删除容器
 ```
 
-## 运行
+| 参数 | 默认值 |
+|------|--------|
+| `tag` | `latest` |
+| 环境变量文件 | `.env.docker`（可用 `DEPLOY_ENV` 覆盖） |
+
+## 镜像地址
+
+`registry.cn-hangzhou.aliyuncs.com/ozx/resume-agent`
+
+推送前需登录：
 
 ```bash
-docker run -d \
-  --name resume_agent \
-  --restart unless-stopped \
-  -p 3000:3000 \
-  -p 8000:8000 \
-  -v resume_agent_data:/app/backend/data \
-  -e SECRET_KEY=$(openssl rand -hex 32) \
-  -e OPENAI_API_KEY=sk-xxx \
-  -e OPENAI_BASE_URL=https://your-openai-compatible-endpoint/v1 \
-  -e LLM_PROVIDER=openai \
-  -e CORS_ORIGINS=https://your-frontend-domain \
-  resume-agent
+docker login registry.cn-hangzhou.aliyuncs.com -u <阿里云账号>
+```
+
+## 环境变量配置
+
+复制 `.env.docker.example` 为 `.env.docker`，填入真实值：
+
+```bash
+cp .env.docker.example .env.docker
+```
+
+核心配置项：
+
+| 变量 | 说明 |
+|------|------|
+| `SECRET_KEY` | JWT 签名密钥，生产必须改 |
+| `OPENAI_API_KEY` | LLM API Key |
+| `OPENAI_BASE_URL` | OpenAI 兼容端点（自建中转/代理） |
+| `LLM_PROVIDER` | LLM 提供商，默认 `openai` |
+| `CORS_ORIGINS` | 允许的前端来源，逗号分隔 |
+
+## 远程服务器部署
+
+```bash
+# 拉取镜像
+docker pull registry.cn-hangzhou.aliyuncs.com/ozx/resume-agent:v1.0
+
+# 准备配置
+cp .env.docker.example .env.docker
+# 编辑 .env.docker 填入 SECRET_KEY、OPENAI_API_KEY 等
+
+# 启动
+./deploy.sh run v1.0
 ```
 
 | 端口 | 服务 |
@@ -38,42 +73,12 @@ docker run -d \
 | `3000` | 前端 Next.js |
 | `8000` | 后端 FastAPI + Swagger(`/docs`) |
 
-数据全部落在 volume `resume_agent_data` → 容器内 `/app/backend/data`（SQLite、Chroma、application artifacts）。
-
-## 必填环境变量
-
-| 变量 | 说明 |
-|------|------|
-| `SECRET_KEY` | JWT 签名密钥，生产必须改 |
-| `OPENAI_API_KEY` | LLM API Key |
-| `OPENAI_BASE_URL` | OpenAI 兼容端点（自建中转/代理） |
-| `CORS_ORIGINS` | 允许的前端来源，逗号分隔 |
-
-## 可选：docker-compose
-
-`docker-compose.yml` 仍在，只是把上面的 `docker run` 存成文件，方便复用：
-
-```bash
-OPENAI_API_KEY=sk-xxx docker compose up -d --build
-```
-
-不需要可直接 `docker run`，compose 对单容器没有额外作用。
-
-## 切换到 PostgreSQL
-
-默认 SQLite 兜底，零配置开箱即用。切 PG 只改环境变量，代码已兼容：
-
-```bash
-docker run -d \
-  -e DATABASE_URL="postgresql+asyncpg://user:pass@db-host:5432/resume_agent" \
-  ...
-  resume-agent
-```
+数据持久化在 volume `resume_agent_data` → 容器内 `/app/backend/data`（SQLite、Chroma、application artifacts）。
 
 ## 架构
 
 ```
-单容器 (supervisord)
+单容器 (supervisord, linux/amd64)
 ├── uvicorn app.main:app       :8000  FastAPI
 ├── node server.js (standalone) :3000  Next.js
 ├── SQLite           /app/backend/data/app.db

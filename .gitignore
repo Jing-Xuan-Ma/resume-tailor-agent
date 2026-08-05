@@ -61,3 +61,4 @@ Thumbs.db
 backend/*.pdf
 backend/test_resume.txt
 frontend/tsconfig.tsbuildinfo
+.env.docker
