@@ -140,6 +140,15 @@ async def plan_step(request: EngineStepRequest) -> EngineResponse:
         )
 
     # Data-safety: never emit auto-submit unless explicitly allowed; even then confirm.
+    advancing = any(
+        i.action == "click"
+        and i.element_index is not None
+        and any(
+            k in ((snapshot.elements[i.element_index].label if 0 <= i.element_index < len(snapshot.elements) else "") or "").lower()
+            for k in ("next", "continue", "review", "下一步", "继续")
+        )
+        for i in instructions
+    )
     if request.allow_submit:
         instructions.append(
             ActionInstruction(
@@ -148,20 +157,20 @@ async def plan_step(request: EngineStepRequest) -> EngineResponse:
                 requires_confirmation=True,
             )
         )
-    else:
-        # Ensure a pause gate exists
-        if not any(i.action == "pause_for_human" for i in instructions):
-            instructions.append(
-                ActionInstruction(
-                    action="pause_for_human",
-                    reason="paused_before_submit — 默认禁止真实投递",
-                    requires_confirmation=True,
-                )
+    elif not advancing and not any(i.action == "pause_for_human" for i in instructions):
+        instructions.append(
+            ActionInstruction(
+                action="pause_for_human",
+                reason="paused_before_submit — 默认禁止真实投递",
+                requires_confirmation=True,
             )
+        )
 
     needs_review = any(i.requires_confirmation or i.action == "pause_for_human" for i in instructions)
     if needs_review:
         stage: str = "awaiting_human_review"
+    elif advancing:
+        stage = "filling"
     elif any(i.action == "submit" for i in instructions):
         stage = "ready_to_submit"
     else:
