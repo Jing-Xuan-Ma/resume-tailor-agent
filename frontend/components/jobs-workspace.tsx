@@ -161,7 +161,6 @@ export default function JobsWorkspace({ userId, onGoToWorkspace }: JobsWorkspace
     } finally {
       setDiscovering(false);
       discoverInFlight.current = false;
-      setInitialDiscoverDone(true);
     }
   };
 
