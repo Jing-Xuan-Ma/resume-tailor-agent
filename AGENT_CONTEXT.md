@@ -237,7 +237,14 @@ modules/
 - [x] 后端测试 16 passed，前端 build 通过
 
 **待完成**:
-- [ ] 安装 Playwright 浏览器依赖并做 Greenhouse 真实页面级实测
+- [x] 安装 Playwright 浏览器依赖并做 Greenhouse 真实页面级实测（2026-07-29 完成）
+  - 测试 URL: SpaceX + AppDirect 真实 Greenhouse 职位页
+  - 结果: 核心字段 (first_name/last_name/email/phone/resume/cover_letter) 全部通过 `#id` 选择器匹配 ✅
+  - LinkedIn 通过 label "LinkedIn Profile" 匹配 ✅
+  - Website 字段在测试页面上不存在（部分 GH 页面无此字段）
+  - work_authorization 在部分页面不存在（EEO 问题是独立的 gender/disability 等字段）
+  - 表单 ID 实为 `application-form`（连字符），但选择器通过 `#first_name` 等 ID 定位，不影响现有功能
+  - 建议优化: LinkedIn/Website 等自定义字段可考虑 `label[for^=question_]` 模式匹配，当前 label 回退已够用
 - [ ] 逐站增强 Lever / Ashby / Workday 的真实页面填表 selector
 - [ ] 生产级冷外联发送：OAuth/Gmail API、退订/频控/合规、逐封显式确认
 - [ ] 生产部署前迁移 SQLite 到 PostgreSQL + Alembic migrations

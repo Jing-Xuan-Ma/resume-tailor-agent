@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import type { StartApplyResponse, VersionItem } from "@/lib/api";
+import type { KeywordMatchItem, StartApplyResponse, VersionItem } from "@/lib/api";
 import {
   createJdSession,
   analyzeJd,
@@ -20,6 +20,7 @@ import {
 import ApplyModePanel from "@/components/apply-mode-panel";
 import FlowStepper from "@/components/flow-stepper";
 import JdPanel from "@/components/jd-panel";
+import KeywordGapSection from "@/components/keyword-gap-section";
 import WorkspaceChat from "@/components/workspace-chat";
 import type { AgentSendResult } from "@/components/workspace-chat";
 interface ResumeWorkspaceProps {
@@ -85,6 +86,7 @@ export default function ResumeWorkspace({
   const [rewriting, setRewriting] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [exporting, setExporting] = useState<"pdf" | "docx" | "text" | null>(null);
+  const [keywordMatches, setKeywordMatches] = useState<KeywordMatchItem[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [finalSavePath, setFinalSavePath] = useState<string | null>(null);
   const [jobLabel, setJobLabel] = useState<string | null>(null);
@@ -166,7 +168,11 @@ export default function ResumeWorkspace({
       new_version_id?: string | null;
       version_index?: number | null;
       full_resume?: Record<string, unknown> | null;
+      keyword_matches?: KeywordMatchItem[];
     }) => {
+      if (result.keyword_matches?.length) {
+        setKeywordMatches(result.keyword_matches);
+      }
       if (!result.did_rewrite || !result.new_version_id) return;
       if (result.full_resume) setActiveResume(result.full_resume);
       setFinalSavePath(null);
@@ -225,7 +231,8 @@ export default function ResumeWorkspace({
         const session = await createJdSession(userId, text, initialJobId);
         setSessionId(session.session_id);
         setJdText(text);
-        await analyzeJd(session.session_id);
+        const analysis = await analyzeJd(session.session_id);
+        setKeywordMatches(analysis.keyword_matches || []);
         if (opts?.autoTailor) {
           await runAutoTailor(session.session_id, opts.label);
         }
@@ -337,7 +344,8 @@ export default function ResumeWorkspace({
             .trim()
         );
         try {
-          await analyzeJd(handoff.session_id);
+          const analysis = await analyzeJd(handoff.session_id);
+          setKeywordMatches(analysis.keyword_matches || []);
         } catch {
           setBootNotice("JD loaded, but analysis failed — you can still tailor.");
         }
@@ -401,6 +409,10 @@ export default function ResumeWorkspace({
     setPdfPreviewUrl(null);
     setBootNotice(null);
     await initSession(pasteInput.trim(), { autoTailor: true, label: "the pasted JD" });
+  };
+
+  const handleSuggestProject = (_keyword: string) => {
+    // KeywordGapSection also calls suggestProject API when versionId is set.
   };
 
   const handleAgent = async (
@@ -1055,6 +1067,12 @@ export default function ResumeWorkspace({
               confirming={confirming}
               canConfirm={canConfirm}
               applyWorkspaceHref={applyWorkspaceHref}
+            />
+            <KeywordGapSection
+              keywordMatches={keywordMatches}
+              onSuggest={handleSuggestProject}
+              userId={userId}
+              versionId={activeVersionId}
             />
             <div
               className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"

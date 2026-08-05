@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from app import db
 from app.config import settings
@@ -360,6 +361,33 @@ async def reclassify_job_index():
     n = db.backfill_listing_categories(classify_job)
     return {"updated": n, "counts": db.count_job_listings_by_category("active")}
 
+class AutoDiscoverRequest(BaseModel):
+    user_id: UUID
+    query: str | None = None
+    location: str | None = None
+    limit: int = Field(default=20, ge=1, le=50)
+
+
+@router.post("/auto-discover", response_model=JobListResponse)
+async def auto_discover_jobs(request: AutoDiscoverRequest):
+    """Auto-discover jobs based on the user's latest resume."""
+    query = request.query
+    if not query:
+        resume = db.get_latest_resume(str(request.user_id))
+        if resume:
+            parsed = resume.get("parsed") or {}
+            query = parsed.get("title") or ""
+        if not query:
+            raise HTTPException(status_code=400, detail="No resume found. Please upload a resume or provide a search query.")
+
+    discover_request = JobDiscoverRequest(
+        user_id=request.user_id,
+        query=query,
+        location=request.location,
+        limit=request.limit,
+    )
+    return await discover_jobs(discover_request)
+
 
 @router.post("/ingest", response_model=JobResponse)
 async def ingest_job(request: JobIngestRequest):
@@ -576,8 +604,8 @@ async def to_resume_workspace(job_id: str, user_id: str = Query(...)):
 
 
 @router.get("/sources/list", response_model=dict)
-async def list_sources():
-    return {"sources": job_list_service.get_available_sources()}
+async def list_sources(user_id: str = Query(...)):
+    return {"sources": job_list_service.get_available_sources(user_id=user_id)}
 
 
 def _synthetic_job_text(query: str, location: str | None, idx: int) -> str:

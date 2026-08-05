@@ -19,7 +19,7 @@ class HimalayasProvider(BaseJobProvider):
             params = {"query": query, "limit": min(limit, 50)}
             if location:
                 params["location"] = location
-            async with httpx.AsyncClient(timeout=20) as client:
+            async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.get(self.BASE_URL, params=params)
                 resp.raise_for_status()
                 data = resp.json()

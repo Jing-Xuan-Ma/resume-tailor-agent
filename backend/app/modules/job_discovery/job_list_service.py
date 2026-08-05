@@ -1,9 +1,15 @@
+"""Job list service — Jobright catalog + three-stage scoring pipeline."""
+
+import logging
 from typing import Any
 from uuid import uuid4
 from datetime import UTC, datetime, timedelta
 from app import db
 from app.modules.job_discovery.posted_at import display_age_iso
 from app.modules.job_discovery.apply_url import resolve_listing_apply_url
+from app.modules.job_discovery.scoring_pipeline import stage3_score
+
+logger = logging.getLogger(__name__)
 
 
 _META = {
@@ -515,6 +521,7 @@ class JobListService:
             "missingKeywords": s3.get("missingKeywords", []),
             "scoreBreakdown": s3.get("scoreBreakdown") or {},
             "hasHardConditionIssues": not s3.get("hardConditionsPassed", True),
+            "hardConditionIssues": s3.get("hardConditionIssues", []),
             "status": job["status"],
             "scoredForUser": bool(user_id),
         }
@@ -524,10 +531,22 @@ class JobListService:
             if job["id"] == job_id:
                 s3 = job.get("stage3Result") or {}
                 return {"stage3Result": s3}
-        job = self.get_job(job_id)
-        if not job:
-            return None
-        return {"stage3Result": job.get("stage3Result") or {}}
+        listing = db.get_job_listing(job_id)
+        user_job = db.get_job(job_id)
+        source = listing or user_job
+        if not source:
+            job = self.get_job(job_id)
+            if not job:
+                return None
+            return {"stage3Result": job.get("stage3Result") or {}}
+        resume = None
+        uid = (user_job or {}).get("user_id") or ""
+        if uid:
+            resume = db.get_latest_resume(uid)
+        resume_text = (resume.get("raw_text") or "") if resume else ""
+        resume_parsed = (resume.get("parsed") or {}) if resume else None
+        s3 = stage3_score(source, resume_text, resume_parsed)
+        return {"stage3Result": s3}
 
     def to_resume_workspace(self, job_id: str, user_id: str) -> dict | None:
         from app.modules.job_discovery.quality import jd_plaintext

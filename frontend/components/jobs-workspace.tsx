@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { isLivePostingUrl } from "@/lib/posting-url";
 
 interface Stage3Result {
@@ -93,6 +93,11 @@ export default function JobsWorkspace({ userId, onGoToWorkspace }: JobsWorkspace
   const [sortBy, setSortBy] = useState<"score" | "date">("score");
   const [topNEnabled, setTopNEnabled] = useState(false);
 
+  // Discovery (auto-discover from resume / query)
+  const [discoverQuery, setDiscoverQuery] = useState("");
+  const [discovering, setDiscovering] = useState(false);
+  const discoverInFlight = useRef(false);
+
   const selectedJob = jobs.find((j) => j.id === selectedJobId) || null;
 
   const fetchJobs = useCallback(async () => {
@@ -123,6 +128,53 @@ export default function JobsWorkspace({ userId, onGoToWorkspace }: JobsWorkspace
   useEffect(() => {
     fetchJobs();
   }, [threshold, sortBy, topNEnabled]);
+
+  const handleDiscoverFromResume = async () => {
+    if (discoverInFlight.current) return;
+    setDiscovering(true);
+    setMessage(null);
+    discoverInFlight.current = true;
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/jobs/auto-discover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, limit: 20 }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setMessage(`Found ${data.jobs?.length ?? 0} jobs based on your resume`);
+      await fetchJobs();
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : "Failed to discover jobs");
+    } finally {
+      setDiscovering(false);
+      discoverInFlight.current = false;
+    }
+  };
+
+  const handleDiscover = async () => {
+    const query = discoverQuery.trim();
+    if (!query || discoverInFlight.current) return;
+    setDiscovering(true);
+    setMessage(null);
+    discoverInFlight.current = true;
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/jobs/auto-discover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, query, limit: 20 }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setMessage(`Found ${data.jobs?.length ?? 0} jobs`);
+      await fetchJobs();
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : "Failed to discover jobs");
+    } finally {
+      setDiscovering(false);
+      discoverInFlight.current = false;
+    }
+  };
 
   useEffect(() => {
     async function loadSources() {
@@ -270,24 +322,60 @@ export default function JobsWorkspace({ userId, onGoToWorkspace }: JobsWorkspace
                 className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center"
                 data-testid="pipeline-jobs-empty"
               >
-                <p className="text-sm font-semibold text-slate-800">
-                  {loading ? "Loading pipeline…" : "No jobs match your criteria"}
-                </p>
-                {!loading ? (
-                <p className="max-w-sm text-xs text-slate-500">
-                  Lower the match threshold, clear filters, or open Ranked Jobs to browse the full catalog.
-                  Match scores are resume↔JD heuristics — not interview odds.
-                </p>
-                ) : null}
-                {!loading ? (
-                  <a
-                    href="/jobs"
-                    className="mt-2 inline-flex h-8 items-center rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700"
-                    data-testid="pipeline-goto-ranked"
-                  >
-                    Open ranked jobs
-                  </a>
-                ) : null}
+                {loading ? (
+                  <p className="text-sm font-semibold text-slate-800">Loading pipeline…</p>
+                ) : discovering ? (
+                  <div className="flex flex-col items-center gap-3 text-sm text-slate-500">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-emerald-600" />
+                    <span>Discovering jobs…</span>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-slate-800">
+                      No jobs match your criteria
+                    </p>
+                    <p className="max-w-sm text-xs text-slate-500">
+                      Lower the match threshold, clear filters, discover from your resume, or open Ranked Jobs.
+                      Match scores are resume↔JD heuristics — not interview odds.
+                    </p>
+                    <div className="mt-3 flex w-full max-w-md flex-col items-center gap-3">
+                      <div className="flex w-full items-center gap-2">
+                        <input
+                          value={discoverQuery}
+                          onChange={(e) => setDiscoverQuery(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && void handleDiscover()}
+                          placeholder="e.g. Data Analyst SQL Tableau"
+                          className="h-9 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-900 outline-none focus:border-emerald-400"
+                          data-testid="pipeline-discover-query"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleDiscover()}
+                          className="h-9 rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                          disabled={!discoverQuery.trim()}
+                          data-testid="pipeline-discover-search"
+                        >
+                          Search
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleDiscoverFromResume()}
+                        className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                        data-testid="pipeline-auto-discover"
+                      >
+                        Auto-discover from my resume
+                      </button>
+                      <a
+                        href="/jobs"
+                        className="inline-flex h-8 items-center rounded-lg bg-slate-800 px-3 text-xs font-semibold text-white hover:bg-slate-900"
+                        data-testid="pipeline-goto-ranked"
+                      >
+                        Open ranked jobs
+                      </a>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <div className="divide-y divide-slate-50">

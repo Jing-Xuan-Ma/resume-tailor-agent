@@ -2,17 +2,22 @@
 
 import { useState } from "react";
 import type { KeywordMatchItem } from "@/lib/api";
+import { suggestProject } from "@/lib/api";
 
 interface KeywordGapSectionProps {
   keywordMatches: KeywordMatchItem[];
   onSuggest: (keyword: string) => void;
   loading?: boolean;
+  userId?: string;
+  versionId?: string | null;
 }
 
 export default function KeywordGapSection({
   keywordMatches,
   onSuggest,
   loading,
+  userId,
+  versionId,
 }: KeywordGapSectionProps) {
   const [suggesting, setSuggesting] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Record<string, string>>({});
@@ -31,13 +36,26 @@ export default function KeywordGapSection({
   }
 
   const handleSuggest = async (keyword: string) => {
-    if (suggestions[keyword] || suggesting === keyword) return;
+    if (suggestions[keyword] || suggesting === keyword || !userId) return;
     setSuggesting(keyword);
     try {
       onSuggest(keyword);
+      if (versionId) {
+        const result = await suggestProject(versionId, userId, keyword);
+        setSuggestions((prev) => ({
+          ...prev,
+          [keyword]: result.suggestion,
+        }));
+      } else {
+        setSuggestions((prev) => ({
+          ...prev,
+          [keyword]: "Consider building a practical project to demonstrate this skill.",
+        }));
+      }
+    } catch {
       setSuggestions((prev) => ({
         ...prev,
-        [keyword]: "Consider building a practical project to demonstrate this skill. This will make your resume more competitive for roles requiring this keyword.",
+        [keyword]: "Failed to generate suggestion. Please try again.",
       }));
     } finally {
       setSuggesting(null);

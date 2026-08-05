@@ -39,7 +39,7 @@ class AdzunaProvider(BaseJobProvider):
             if location and location.strip() and location.strip().lower() != "remote":
                 params["where"] = location.strip()
             url = f"{self.BASE_URL}/{country}/search/{page}"
-            async with httpx.AsyncClient(timeout=20) as client:
+            async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.get(url, params=params)
                 if resp.status_code >= 400:
                     self.last_error = f"http_{resp.status_code}: {resp.text[:200]}"

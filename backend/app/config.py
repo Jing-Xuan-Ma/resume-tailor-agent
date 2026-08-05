@@ -42,13 +42,48 @@ class Settings(BaseSettings):
     # Outreach: mailto/mark-sent by default; Gmail/SMTP only when explicitly enabled
     ENABLE_GMAIL_SEND: bool = False
 
-    # LLM
+    # LLM — primary provider selection
     LLM_PROVIDER: str = "openai"
+
+    # ── OpenAI-compatible providers ──────────────────────────
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = ""
-    GEMINI_API_KEY: str = ""
-    BIGMODEL_API_KEY: str = ""
+
+    DEEPSEEK_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+    CEREBRAS_API_KEY: str = ""
+    XAI_API_KEY: str = ""
+    OPENROUTER_API_KEY: str = ""
+    TOGETHER_API_KEY: str = ""
+    FIREWORKS_API_KEY: str = ""
+    MISTRAL_API_KEY: str = ""
+    NVIDIA_API_KEY: str = ""
+    HF_TOKEN: str = ""
+    COPILOT_GITHUB_TOKEN: str = ""
+    OPENCODE_API_KEY: str = ""
+    ZAI_API_KEY: str = ""
+    MINIMAX_API_KEY: str = ""
+    MOONSHOT_API_KEY: str = ""
+    XIAOMI_API_KEY: str = ""
+    CLOUDFLARE_API_KEY: str = ""
+    CLOUDFLARE_ACCOUNT_ID: str = ""
+    ANT_LING_API_KEY: str = ""
+    KIMI_API_KEY: str = ""
+    QWEN_TOKEN_PLAN_API_KEY: str = ""
+    RADIUS_API_KEY: str = ""
+
+    # ── Native protocol providers ────────────────────────────
     ANTHROPIC_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
+    GOOGLE_CLOUD_API_KEY: str = ""
+    GOOGLE_CLOUD_PROJECT: str = ""
+    GOOGLE_CLOUD_LOCATION: str = ""
+
+    # AZURE
+    AZURE_OPENAI_API_KEY: str = ""
+    AZURE_OPENAI_BASE_URL: str = ""
+
+    # ── LLM model defaults ───────────────────────────────────
     DEFAULT_TAILOR_MODEL: str = "gpt-5.5"
     DEFAULT_PARSER_MODEL: str = "gpt-5.5"
     DEFAULT_EMBEDDING_MODEL: str = "text-embedding-3-large"
@@ -89,6 +124,20 @@ class Settings(BaseSettings):
     # Reject thin/ad listings before upsert (Jobright-style real JD gate).
     JOB_INDEX_QUALITY_GATE: bool = True
     JOB_INDEX_MIN_JD_CHARS: int = 500
+
+    # ── Email (cold outreach) ────────────────────────────────
+    EMAIL_PROVIDER: str = "smtp"
+    """smtp (default) | gmail_api"""
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    GMAIL_CREDENTIALS_PATH: str = ""
+    """Path to Google OAuth client JSON (for gmail_api provider)"""
+    OUTREACH_COOLDOWN_HOURS: int = 72
+    """Min hours between outreach emails to the same company"""
+    APP_HOST_URL: str = "http://localhost:8000"
+    """Public-facing host URL for unsubscribe links"""
 
     # Rate limits
     MAX_DAILY_APPLICATIONS: int = 20

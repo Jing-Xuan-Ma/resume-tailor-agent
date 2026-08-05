@@ -23,6 +23,9 @@ from app.modules.job_discovery.scorer import score_job
 _DISCOVER_CACHE: dict[tuple, tuple[float, list[dict[str, Any]]]] = {}
 _DISCOVER_CACHE_TTL_SEC = 300.0
 
+# Timeout for the entire discovery pipeline
+DISCOVER_TIMEOUT = 25
+
 
 def _dedup_key(lead: RawJobLead | dict) -> tuple:
     if isinstance(lead, RawJobLead):
@@ -159,14 +162,21 @@ async def discover_all(
         except Exception as exc:  # noqa: BLE001
             return name, [], str(exc)
 
-    tasks = [_run(p) for p in _active_providers()]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    tasks = [asyncio.ensure_future(_run(p)) for p in _active_providers()]
+    done, pending = await asyncio.wait(tasks, timeout=DISCOVER_TIMEOUT)
+    for task in pending:
+        task.cancel()
 
-    seen: set[tuple] = set()
     unified: list[dict] = []
+    seen: set[tuple] = set()
     local_stats: dict[str, Any] = {}
 
-    for r in results:
+    for task in done:
+        try:
+            r = task.result()
+        except Exception as exc:  # noqa: BLE001
+            local_stats["gather_error"] = str(exc)
+            continue
         if isinstance(r, Exception):
             local_stats["gather_error"] = str(r)
             continue
@@ -192,6 +202,8 @@ async def discover_all(
         provider_stats.update(local_stats)
         provider_stats["unified_before_limit"] = len(unified)
         provider_stats["jobspy_sites"] = jobspy_sites
+        if pending:
+            provider_stats["timed_out_providers"] = len(pending)
 
     unified.sort(key=lambda x: x.get("match_score") or 0, reverse=True)
     high_quality = [j for j in unified if (j.get("match_score") or 0) >= min_score]

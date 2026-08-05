@@ -21,8 +21,23 @@ from app.modules.resume_workspace.constitution import (
 )
 
 
+_PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 _RESUME_TEMPLATES_DIR = Path(__file__).resolve().parents[4] / "data" / "templates"
 _RESUME_TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _load_prompt(name: str) -> str:
+    return (_PROMPTS_DIR / name).read_text(encoding="utf-8")
+
+
+def _extract_json(text: str) -> dict:
+    match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    if match:
+        text = match.group(1)
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1].rsplit("\n", 1)[0]
+    return json.loads(text)
 
 # Keep current + 3 previous versions (RESUME_CONSTITUTION §8)
 MAX_VERSIONS = 4
@@ -318,7 +333,7 @@ class ResumeWorkspaceService:
     def get_active_template(self, user_id: str) -> dict | None:
         return db.get_active_template(user_id)
 
-    def analyze(self, session_id: str) -> list[dict]:
+    async def analyze(self, session_id: str) -> list[dict]:
         session = db.get_jd_session(session_id)
         if not session:
             session_data = db.create_jd_session(user_id="mock", jd_text=MOCK_JD_TEXT)
@@ -326,7 +341,37 @@ class ResumeWorkspaceService:
             session = session_data
 
         jd_text = str((session or {}).get("jd_text") or "")
-        matches = self._keyword_matches_for_jd(jd_text)
+        user_id = str((session or {}).get("user_id") or "")
+        matches: list[dict] = []
+
+        # Prefer LLM keyword analysis when prompts + API are available.
+        prompt_path = _PROMPTS_DIR / "keyword_analysis.txt"
+        if prompt_path.exists() and jd_text.strip():
+            resume_text = ""
+            if user_id and user_id != "mock":
+                latest = db.get_latest_resume(user_id)
+                if latest:
+                    resume_text = json.dumps(latest.get("parsed", latest), ensure_ascii=False)
+            try:
+                llm = get_chat_openai(
+                    model=settings.DEFAULT_PARSER_MODEL,
+                    temperature=0.1,
+                    max_tokens=2048,
+                )
+                human_prompt = f"JD:\n{jd_text}"
+                if resume_text:
+                    human_prompt += f"\n\nResume:\n{resume_text}"
+                response = await llm.ainvoke([
+                    ("system", _load_prompt("keyword_analysis.txt")),
+                    ("human", human_prompt),
+                ])
+                result = _extract_json(response.content)
+                matches = result.get("keyword_matches", []) or []
+            except Exception:
+                matches = []
+
+        if not matches:
+            matches = self._keyword_matches_for_jd(jd_text)
         db.update_jd_session_keywords(session_id, matches)
         return matches
 
@@ -905,7 +950,25 @@ class ResumeWorkspaceService:
             "meta": saved.get("meta"),
         }
 
-    def suggest_project(self, keyword: str) -> str:
+    async def suggest_project(self, keyword: str) -> str:
+        prompt_path = _PROMPTS_DIR / "suggest_project.txt"
+        if prompt_path.exists():
+            try:
+                llm = get_chat_openai(
+                    model=settings.DEFAULT_PARSER_MODEL,
+                    temperature=0.5,
+                    max_tokens=512,
+                )
+                response = await llm.ainvoke([
+                    ("system", _load_prompt("suggest_project.txt")),
+                    ("human", f"Missing keyword/skill: {keyword}"),
+                ])
+                result = _extract_json(response.content)
+                suggestion = (result.get("suggestion") or "").strip()
+                if suggestion:
+                    return suggestion
+            except Exception:
+                pass
         return (
             f"For '{keyword}', only add a project if it already exists in Master Inventory "
             f"or you confirm new facts in writing — never fabricate a portfolio piece."

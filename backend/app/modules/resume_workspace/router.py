@@ -52,7 +52,7 @@ async def create_jd_session(request: CreateJdSessionRequest):
 
 @router.post("/jd-session/{session_id}/analyze", response_model=AnalyzeResponse)
 async def analyze_jd(session_id: str):
-    matches = workspace_service.analyze(session_id)
+    matches = await workspace_service.analyze(session_id)
     return AnalyzeResponse(
         session_id=session_id,
         keyword_matches=[KeywordMatchItem(**m) for m in matches],
@@ -250,7 +250,7 @@ async def confirm_submit_endpoint(apply_id: str, request: ConfirmSubmitRequest):
 
 @router.post("/resume-version/{version_id}/suggest-project", response_model=SuggestProjectResponse)
 async def suggest_project(version_id: str, request: SuggestProjectRequest):
-    suggestion = workspace_service.suggest_project(request.keyword)
+    suggestion = await workspace_service.suggest_project(request.keyword)
     return SuggestProjectResponse(suggestion=suggestion)
 
 

@@ -31,6 +31,9 @@ class BaseATSConnector:
             "cover_letter": ["input[type='file'][name*='cover' i]"],
         }
 
+    def apply_selectors(self) -> list[str]:
+        return []
+
     def submit_selectors(self) -> list[str]:
         return [
             "button[type='submit']",
@@ -65,6 +68,7 @@ class BaseATSConnector:
             should_submit=True,
             field_selectors=self.field_selectors(),
             submit_selectors=self.submit_selectors(),
+            apply_selectors=self.apply_selectors(),
         )
         return {"ats_type": self.ats_type, **result}
 
