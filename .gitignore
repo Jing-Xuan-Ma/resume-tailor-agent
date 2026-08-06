@@ -62,3 +62,8 @@ Thumbs.db
 backend/*.pdf
 backend/test_resume.txt
 frontend/tsconfig.tsbuildinfo
+
+# Browser profiles (cookies / login state — never commit)
+**/chrome-profile/
+**/chrome-profile2/
+**/chromium-profile/

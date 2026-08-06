@@ -162,6 +162,8 @@ class Settings(BaseSettings):
     ENABLE_USER_CONFIRM_SUBMIT: bool = True
     BROWSER_HEADLESS: bool = True
     BROWSER_TIMEOUT_MS: int = 30000
+    # Auto-apply field mapping: rules-first is fast; LLM only when explicitly enabled.
+    APPLY_FIELD_MAP_PREFER_LLM: bool = False
 
     @property
     def CORS_ORIGINS_LIST(self) -> list[str]:

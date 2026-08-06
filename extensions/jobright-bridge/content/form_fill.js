@@ -242,11 +242,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "START_FILL" && window === window.top) {
     initApplyFlow(msg.jobData || {});
     sendResponse({ ok: true });
+    return true;
   }
   if (msg?.type === "CAPTURE_ONLY") {
     sendResponse({ snapshot: captureDOMSnapshotMerged() });
+    return true;
   }
-  return true;
+  // Do not claim other messages (e.g. ra_extract_now) — let Jobright bridge handlers respond.
+  return false;
 });
 
 window.__formFillInitApplyFlow = initApplyFlow;

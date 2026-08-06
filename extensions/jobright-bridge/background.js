@@ -122,21 +122,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "ra_open_tailor") {
-    openStepFromJobright("tailor", msg.force === true)
+    openStepFromJobright("tailor", msg.force !== false, sender.tab, msg.job, msg.pageUrl)
       .then((result) => sendResponse(result))
       .catch((err) => sendResponse({ ok: false, error: String(err.message || err) }));
     return true;
   }
 
   if (msg.type === "ra_open_apply") {
-    openStepFromJobright("apply", msg.force === true)
+    openStepFromJobright("apply", msg.force !== false, sender.tab, msg.job, msg.pageUrl)
       .then((result) => sendResponse(result))
       .catch((err) => sendResponse({ ok: false, error: String(err.message || err) }));
     return true;
   }
 
   if (msg.type === "ra_open_outreach") {
-    openStepFromJobright("outreach", msg.force === true)
+    openStepFromJobright("outreach", msg.force !== false, sender.tab, msg.job, msg.pageUrl)
       .then((result) => sendResponse(result))
       .catch((err) => sendResponse({ ok: false, error: String(err.message || err) }));
     return true;
@@ -145,6 +145,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "ra_focus_jobright") {
     focusJobright(msg.returnUrl)
       .then((result) => sendResponse(result))
+      .catch((err) => sendResponse({ ok: false, error: String(err.message || err) }));
+    return true;
+  }
+
+  if (msg.type === "ra_scrape_active_tab") {
+    const tab = sender.tab;
+    scrapeTabDeep(tab && tab.id)
+      .then((job) => {
+        if (job && (job.raw_text || "").trim().length >= 40) {
+          sendResponse({ ok: true, job });
+        } else {
+          sendResponse({
+            ok: false,
+            error: "deep_scrape_empty",
+            job: job || null,
+          });
+        }
+      })
       .catch((err) => sendResponse({ ok: false, error: String(err.message || err) }));
     return true;
   }
@@ -185,12 +203,156 @@ async function findJobrightTab() {
 async function injectExtractors(tabId) {
   await chrome.scripting.executeScript({
     target: { tabId },
-    files: ["content/extract.js", "content/fab.js", "content/demote.js"],
+    files: ["content/extract.js", "content/fab-diagnostics.js", "content/fab.js", "content/demote.js"],
   });
 }
 
-async function extractFromJobrightTab() {
-  const tab = await findJobrightTab();
+async function scrapeTabDeep(tabId) {
+  if (tabId == null) {
+    const tab = await findJobrightTab();
+    tabId = tab && tab.id;
+  }
+  if (tabId == null) return null;
+
+  // Inline deep scrape in every frame — does not depend on content-script globals.
+  const results = await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    func: () => {
+      function deepText(root, limit) {
+        let out = "";
+        const max = limit || 40000;
+        function walk(node) {
+          if (!node || out.length >= max) return;
+          if (node.nodeType === Node.TEXT_NODE) {
+            const t = node.textContent || "";
+            if (t.trim()) out += t + " ";
+            return;
+          }
+          if (node.nodeType !== 1 && node.nodeType !== 11) return;
+          const tag = (node.tagName || "").toUpperCase();
+          if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT" || tag === "SVG") return;
+          try {
+            if (node.shadowRoot) walk(node.shadowRoot);
+          } catch (_) {}
+          const kids = node.childNodes || [];
+          for (let i = 0; i < kids.length; i++) walk(kids[i]);
+        }
+        walk(root);
+        return out.replace(/\s+/g, " ").trim().slice(0, max);
+      }
+      let raw = "";
+      try {
+        raw = deepText(document.documentElement);
+      } catch (_) {}
+      let title = document.title || "Untitled";
+      try {
+        const h1 = document.querySelector("h1");
+        if (h1 && (h1.innerText || h1.textContent)) {
+          title = (h1.innerText || h1.textContent).trim();
+        }
+      } catch (_) {}
+      let apply = null;
+      try {
+        const anchors = Array.from(document.querySelectorAll("a[href]"));
+        for (const a of anchors) {
+          const href = a.href || "";
+          const label = ((a.innerText || a.textContent || "") + "").toLowerCase();
+          if (/utm_source=jobright|greenhouse|lever\.co|myworkdayjobs|ashbyhq/i.test(href)) {
+            apply = href;
+            break;
+          }
+          if (label.includes("apply") && /^https?:/i.test(href) && !/jobright\.ai/i.test(href)) {
+            apply = href;
+            break;
+          }
+        }
+      } catch (_) {}
+      return {
+        title,
+        company: "Unknown Company",
+        raw_text: raw,
+        page_url: location.href,
+        jobright_url: location.href,
+        source_url: apply || location.href,
+        apply_url: apply,
+        body_len: (raw || "").length,
+        frame_href: location.href,
+      };
+    },
+  });
+
+  let best = null;
+  for (const row of results || []) {
+    const job = row && row.result;
+    if (!job) continue;
+    if (!best || (job.raw_text || "").length > (best.raw_text || "").length) {
+      best = job;
+    }
+  }
+  if (best) {
+    best.extracted_at = new Date().toISOString();
+    best.has_external_apply = !!(best.apply_url && !/jobright\.ai/i.test(best.apply_url));
+  }
+  return best;
+}
+
+async function extractOnce(tabId) {
+  // Prefer layered extractReady (MutationObserver + L1/L2/L3) over raw deep scrape.
+  try {
+    const res = await chrome.tabs.sendMessage(tabId, { type: "ra_extract_now" });
+    if (res && res.job && (res.job.raw_text || "").trim().length >= 40) {
+      return res.job;
+    }
+  } catch (_) {
+    /* fall through */
+  }
+
+  try {
+    const injected = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: false },
+      func: async () => {
+        try {
+          if (typeof window.__RA_EXTRACT_READY__ === "function") {
+            const job = await window.__RA_EXTRACT_READY__();
+            return { ok: true, job };
+          }
+          if (typeof window.__RA_EXTRACT_NOW__ === "function") {
+            return { ok: true, job: window.__RA_EXTRACT_NOW__() };
+          }
+        } catch (e) {
+          return { ok: false, error: String(e && e.message ? e.message : e) };
+        }
+        return { ok: false, error: "extract_not_ready" };
+      },
+    });
+    const payload = injected && injected[0] && injected[0].result;
+    if (payload && payload.ok && payload.job && (payload.job.raw_text || "").trim().length >= 40) {
+      return payload.job;
+    }
+  } catch (_) {
+    /* fall through */
+  }
+
+  try {
+    const deep = await scrapeTabDeep(tabId);
+    if (deep && (deep.raw_text || "").trim().length >= 40) {
+      deep.extract_layer = deep.extract_layer || "background_deep";
+      return deep;
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  return null;
+}
+
+async function extractFromJobrightTab(preferredTab) {
+  let tab = null;
+  // Prefer the tab that sent the click, even when Chrome omits tab.url.
+  if (preferredTab && preferredTab.id != null) {
+    tab = preferredTab;
+  } else {
+    tab = await findJobrightTab();
+  }
   if (!tab || tab.id == null) {
     return {
       ok: false,
@@ -198,32 +360,29 @@ async function extractFromJobrightTab() {
     };
   }
 
-  try {
-    const res = await chrome.tabs.sendMessage(tab.id, { type: "ra_extract_now" });
-    if (res && res.job && (res.job.raw_text || "").trim()) {
-      await chrome.storage.session.set({ lastJob: res.job });
-      return { ok: true, job: res.job, tabId: tab.id, mode: "message" };
+  let lastDetail = "";
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const job = await extractOnce(tab.id);
+      if (job) {
+        await chrome.storage.session.set({ lastJob: job });
+        return { ok: true, job, tabId: tab.id, mode: attempt ? `retry_${attempt}` : "message" };
+      }
+    } catch (err) {
+      lastDetail = String(err && err.message ? err.message : err);
     }
-  } catch (_) {
-    /* not injected yet — reinject below */
-  }
-
-  try {
-    await injectExtractors(tab.id);
-    await new Promise((r) => setTimeout(r, 200));
-    const res2 = await chrome.tabs.sendMessage(tab.id, { type: "ra_extract_now" });
-    if (res2 && res2.job && (res2.job.raw_text || "").trim()) {
-      await chrome.storage.session.set({ lastJob: res2.job });
-      return { ok: true, job: res2.job, tabId: tab.id, mode: "reinjected" };
+    try {
+      await injectExtractors(tab.id);
+      await new Promise((r) => setTimeout(r, 250 + attempt * 200));
+      const job2 = await extractOnce(tab.id);
+      if (job2) {
+        await chrome.storage.session.set({ lastJob: job2 });
+        return { ok: true, job: job2, tabId: tab.id, mode: "reinjected" };
+      }
+    } catch (err) {
+      lastDetail = String(err && err.message ? err.message : err);
     }
-  } catch (err) {
-    return {
-      ok: false,
-      error:
-        "Could not read this Jobright page. Refresh the Jobright tab (F5) once after reloading the extension.",
-      detail: String(err && err.message ? err.message : err),
-      tabUrl: tab.url || "",
-    };
+    await new Promise((r) => setTimeout(r, 400));
   }
 
   const stored = await chrome.storage.session.get("lastJob");
@@ -233,7 +392,9 @@ async function extractFromJobrightTab() {
 
   return {
     ok: false,
-    error: "Job page opened but JD text was empty. Scroll the description into view, then retry.",
+    error:
+      "读不到职位描述。请确认已打开左侧职位详情正文，然后 F5 刷新后再试。" +
+      (lastDetail ? `\n(${lastDetail})` : ""),
     tabUrl: tab.url || "",
   };
 }
@@ -243,8 +404,26 @@ async function openTailorFromJobright(force) {
 }
 
 /** @param {"tailor"|"apply"|"outreach"} step */
-async function openStepFromJobright(step, force) {
-  const extracted = await extractFromJobrightTab();
+async function openStepFromJobright(step, force, preferredTab, jobFromPage, pageUrlHint) {
+  let extracted;
+  const incoming = jobFromPage && typeof jobFromPage === "object" ? jobFromPage : null;
+  const incomingText = incoming && String(incoming.raw_text || "").trim();
+  if (incoming && incomingText.length >= 40) {
+    const tabId = preferredTab && preferredTab.id != null ? preferredTab.id : null;
+    const pageUrl =
+      String(pageUrlHint || incoming.page_url || incoming.jobright_url || (preferredTab && preferredTab.url) || "").trim();
+    const job = {
+      ...incoming,
+      page_url: incoming.page_url || pageUrl || null,
+      jobright_url: incoming.jobright_url || pageUrl || null,
+      source_url: incoming.source_url || incoming.apply_url || pageUrl || null,
+    };
+    await chrome.storage.session.set({ lastJob: job });
+    extracted = { ok: true, job, tabId, mode: "fab_payload" };
+  } else {
+    extracted = await extractFromJobrightTab(preferredTab);
+  }
+
   if (!extracted.ok || !extracted.job || !(extracted.job.raw_text || "").trim()) {
     return { ok: false, error: (extracted && extracted.error) || "No JD detected" };
   }
@@ -340,15 +519,26 @@ async function openWorkspaceWindow(url, returnInfo) {
     finalUrl = `${url}${join}returnTo=${encodeURIComponent(info.returnUrl)}`;
   }
 
-  const win = await chrome.windows.create({
-    url: finalUrl,
-    focused: true,
-    type: "normal",
-    width: 1440,
-    height: 900,
-  });
-  const tabId = win && win.tabs && win.tabs[0] && win.tabs[0].id;
-  return { ok: true, windowId: win && win.id, tabId };
+  try {
+    const win = await chrome.windows.create({
+      url: finalUrl,
+      focused: true,
+      type: "normal",
+      width: 1440,
+      height: 900,
+    });
+    const tabId = win && win.tabs && win.tabs[0] && win.tabs[0].id;
+    return { ok: true, windowId: win && win.id, tabId, mode: "window" };
+  } catch (err) {
+    // Fallback when window create is blocked — still open Agent in a tab.
+    const tab = await chrome.tabs.create({ url: finalUrl, active: true });
+    return {
+      ok: true,
+      tabId: tab && tab.id,
+      mode: "tab_fallback",
+      detail: String(err && err.message ? err.message : err),
+    };
+  }
 }
 
 async function loadCfg() {

@@ -153,57 +153,16 @@ async def start_apply_async(
     job_id: str | None = None,
     source_url: str | None = None,
 ) -> dict[str, Any]:
-    """Async entry — auto mode prefers LLM field mapping after DOM scan."""
+    """Async entry — auto mode uses one browser session (scan+fill), rules-first mapping.
+
+    Previously: scan_fields() launch + fill_and_pause() launch (+ optional LLM).
+    Now: single scan_and_fill_pause() inside _start_apply_impl; LLM only if configured.
+    """
     import asyncio
 
-    if mode != "auto":
-        return await asyncio.to_thread(
-            lambda: start_apply(
-                user_id=user_id,
-                version_id=version_id,
-                mode=mode,
-                company=company,
-                position=position,
-                final_path=final_path,
-                job_id=job_id,
-                source_url=source_url,
-            )
-        )
-    # Pre-resolve version/job like sync path for scan URL
-    version = db.get_resume_version(version_id, user_id)
-    if not version:
-        raise ValueError("Version not found")
-    if not version.get("is_confirmed"):
-        raise ValueError("Version must be confirmed before apply")
-    job = _resolve_job(job_id)
-    src = source_url or (job.get("source_url") if job else None)
     from app.config import settings
-    from app.modules.application_engine.browser_session import BrowserSession
-    from app.modules.ats_connectors.canonical_profile import canonical_apply_profile
-    from app.modules.ats_connectors.field_mapper import map_fields
-    from app.modules.ats_connectors.sandbox import resolve_browser_fill_url
 
-    prefer_sandbox = not bool(getattr(settings, "ALLOW_LIVE_BROWSER_FILL", False))
-    target = resolve_browser_fill_url(
-        src,
-        prefer_sandbox=prefer_sandbox,
-        allow_live=bool(getattr(settings, "ALLOW_LIVE_BROWSER_FILL", False)),
-    )
-    fill_url = target.get("url") or ""
-    mapped_override = None
-    if fill_url and (settings.ENABLE_BROWSER_FILL_PAUSE or settings.ENABLE_BROWSER_AUTOMATION):
-        # Playwright sync API cannot run inside the FastAPI event loop.
-        scan = await asyncio.to_thread(
-            lambda: BrowserSession().scan_fields(url=fill_url, click_apply_first=True)
-        )
-        fields = scan.get("fields") or []
-        profile = canonical_apply_profile(
-            user_id,
-            final_path=final_path,
-            version_id=version_id,
-            resume_overrides=version.get("full_resume") or {},
-        )
-        mapped_override = await map_fields(fields, profile, prefer_llm=True)
+    prefer_llm = bool(getattr(settings, "APPLY_FIELD_MAP_PREFER_LLM", False))
     return await asyncio.to_thread(
         lambda: _start_apply_impl(
             user_id=user_id,
@@ -214,9 +173,9 @@ async def start_apply_async(
             final_path=final_path,
             job_id=job_id,
             source_url=source_url,
-            prefer_llm=True,
-            mapped_override=mapped_override,
-            pre_target=target if fill_url else None,
+            prefer_llm=prefer_llm,
+            mapped_override=None,
+            pre_target=None,
         )
     )
 
@@ -404,13 +363,7 @@ def _start_apply_impl(
                     / f"browser-fill-{ats_type or 'generic'}-{apply_id[:8]}.png"
                 )
                 if fill_url:
-                    if mapped_override and mapped_override.get("mappings"):
-                        fill_plan = list(mapped_override["mappings"])
-                        map_provider = mapped_override.get("provider")
-                    else:
-                        scan = BrowserSession().scan_fields(url=fill_url, click_apply_first=True)
-                        fields = scan.get("fields") or []
-                        mapped = map_fields_rules(fields, profile)
+                    def _tier_mappings(mapped: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         for m in mapped:
                             conf = float(m.get("confidence") or 0)
                             action = m.get("action")
@@ -422,19 +375,47 @@ def _start_apply_impl(
                                 m["tier"] = "review"
                             else:
                                 m["tier"] = "empty"
-                        fill_plan = mapped
-                        map_provider = "rules"
-                    fill_plan_ui = list(fill_plan)
-                    browser_fill = BrowserSession().fill_and_pause(
+                        return mapped
+
+                    prebuilt = (
+                        list(mapped_override["mappings"])
+                        if mapped_override and mapped_override.get("mappings")
+                        else None
+                    )
+                    map_provider = (
+                        mapped_override.get("provider")
+                        if prebuilt is not None and mapped_override
+                        else "rules"
+                    )
+
+                    def _build_plan(fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
+                        nonlocal map_provider
+                        if prefer_llm:
+                            try:
+                                import asyncio
+
+                                from app.modules.ats_connectors.field_mapper import map_fields
+
+                                packed = asyncio.run(map_fields(fields, profile, prefer_llm=True))
+                                map_provider = packed.get("provider") or "rules"
+                                return _tier_mappings(list(packed.get("mappings") or []))
+                            except Exception:
+                                map_provider = "rules"
+                        return _tier_mappings(map_fields_rules(fields, profile))
+
+                    # One Chromium launch: scan DOM → map → fill → screenshot (never Submit).
+                    browser_fill = BrowserSession().scan_and_fill_pause(
                         url=fill_url,
-                        answers=[],
+                        fill_plan=_tier_mappings(prebuilt) if prebuilt is not None else None,
+                        build_plan=None if prebuilt is not None else _build_plan,
                         field_selectors=connector.field_selectors(),
                         screenshot_path=shot,
                         ats_type=ats_type,
                         sandbox=bool(target.get("sandbox")),
-                        fill_plan=fill_plan,
                         click_apply_first=True,
+                        answers=[],
                     )
+                    fill_plan_ui = list(browser_fill.get("fill_plan") or prebuilt or [])
                     browser_fill["original_url"] = source_url
                     browser_fill["fill_url"] = fill_url
                     browser_fill["map_provider"] = map_provider

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Jobright Realistic Mock — WMS Analyst</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #0b1220; color: #e2e8f0; }
+    .shell { display: grid; grid-template-columns: 220px 1fr 320px; min-height: 100vh; }
+    nav { background: #111827; padding: 16px; }
+    .main { padding: 20px; }
+    .side { background: #0f172a; padding: 16px; border-left: 1px solid #1e293b; }
+    .tabs button { margin-right: 8px; padding: 8px 12px; border-radius: 8px; border: 0; cursor: pointer; }
+    .tabs button.active { background: #047857; color: #fff; }
+    .tabs button:not(.active) { background: #1e293b; color: #cbd5e1; }
+    #panel { margin-top: 16px; min-height: 280px; background: #111827; border-radius: 12px; padding: 16px; }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    .meta { color: #94a3b8; font-size: 13px; margin-bottom: 12px; }
+    a.apply { display: inline-block; margin-top: 12px; background: #059669; color: #fff; padding: 10px 14px; border-radius: 999px; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav>
+      <div>Jobs</div><div>Resume</div><div>Agent</div>
+    </nav>
+    <div class="main">
+      <h1 id="job-title">Warehouse Mgmt. Systems (WMS) Analyst II</h1>
+      <div class="meta">DHL Supply Chain · Full-time · $80k–$110k</div>
+      <div class="tabs">
+        <button type="button" id="tab-overview" class="active">Overview</button>
+        <button type="button" id="tab-company">Company</button>
+      </div>
+      <!-- Host for open shadow root that holds the real JD (simulates Jobright widgets) -->
+      <div id="panel-host"></div>
+      <!-- Same-origin iframe with extra JD text -->
+      <iframe id="jd-frame" src="about:blank" style="width:100%;height:120px;border:1px solid #334155;margin-top:12px;border-radius:8px;background:#020617"></iframe>
+      <a class="apply" data-ra-apply href="https://boards.greenhouse.io/example/jobs/123?utm_source=jobright">APPLY WITH AUTOFILL</a>
+    </div>
+    <div class="side">
+      <div>Customize Your Resume</div>
+      <div>Build Cover Letter</div>
+      <div>Analyze How Well You Fit</div>
+    </div>
+  </div>
+  <script>
+    const JD = `Warehouse Mgmt. Systems (WMS) Analyst II at DHL Supply Chain
+
+About the role
+We are hiring a WMS Analyst II to own warehouse management system configuration, data analysis, and stakeholder reporting across regional DCs.
+
+Responsibilities
+• Configure and support Manhattan / SAP EWM WMS modules
+• Write SQL against operational data warehouses for inventory accuracy KPIs
+• Build Tableau dashboards for throughput, dwell time, and labor productivity
+• Partner with IT and operations on cutovers and UAT
+• Document SOPs and train super-users
+
+Requirements
+• 2+ years WMS analyst / supply chain systems experience
+• Strong SQL and Excel; Tableau or Power BI preferred
+• Experience with Manhattan WMS, SAP EWM, or similar
+• Clear communication with warehouse supervisors and IT
+
+This full job description is suitable for resume tailoring and must be readable by the Resume Agent bridge even when nested in shadow DOM.`;
+
+    const COMPANY = `About DHL Supply Chain
+Funding: Private. Leadership team and recent news appear on the Company tab.
+Investors: N/A. This tab intentionally has NO job responsibilities text.`;
+
+    const host = document.getElementById('panel-host');
+    const shadow = host.attachShadow({ mode: 'open' });
+    const panel = document.createElement('div');
+    panel.id = 'panel';
+    panel.style.cssText = 'margin-top:16px;min-height:280px;background:#111827;border-radius:12px;padding:16px;color:#e2e8f0;white-space:pre-wrap;font:14px/1.45 system-ui';
+    panel.setAttribute('data-ra-jd', '1');
+    panel.textContent = JD;
+    shadow.appendChild(panel);
+
+    // Start on Company tab to reproduce the user's failure mode.
+    function showCompany() {
+      document.getElementById('tab-company').classList.add('active');
+      document.getElementById('tab-overview').classList.remove('active');
+      panel.textContent = COMPANY;
+      panel.removeAttribute('data-ra-jd');
+    }
+    function showOverview() {
+      document.getElementById('tab-overview').classList.add('active');
+      document.getElementById('tab-company').classList.remove('active');
+      panel.textContent = JD;
+      panel.setAttribute('data-ra-jd', '1');
+    }
+    document.getElementById('tab-company').onclick = showCompany;
+    document.getElementById('tab-overview').onclick = showOverview;
+    showCompany();
+
+    const frame = document.getElementById('jd-frame');
+    frame.srcdoc = `<!DOCTYPE html><html><body style="font:13px system-ui;color:#e2e8f0;background:#020617;padding:12px">
+      <div>Iframe JD fragment: SQL, Tableau, WMS configuration, inventory KPIs, stakeholder dashboards.</div>
+    </body></html>`;
+  </script>
+</body>
+</html>

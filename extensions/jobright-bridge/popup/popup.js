@@ -16,15 +16,17 @@ document.getElementById("refresh").addEventListener("click", refreshReview);
 
 document.getElementById("openTailor").addEventListener("click", () => {
   setStatus("Opening Tailor…");
-  chrome.runtime.sendMessage({ type: "ra_open_tailor" }, (resp) => {
-    setStatus(resp?.ok ? "Tailor window opened." : resp?.error || "Open Tailor failed");
+  chrome.runtime.sendMessage({ type: "ra_open_tailor", force: true }, (resp) => {
+    const err = chrome.runtime.lastError;
+    setStatus(err ? err.message : resp?.ok ? "Tailor window opened." : resp?.error || "Open Tailor failed");
   });
 });
 
 document.getElementById("openApply").addEventListener("click", () => {
   setStatus("Opening Apply workspace…");
-  chrome.runtime.sendMessage({ type: "ra_open_apply" }, (resp) => {
-    setStatus(resp?.ok ? "Apply workspace opened." : resp?.error || "Open Apply failed");
+  chrome.runtime.sendMessage({ type: "ra_open_apply", force: true }, (resp) => {
+    const err = chrome.runtime.lastError;
+    setStatus(err ? err.message : resp?.ok ? "Apply workspace opened." : resp?.error || "Open Apply failed");
   });
 });
 

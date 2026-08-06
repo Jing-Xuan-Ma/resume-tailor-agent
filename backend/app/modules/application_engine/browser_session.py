@@ -1,3 +1,8 @@
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any
+
 from app.config import settings
 
 
@@ -117,6 +122,16 @@ class BrowserSession:
             "paused_before_submit": True,
         }
 
+    def _launch_browser(self, playwright):
+        from app.config import settings
+
+        try:
+            return playwright.chromium.launch(
+                headless=settings.BROWSER_HEADLESS, channel="chrome"
+            )
+        except Exception:
+            return playwright.chromium.launch(headless=settings.BROWSER_HEADLESS)
+
     def scan_fields(
         self,
         *,
@@ -139,12 +154,7 @@ class BrowserSession:
 
         fields: list = []
         with sync_playwright() as playwright:
-            try:
-                browser = playwright.chromium.launch(
-                    headless=settings.BROWSER_HEADLESS, channel="chrome"
-                )
-            except Exception:
-                browser = playwright.chromium.launch(headless=settings.BROWSER_HEADLESS)
+            browser = self._launch_browser(playwright)
             page = browser.new_page()
             page.goto(url, wait_until="domcontentloaded", timeout=settings.BROWSER_TIMEOUT_MS)
             if click_apply_first:
@@ -155,6 +165,202 @@ class BrowserSession:
                 fields = []
             browser.close()
         return {"fields": fields, "status": "scanned", "url": url, "count": len(fields)}
+
+    def scan_and_fill_pause(
+        self,
+        *,
+        url: str,
+        fill_plan: list[dict] | None = None,
+        build_plan: Callable[[list[dict[str, Any]]], list[dict[str, Any]]] | None = None,
+        field_selectors: dict[str, list[str]] | None = None,
+        screenshot_path: str | None = None,
+        ats_type: str | None = None,
+        sandbox: bool = False,
+        click_apply_first: bool = True,
+        answers: list[dict] | None = None,
+    ) -> dict:
+        """One Chromium launch: open → scan → map/fill → screenshot. Never submits.
+
+        Prefer this over scan_fields() + fill_and_pause() (avoids a second cold start).
+        """
+        from pathlib import Path
+
+        from app.config import settings
+
+        if not settings.ENABLE_BROWSER_FILL_PAUSE and not settings.ENABLE_BROWSER_AUTOMATION:
+            return {
+                "submitted": False,
+                "status": "browser_fill_disabled",
+                "mode": "dry_run",
+                "filled": [],
+                "fields": [],
+                "fill_plan": fill_plan or [],
+                "message": "Browser fill-pause is disabled (set ENABLE_BROWSER_FILL_PAUSE=true).",
+                "paused_before_submit": True,
+                "ats_type": ats_type,
+                "sandbox": sandbox,
+                "single_session": True,
+            }
+        if not url:
+            return {
+                "submitted": False,
+                "status": "missing_url",
+                "filled": [],
+                "fields": [],
+                "fill_plan": fill_plan or [],
+                "message": "No URL",
+                "paused_before_submit": True,
+                "ats_type": ats_type,
+                "sandbox": sandbox,
+                "single_session": True,
+            }
+
+        try:
+            from playwright.sync_api import sync_playwright
+        except Exception as exc:
+            return {
+                "submitted": False,
+                "status": "playwright_unavailable",
+                "filled": [],
+                "fields": [],
+                "fill_plan": fill_plan or [],
+                "message": str(exc),
+                "paused_before_submit": True,
+                "ats_type": ats_type,
+                "sandbox": sandbox,
+                "single_session": True,
+            }
+
+        from app.modules.ats_connectors.dom_scan import scan_page_fields
+
+        filled: list[dict] = []
+        scanned_fields: list[dict] = []
+        plan: list[dict] = list(fill_plan or [])
+        shot = None
+        submit_marker = ""
+
+        with sync_playwright() as playwright:
+            browser = self._launch_browser(playwright)
+            page = browser.new_page()
+            page.goto(url, wait_until="domcontentloaded", timeout=settings.BROWSER_TIMEOUT_MS)
+            if click_apply_first:
+                self._maybe_click_apply_entry(page)
+
+            # Scan only when the fill plan is not already known (one pass).
+            if not plan:
+                try:
+                    scanned_fields = scan_page_fields(page)
+                except Exception:
+                    scanned_fields = []
+                if build_plan is not None:
+                    try:
+                        plan = list(build_plan(scanned_fields) or [])
+                    except Exception:
+                        plan = []
+
+            if plan:
+                filled = self._execute_fill_plan(page, plan)
+            else:
+                # Legacy answers path (no DOM plan)
+                for item in answers or []:
+                    answer = str(item.get("answer") or item.get("value") or "").strip()
+                    question = str(item.get("question") or item.get("field") or "").strip()
+                    field_name = str(item.get("field_name") or item.get("field") or "").strip()
+                    field_type = str(item.get("field_type") or item.get("type") or "").strip()
+                    aliases = [str(a) for a in (item.get("aliases") or [])]
+                    if not answer or answer.startswith("("):
+                        continue
+                    if field_type == "file" or field_name in {"resume", "resume_upload", "cover_letter"}:
+                        if not Path(answer).exists():
+                            filled.append({"field": field_name, "status": "skipped_missing_file"})
+                            continue
+                        ok = self._upload_file(page, field_name, aliases, answer, field_selectors or {})
+                    else:
+                        ok = self._fill_field(
+                            page, field_name, question, aliases, answer, field_selectors or {}
+                        )
+                    filled.append({"field": field_name or question, "status": "filled" if ok else "not_found"})
+
+            try:
+                submit_marker = (page.locator("#msg").first.inner_text(timeout=500) or "").strip()
+            except Exception:
+                submit_marker = ""
+            if screenshot_path:
+                Path(screenshot_path).parent.mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=screenshot_path, full_page=True)
+                shot = screenshot_path
+            browser.close()
+
+        leaked_submit = "SUBMITTED" in submit_marker.upper()
+        return {
+            "submitted": False,
+            "status": "filled_paused_before_submit",
+            "mode": "playwright_scan_fill_pause",
+            "filled": filled,
+            "fields": scanned_fields,
+            "fill_plan": plan,
+            "scanned_field_count": len(scanned_fields),
+            "screenshot_path": shot,
+            "message": "Scanned + filled in one browser session; stopped before Submit.",
+            "paused_before_submit": True,
+            "submit_marker": submit_marker,
+            "submit_leaked": leaked_submit,
+            "ats_type": ats_type,
+            "sandbox": sandbox,
+            "single_session": True,
+            "url": url,
+            "count": len(scanned_fields),
+        }
+
+    def _execute_fill_plan(self, page, plan: list[dict]) -> list[dict]:
+        from pathlib import Path
+
+        filled: list[dict] = []
+        for item in plan:
+            action = str(item.get("action") or "leave_empty")
+            value = str(item.get("value") or "").strip()
+            label = str(item.get("label") or item.get("profile_key") or item.get("field_id") or "")
+            tier = str(item.get("tier") or "")
+            if action == "leave_empty" or not value:
+                filled.append(
+                    {
+                        "field": label,
+                        "field_id": item.get("field_id"),
+                        "status": "left_empty",
+                        "tier": tier or "empty",
+                        "confidence": item.get("confidence"),
+                        "needs_review": True,
+                    }
+                )
+                continue
+            if action == "upload":
+                if not Path(value).exists():
+                    filled.append(
+                        {
+                            "field": label,
+                            "field_id": item.get("field_id"),
+                            "status": "skipped_missing_file",
+                            "tier": "empty",
+                            "needs_review": True,
+                        }
+                    )
+                    continue
+                ok = self._fill_plan_item(page, item, value, upload=True)
+            else:
+                ok = self._fill_plan_item(page, item, value, upload=False)
+            filled.append(
+                {
+                    "field": label,
+                    "field_id": item.get("field_id"),
+                    "status": "filled" if ok else "not_found",
+                    "tier": tier,
+                    "confidence": item.get("confidence"),
+                    "needs_review": bool(item.get("needs_review")),
+                    "profile_key": item.get("profile_key"),
+                    "value": value if ok else "",
+                }
+            )
+        return filled
 
     def fill_and_pause(
         self,
@@ -211,94 +417,47 @@ class BrowserSession:
                 "sandbox": sandbox,
             }
 
+        # Prefer unified single-session path (scan+fill) so callers don't double-launch.
+        if fill_plan:
+            return self.scan_and_fill_pause(
+                url=url,
+                fill_plan=fill_plan,
+                field_selectors=field_selectors,
+                screenshot_path=screenshot_path,
+                ats_type=ats_type,
+                sandbox=sandbox,
+                click_apply_first=click_apply_first,
+                answers=answers,
+            )
+
         filled: list[dict] = []
-        scanned_fields: list[dict] = []
         shot = None
         submit_marker = ""
         with sync_playwright() as playwright:
-            try:
-                browser = playwright.chromium.launch(
-                    headless=settings.BROWSER_HEADLESS, channel="chrome"
-                )
-            except Exception:
-                browser = playwright.chromium.launch(headless=settings.BROWSER_HEADLESS)
+            browser = self._launch_browser(playwright)
             page = browser.new_page()
             page.goto(url, wait_until="domcontentloaded", timeout=settings.BROWSER_TIMEOUT_MS)
             if click_apply_first:
                 self._maybe_click_apply_entry(page)
 
-            plan = list(fill_plan or [])
-            if not plan:
-                # Legacy path
-                for item in answers:
-                    answer = str(item.get("answer") or item.get("value") or "").strip()
-                    question = str(item.get("question") or item.get("field") or "").strip()
-                    field_name = str(item.get("field_name") or item.get("field") or "").strip()
-                    field_type = str(item.get("field_type") or item.get("type") or "").strip()
-                    aliases = [str(a) for a in (item.get("aliases") or [])]
-                    if not answer or answer.startswith("("):
+            for item in answers:
+                answer = str(item.get("answer") or item.get("value") or "").strip()
+                question = str(item.get("question") or item.get("field") or "").strip()
+                field_name = str(item.get("field_name") or item.get("field") or "").strip()
+                field_type = str(item.get("field_type") or item.get("type") or "").strip()
+                aliases = [str(a) for a in (item.get("aliases") or [])]
+                if not answer or answer.startswith("("):
+                    continue
+                if field_type == "file" or field_name in {"resume", "resume_upload", "cover_letter"}:
+                    if not Path(answer).exists():
+                        filled.append({"field": field_name, "status": "skipped_missing_file"})
                         continue
-                    if field_type == "file" or field_name in {"resume", "resume_upload", "cover_letter"}:
-                        if not Path(answer).exists():
-                            filled.append({"field": field_name, "status": "skipped_missing_file"})
-                            continue
-                        ok = self._upload_file(page, field_name, aliases, answer, field_selectors or {})
-                    else:
-                        ok = self._fill_field(
-                            page, field_name, question, aliases, answer, field_selectors or {}
-                        )
-                    filled.append({"field": field_name or question, "status": "filled" if ok else "not_found"})
-            else:
-                from app.modules.ats_connectors.dom_scan import scan_page_fields
-
-                try:
-                    scanned_fields = scan_page_fields(page)
-                except Exception:
-                    scanned_fields = []
-                for item in plan:
-                    action = str(item.get("action") or "leave_empty")
-                    value = str(item.get("value") or "").strip()
-                    label = str(item.get("label") or item.get("profile_key") or item.get("field_id") or "")
-                    tier = str(item.get("tier") or "")
-                    if action == "leave_empty" or not value:
-                        filled.append(
-                            {
-                                "field": label,
-                                "field_id": item.get("field_id"),
-                                "status": "left_empty",
-                                "tier": tier or "empty",
-                                "confidence": item.get("confidence"),
-                                "needs_review": True,
-                            }
-                        )
-                        continue
-                    if action == "upload":
-                        if not Path(value).exists():
-                            filled.append(
-                                {
-                                    "field": label,
-                                    "field_id": item.get("field_id"),
-                                    "status": "skipped_missing_file",
-                                    "tier": "empty",
-                                    "needs_review": True,
-                                }
-                            )
-                            continue
-                        ok = self._fill_plan_item(page, item, value, upload=True)
-                    else:
-                        ok = self._fill_plan_item(page, item, value, upload=False)
-                    filled.append(
-                        {
-                            "field": label,
-                            "field_id": item.get("field_id"),
-                            "status": "filled" if ok else "not_found",
-                            "tier": tier,
-                            "confidence": item.get("confidence"),
-                            "needs_review": bool(item.get("needs_review")),
-                            "profile_key": item.get("profile_key"),
-                            "value": value if ok and action != "upload" else (value if ok else ""),
-                        }
+                    ok = self._upload_file(page, field_name, aliases, answer, field_selectors or {})
+                else:
+                    ok = self._fill_field(
+                        page, field_name, question, aliases, answer, field_selectors or {}
                     )
+                filled.append({"field": field_name or question, "status": "filled" if ok else "not_found"})
 
             # HARD STOP — never click submit / never invoke form.submit()
             try:
@@ -317,8 +476,8 @@ class BrowserSession:
             "status": "filled_paused_before_submit",
             "mode": "playwright_fill_pause",
             "filled": filled,
-            "fill_plan": fill_plan or [],
-            "scanned_field_count": len(scanned_fields),
+            "fill_plan": [],
+            "scanned_field_count": 0,
             "screenshot_path": shot,
             "message": "Filled form fields and stopped before Submit.",
             "paused_before_submit": True,
@@ -346,7 +505,7 @@ class BrowserSession:
                 if "submit" in text:
                     continue
                 loc.click(timeout=2000)
-                page.wait_for_timeout(800)
+                page.wait_for_timeout(300)
                 return True
             except Exception:
                 continue

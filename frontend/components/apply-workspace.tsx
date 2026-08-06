@@ -84,6 +84,9 @@ export default function ApplyWorkspace({
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Which mode card is mid-flight — drives label + keeps the other card clickable feedback clear. */
+  const [busyMode, setBusyMode] = useState<"manual" | "auto" | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [company, setCompany] = useState(initialCompany || "");
   const [position, setPosition] = useState(initialPosition || "");
@@ -230,8 +233,18 @@ export default function ApplyWorkspace({
   };
 
   const handleStart = async (mode: "manual" | "auto") => {
-    if (!versionId) return;
+    if (!versionId) {
+      setStartError("缺少 versionId — 请回 Tailor Confirm 后再进 Apply。");
+      return;
+    }
+    if (busy) return;
     setBusy(true);
+    setBusyMode(mode);
+    setStartError(null);
+    // Auto path may scan ATS with Playwright — cap wait so UI never looks "frozen forever".
+    const timeoutMs = mode === "auto" ? 45_000 : 30_000;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await startApply(versionId, userId, mode, {
         company: company || undefined,
@@ -239,6 +252,7 @@ export default function ApplyWorkspace({
         final_path: finalPath,
         job_id: jobId,
         source_url: initialSourceUrl,
+        signal: controller.signal,
       });
       setResult(res);
       setConfirmed(true);
@@ -263,7 +277,17 @@ export default function ApplyWorkspace({
         });
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Apply failed";
+      const aborted =
+        (err instanceof DOMException && err.name === "AbortError") ||
+        (err instanceof Error && /abort/i.test(err.message));
+      const msg = aborted
+        ? mode === "auto"
+          ? "Auto apply 超时。请重试，或先用 Manual apply 打开官网。"
+          : "Manual apply 请求超时，请确认后端 :8000 在跑后重试。"
+        : err instanceof Error
+          ? err.message
+          : "Apply failed";
+      setStartError(msg);
       setResult({
         apply_id: "",
         mode,
@@ -274,7 +298,9 @@ export default function ApplyWorkspace({
         filled_fields: [],
       });
     } finally {
+      window.clearTimeout(timer);
       setBusy(false);
+      setBusyMode(null);
     }
   };
 
@@ -592,12 +618,12 @@ export default function ApplyWorkspace({
           ) : null}
         </section>
 
-        {/* Mode pick */}
+        {/* Mode pick — these cards ARE the enter actions (no separate 进去 button). */}
         <section className="rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm" data-testid="apply-mode-section">
           <h2 className="text-lg font-bold tracking-tight">2. How do you want to apply?</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Manual opens the official posting. Auto maps profile + ATS fields and{" "}
-            <strong>never clicks Submit</strong>.
+            点下面任一卡片即可进入。Manual 打开官网；Auto 映射字段且{" "}
+            <strong>never clicks Submit</strong>。
           </p>
           <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
             Safety: Auto-apply never clicks Submit
@@ -607,10 +633,13 @@ export default function ApplyWorkspace({
               type="button"
               data-testid="apply-manual"
               disabled={!confirmed || busy}
+              aria-busy={busyMode === "manual"}
               onClick={() => void handleStart("manual")}
-              className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left hover:bg-slate-50 disabled:opacity-40"
+              className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="text-sm font-bold text-slate-950">Manual apply</div>
+              <div className="text-sm font-bold text-slate-950">
+                {busyMode === "manual" ? "正在进入 Manual…" : "进入 Manual apply"}
+              </div>
               <div className="mt-1 text-xs text-slate-500">
                 Open official site · download resume · you fill & submit
               </div>
@@ -619,15 +648,33 @@ export default function ApplyWorkspace({
               type="button"
               data-testid="apply-auto"
               disabled={!confirmed || busy}
+              aria-busy={busyMode === "auto"}
               onClick={() => void handleStart("auto")}
-              className="rounded-2xl bg-emerald-600 px-5 py-4 text-left text-white hover:bg-emerald-700 disabled:opacity-40"
+              className="rounded-2xl bg-emerald-600 px-5 py-4 text-left text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="text-sm font-bold">Auto apply (safe)</div>
+              <div className="text-sm font-bold">
+                {busyMode === "auto" ? "正在扫描 ATS / 进入中…" : "进入 Auto apply (safe)"}
+              </div>
               <div className="mt-1 text-xs text-emerald-50/90">
                 Prefill checklist · pause before Submit · you review
               </div>
             </button>
           </div>
+          {busy ? (
+            <p
+              className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 ring-1 ring-amber-200"
+              data-testid="apply-busy-hint"
+            >
+              {busyMode === "auto"
+                ? "Auto apply：单次打开申请页并预填（通常十几秒；超时约 45 秒）。完成后展开第 3 步 Review。"
+                : "正在打开 Manual apply，请稍候…"}
+            </p>
+          ) : null}
+          {startError ? (
+            <p className="mt-3 text-xs font-medium text-rose-700" data-testid="apply-start-error">
+              {startError}
+            </p>
+          ) : null}
           {!confirmed ? (
             <p className="mt-3 text-xs font-semibold text-amber-800" data-testid="apply-need-confirm-hint">
               Confirm the resume above first — Manual / Auto stay locked until then.

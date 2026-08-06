@@ -200,11 +200,12 @@ export interface SourceResumeRecord {
   updated_at: string;
 }
 
-async function post<T>(path: string, body: unknown): Promise<T> {
+async function post<T>(path: string, body: unknown, init?: { signal?: AbortSignal }): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: init?.signal,
   });
   if (!res.ok) {
     const text = await res.text();
@@ -946,6 +947,7 @@ export async function startApply(
     final_path?: string;
     job_id?: string;
     source_url?: string;
+    signal?: AbortSignal;
   }
 ): Promise<StartApplyResponse> {
   return post<StartApplyResponse>(
@@ -958,7 +960,8 @@ export async function startApply(
       final_path: opts?.final_path,
       job_id: opts?.job_id,
       source_url: opts?.source_url,
-    }
+    },
+    { signal: opts?.signal }
   );
 }
 

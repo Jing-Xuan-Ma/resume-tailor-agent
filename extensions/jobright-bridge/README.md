@@ -14,7 +14,8 @@ Chrome/Edge extension (one folder): Jobright entry **and** ATS form-fill co-pilo
 ### A) Jobright → Resume Agent
 - Open a Jobright job detail **or** local mock: `http://localhost:3000/fixtures/jobright-mock.html`
 - Green **Open Tailor** FAB on the page, **or** toolbar popup → **Open Tailor**
-- Imports JD and opens Tailor / Apply / Outreach in a full window
+- Imports JD via **layered extract** (score → containers → deepText) after MutationObserver DOM-settle, then opens Tailor / Apply / Outreach
+- Failed reads surface `diagnostics.failure` on the FAB banner (not just body_len)
 
 ### B) Auto apply (form-fill)
 - Toolbar popup → paste **Apply URL** → **打开并填表**
