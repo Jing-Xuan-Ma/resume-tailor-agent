@@ -1,0 +1,40 @@
+{
+  "ok": true,
+  "body_len": 1352,
+  "extract_layer": "layer1_score",
+  "title": "Data Analyst",
+  "company": "Northwind Analytics",
+  "diagnostics": {
+    "layer": "layer1_score",
+    "layers": {
+      "layer1_score": {
+        "ok": true,
+        "len": 1352,
+        "score": 840.4485207100593,
+        "reason": "scored_good",
+        "tag": "main"
+      }
+    },
+    "wait": {
+      "pass1": {
+        "ok": true,
+        "reason": "quiet",
+        "waited_ms": 414
+      },
+      "pass2": {
+        "ok": true,
+        "reason": "quiet",
+        "waited_ms": 400
+      },
+      "reason": "quiet",
+      "waited_ms": 814
+    },
+    "body_len": 1352,
+    "overview_clicked": false,
+    "frame": "top",
+    "href": "file:///D:/resume-agent/frontend/public/fixtures/jobright-mock.html",
+    "failure": "ok",
+    "hint": "ok"
+  },
+  "raw_preview": "Data Analyst Northwind Analytics Remote \u00b7 United States Data Analyst at Northwind Analytics About the role We are hiring a Data Analyst to partner with product and growth teams. You will own SQL pipelines, dashboard storytelling, and experi"
+}
