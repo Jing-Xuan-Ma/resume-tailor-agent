@@ -50,19 +50,25 @@ class _LexDecision:
 
 
 def light_model() -> str:
-    return getattr(settings, "FAST_TAILOR_MODEL", None) or "gemini-3.5-flash"
+    return getattr(settings, "FAST_TAILOR_MODEL", None) or "deepseek-v4-flash"
 
 
 def content_model() -> str:
-    return getattr(settings, "CONTENT_TAILOR_MODEL", None) or "glm-5.2"
+    return getattr(settings, "CONTENT_TAILOR_MODEL", None) or "deepseek-v4-flash"
 
 
-def content_provider() -> str | None:
-    # glm-5.2 is served by yiling-glm when configured
+def tailor_provider() -> str | None:
+    """Route shopping-cart light + content calls to SenseNova when configured."""
     model = content_model().lower()
     if model.startswith("glm"):
         return "yiling-glm"
+    if "deepseek" in model or getattr(settings, "SENSENOVA_API_KEY", ""):
+        return "sensenova"
     return None
+
+
+def content_provider() -> str | None:
+    return tailor_provider()
 
 
 def extract_jd_signals_lexical(jd_text: str) -> dict[str, Any]:
@@ -104,7 +110,12 @@ JD:
 {snippet}
 """
     try:
-        llm = get_chat_openai(model=light_model(), temperature=0.0, max_tokens=1200)
+        llm = get_chat_openai(
+            model=light_model(),
+            provider=tailor_provider(),
+            temperature=0.0,
+            max_tokens=1200,
+        )
         resp = await llm.ainvoke(
             [
                 ("system", "You extract ATS skills from job descriptions. JSON only."),
@@ -212,7 +223,12 @@ async def project_for_jd_light(
             jd_keywords=list(signals.get("ats_keywords") or []),
             items=items[: de._MAX_ITEMS],
         )
-        llm = get_chat_openai(model=light_model(), temperature=0.0, max_tokens=4000)
+        llm = get_chat_openai(
+            model=light_model(),
+            provider=tailor_provider(),
+            temperature=0.0,
+            max_tokens=4000,
+        )
         response = await llm.ainvoke(
             [
                 ("system", de._SYSTEM_PROMPT),
@@ -321,7 +337,12 @@ Evidence bullets:
 {evidence}
 """
     try:
-        llm = get_chat_openai(model=light_model(), temperature=0.25, max_tokens=4096)
+        llm = get_chat_openai(
+            model=light_model(),
+            provider=tailor_provider(),
+            temperature=0.25,
+            max_tokens=4096,
+        )
         for _attempt in range(2):
             resp = await llm.ainvoke(
                 [
@@ -404,7 +425,12 @@ JD terms: {terms}
 Original skills: {skills_raw}
 """
     try:
-        llm = get_chat_openai(model=light_model(), temperature=0.0, max_tokens=800)
+        llm = get_chat_openai(
+            model=light_model(),
+            provider=tailor_provider(),
+            temperature=0.0,
+            max_tokens=800,
+        )
         resp = await llm.ainvoke(
             [
                 (
@@ -454,7 +480,12 @@ Original:
 {base}
 """
     try:
-        llm = get_chat_openai(model=light_model(), temperature=0.2, max_tokens=900)
+        llm = get_chat_openai(
+            model=light_model(),
+            provider=tailor_provider(),
+            temperature=0.2,
+            max_tokens=900,
+        )
         resp = await llm.ainvoke(
             [
                 (

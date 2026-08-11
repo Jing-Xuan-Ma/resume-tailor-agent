@@ -199,3 +199,20 @@ class ConfirmSectionMappingResponse(BaseModel):
     template_id: str | None = None
     resume_structure: dict = Field(default_factory=dict)
     unmapped_sections: list[UnmappedSection] = Field(default_factory=list)
+
+
+class GotoClaudeDesktopRequest(BaseModel):
+    jd_text: str
+    project_name: str | None = None
+    project_id: str | None = None
+    auto_send: bool = True
+
+
+class GotoClaudeDesktopResponse(BaseModel):
+    ok: bool
+    project_name: str | None = None
+    project_id: str | None = None
+    chars: int | None = None
+    error: str | None = None
+    hint: str | None = None
+    steps: list[dict] = Field(default_factory=list)

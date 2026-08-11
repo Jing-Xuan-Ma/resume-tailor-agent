@@ -407,14 +407,26 @@ def process_applying_item(*, cart_id: str, item_id: str) -> dict[str, Any]:
     }
 
     if not result.get("ok"):
+        err = str(result.get("error") or "account_step_failed")
+        needs_manual = err == "captcha_required"
         updated = set_apply_status(
             cart_id=cart_id,
             item_id=item_id,
             status="failed",
-            error=str(result.get("error") or "account_step_failed"),
+            error=err,
             extra={
                 **safe_extra,
-                "note": result.get("message") or "Phase 4 Create Account / Sign In failed",
+                "needs_manual_register": needs_manual,
+                "manual_register_reason": (
+                    "验证码无法自动完成，需要你在公司 ATS 页面自行注册/登录账户"
+                    if needs_manual
+                    else None
+                ),
+                "note": (
+                    "CAPTCHA blocked auto account create — use「去注册」then「已注册完成」"
+                    if needs_manual
+                    else (result.get("message") or "Phase 4 Create Account / Sign In failed")
+                ),
             },
         )
         return {
@@ -423,6 +435,7 @@ def process_applying_item(*, cart_id: str, item_id: str) -> dict[str, Any]:
             "apply": updated.get("apply"),
             "result": result,
             "phase": 4,
+            "needs_manual_register": needs_manual,
         }
 
     updated = set_apply_status(
@@ -528,6 +541,8 @@ def process_registered_item(
     if fr:
         resume_overrides = fr
 
+    restore_storage = str(apply.get("register_storage_state_path") or "").strip() or None
+
     result = fill_ats_form_pause(
         user_id=uid,
         ats_url=ats_url,
@@ -538,6 +553,7 @@ def process_registered_item(
         resume_overrides=resume_overrides,
         click_apply_first=False,
         ensure_registered_form=True,
+        restore_storage_state_path=restore_storage,
     )
 
     safe_extra = {
@@ -652,6 +668,162 @@ def get_fill_review(*, cart_id: str, item_id: str, user_id: str) -> dict[str, An
             {"id": "screenshot", "label": "页面截图", "hint": "填表后停在 Submit 前的截图"},
             {"id": "pause", "label": "暂停确认", "hint": "Submit 未被点击，等待一键提交"},
         ],
+    }
+
+
+def open_item_register_page(
+    *,
+    cart_id: str,
+    item_id: str,
+    user_id: str,
+    keep_open_ms: int = 1_800_000,
+) -> dict[str, Any]:
+    """Open/focus headed ATS Create Account page for captcha / manual registration."""
+    from app.modules.application_engine.manual_register import open_register_page
+
+    meta = store.load_cart_meta(cart_id)
+    if not meta or str(meta.get("user_id") or "") != str(user_id):
+        raise ValueError("Cart not found")
+    item = None
+    for row in meta.get("items") or []:
+        if row.get("item_id") == item_id:
+            item = row
+            break
+    if not item:
+        raise ValueError("Item not found")
+    apply = item.get("apply") if isinstance(item.get("apply"), dict) else {}
+    if not (apply.get("needs_manual_register") or apply.get("error") == "captcha_required"):
+        raise ValueError("Item does not need manual registration")
+    ats_url = str(apply.get("ats_url") or "").strip()
+    if not ats_url:
+        raise ValueError("No ATS URL — cannot open register page")
+
+    shot_dir = store.cart_dir(cart_id) / "_apply_shots"
+    shot_dir.mkdir(parents=True, exist_ok=True)
+    storage_out = str(shot_dir / f"{item_id}_manual_register_storage.json")
+    resume_path = resolve_confirmed_resume_pdf(cart_id=cart_id, item=item) or apply.get(
+        "resume_path"
+    )
+
+    opened = open_register_page(
+        cart_id=cart_id,
+        item_id=item_id,
+        ats_url=ats_url,
+        resume_path=str(resume_path) if resume_path else None,
+        storage_out_path=storage_out,
+        keep_open_ms=keep_open_ms,
+        headless=False,
+    )
+    if opened.get("ok"):
+        set_apply_status(
+            cart_id=cart_id,
+            item_id=item_id,
+            status="failed",
+            error=str(apply.get("error") or "captcha_required"),
+            extra={
+                "needs_manual_register": True,
+                "manual_register_reason": apply.get("manual_register_reason")
+                or "验证码无法自动完成，需要你在公司 ATS 页面自行注册/登录账户",
+                "manual_register_opened": True,
+                "register_storage_state_path": storage_out,
+                "ats_url": opened.get("ats_url") or ats_url,
+                "note": "Manual register browser open — waiting for「已注册完成」",
+                "phase3_done": True,
+            },
+        )
+    return {
+        "cart_id": cart_id,
+        "item_id": item_id,
+        "company": item.get("company"),
+        "position": item.get("position"),
+        "apply_status": "failed",
+        **opened,
+    }
+
+
+def confirm_item_manual_register(
+    *,
+    cart_id: str,
+    item_id: str,
+    user_id: str,
+    continue_apply: bool = True,
+) -> dict[str, Any]:
+    """User finished manual ATS registration → mark registered and continue Phase 5."""
+    from app.modules.application_engine.manual_register import snapshot_and_close_register_page
+
+    meta = store.load_cart_meta(cart_id)
+    if not meta or str(meta.get("user_id") or "") != str(user_id):
+        raise ValueError("Cart not found")
+    item = None
+    for row in meta.get("items") or []:
+        if row.get("item_id") == item_id:
+            item = row
+            break
+    if not item:
+        raise ValueError("Item not found")
+    apply = item.get("apply") if isinstance(item.get("apply"), dict) else {}
+    if not (
+        apply.get("needs_manual_register")
+        or apply.get("error") == "captcha_required"
+        or apply.get("manual_register_opened")
+    ):
+        raise ValueError("Item is not waiting for manual registration")
+
+    snap = snapshot_and_close_register_page(cart_id=cart_id, item_id=item_id)
+    storage_path = snap.get("storage_state_path") or apply.get("register_storage_state_path")
+    if storage_path and not Path(str(storage_path)).is_file():
+        storage_path = None
+
+    # Trust user confirm even if DOM detect is weak; prefer snapshot when available.
+    if snap.get("ok") is False and snap.get("error") == "no_open_register_session":
+        # User may have registered in a tab we didn't hold — still allow continue.
+        pass
+    elif snap.get("ok") and snap.get("registered") is False and snap.get("account_wall"):
+        # Soft warn but still allow — user clicked 已注册完成 intentionally.
+        log.info(
+            "manual register confirm with account_wall still visible cart=%s item=%s",
+            cart_id,
+            item_id,
+        )
+
+    updated = set_apply_status(
+        cart_id=cart_id,
+        item_id=item_id,
+        status="registered",
+        error=None,
+        clear_keys=["needs_manual_register", "manual_register_reason", "manual_register_opened"],
+        extra={
+            "phase3_done": True,
+            "phase4_done": True,
+            "auth_mode": "manual_user",
+            "ats_url": snap.get("ats_url") or apply.get("ats_url"),
+            "register_storage_state_path": storage_path,
+            "storage_state_path": storage_path or apply.get("storage_state_path"),
+            "email_masked": apply.get("email_masked"),
+            "note": "Manual registration confirmed — continuing form fill",
+        },
+    )
+
+    phase5: dict[str, Any] | None = None
+    if continue_apply:
+        phase5 = process_registered_item(
+            cart_id=cart_id, item_id=item_id, user_id=user_id
+        )
+
+    return {
+        "cart_id": cart_id,
+        "item_id": item_id,
+        "company": item.get("company"),
+        "position": item.get("position"),
+        "ok": True if not phase5 else bool(phase5.get("ok")),
+        "apply": (phase5 or {}).get("apply") or updated.get("apply"),
+        "snapshot": snap,
+        "phase5": phase5,
+        "message": (
+            "已确认注册，正在继续自动填表"
+            if continue_apply
+            else "已确认注册，状态已更新为 registered"
+        ),
     }
 
 

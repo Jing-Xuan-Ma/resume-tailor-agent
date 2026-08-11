@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
@@ -11,6 +12,7 @@ from app.modules.resume_workspace.apply_flow import (
     start_apply,
     start_apply_async,
 )
+from app.modules.resume_workspace.claude_desktop import goto_claude_desktop
 from app.modules.resume_workspace.constitution import constitution_api_payload
 from app.modules.resume_workspace.schemas import (
     ActivateTemplateResponse,
@@ -25,6 +27,8 @@ from app.modules.resume_workspace.schemas import (
     CreateJdSessionRequest,
     CreateJdSessionResponse,
     GetVersionResponse,
+    GotoClaudeDesktopRequest,
+    GotoClaudeDesktopResponse,
     KeywordMatchItem,
     ListTemplatesResponse,
     ListVersionsResponse,
@@ -50,6 +54,27 @@ workspace_service = ResumeWorkspaceService()
 async def get_resume_constitution():
     """Resume rules for Tailor UI + clients (RESUME_CONSTITUTION.md)."""
     return constitution_api_payload()
+
+
+@router.post("/goto-claude-desktop", response_model=GotoClaudeDesktopResponse)
+async def goto_claude_desktop_endpoint(request: GotoClaudeDesktopRequest):
+    """Copy JD → open Claude Desktop pinned Project → paste → Cmd+Enter send."""
+    result = await asyncio.to_thread(
+        goto_claude_desktop,
+        request.jd_text,
+        project_name=request.project_name,
+        project_id=request.project_id,
+        auto_send=request.auto_send,
+    )
+    return GotoClaudeDesktopResponse(
+        ok=bool(result.get("ok")),
+        project_name=result.get("project_name"),
+        project_id=result.get("project_id"),
+        chars=result.get("chars"),
+        error=result.get("error"),
+        hint=result.get("hint"),
+        steps=list(result.get("steps") or []),
+    )
 
 
 @router.post("/jd-session", response_model=CreateJdSessionResponse)

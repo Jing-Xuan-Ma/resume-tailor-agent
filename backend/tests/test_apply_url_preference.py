@@ -104,6 +104,14 @@ def test_tiktok_social_rejected_but_careers_allowed():
     )
 
 
+def test_pinpoint_postings_accepted():
+    # Pinpoint/ImpulseSpace career links often look like:
+    # https://<company>.pinpointhq.com/postings/<id>
+    # These are real apply pages, but the path contains /postings/ which
+    # our heuristic previously didn't recognize.
+    assert is_usable_job_apply_url("https://impulsespace.pinpointhq.com/postings/123456")
+
+
 def test_prefer_never_returns_unusable_workday_as_last_resort():
     got = prefer_official_apply_url(
         r"https://rb.wd5\.myworkdayjobs.com/FRS",

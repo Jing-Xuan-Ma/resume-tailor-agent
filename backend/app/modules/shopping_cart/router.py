@@ -47,6 +47,16 @@ class OpenFilledFormRequest(BaseModel):
     keep_open_ms: int = 1_800_000
 
 
+class OpenRegisterRequest(BaseModel):
+    user_id: str
+    keep_open_ms: int = 1_800_000
+
+
+class ConfirmRegisteredRequest(BaseModel):
+    user_id: str
+    continue_apply: bool = True
+
+
 @router.post("/preview")
 async def preview_jobs(request: PreviewRequest):
     """List selected jobs for the cart UI before batch refine."""
@@ -224,6 +234,36 @@ async def open_filled_form(cart_id: str, item_id: str, request: OpenFilledFormRe
             item_id=item_id,
             user_id=request.user_id,
             keep_open_ms=int(request.keep_open_ms or 1_800_000),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/{cart_id}/items/{item_id}/open-register")
+async def open_register(cart_id: str, item_id: str, request: OpenRegisterRequest):
+    """Open/focus headed ATS Create Account page when CAPTCHA blocked auto-register."""
+    try:
+        return await asyncio.to_thread(
+            service.open_item_register_page,
+            cart_id=cart_id,
+            item_id=item_id,
+            user_id=request.user_id,
+            keep_open_ms=int(request.keep_open_ms or 1_800_000),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/{cart_id}/items/{item_id}/confirm-registered")
+async def confirm_registered(cart_id: str, item_id: str, request: ConfirmRegisteredRequest):
+    """User finished manual ATS registration → continue Phase 5 form fill."""
+    try:
+        return await asyncio.to_thread(
+            service.confirm_item_manual_register,
+            cart_id=cart_id,
+            item_id=item_id,
+            user_id=request.user_id,
+            continue_apply=bool(request.continue_apply),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

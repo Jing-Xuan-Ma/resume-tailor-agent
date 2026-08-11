@@ -138,6 +138,7 @@ OPENAI_COMPAT_PROVIDERS: list[ProviderInfo] = [
     ProviderInfo(id="qwen-token",     name="Qwen Token Plan",     api_type="openai",   env_var="QWEN_TOKEN_PLAN_API_KEY", base_url="https://dashscope.aliyuncs.com/compatible-mode/v1", default_model="qwen-plus"),
     ProviderInfo(id="radius",         name="Radius",              api_type="openai",   env_var="RADIUS_API_KEY",      base_url="https://api.radius.ai/v1",                     default_model="radius-default"),
     ProviderInfo(id="yiling-glm",     name="GLM-5.2 (yiling)",    api_type="openai",   env_var="YILING_GLM_API_KEY",  base_url="https://router.c.yiling.top/v1",               default_model="glm-5.2"),
+    ProviderInfo(id="sensenova",      name="SenseNova",           api_type="openai",   env_var="SENSENOVA_API_KEY",   base_url="https://token.sensenova.cn/v1",                default_model="deepseek-v4-flash"),
 ]
 
 # Non-OpenAI-compatible providers (use native SDKs via langchain)

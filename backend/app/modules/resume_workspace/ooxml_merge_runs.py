@@ -10,7 +10,12 @@ _P_RE = re.compile(r"<w:p[\s\S]*?</w:p>")
 _HYPER_RE = re.compile(r"<w:hyperlink[\s\S]*?</w:hyperlink>")
 _RUN_RE = re.compile(r"<w:r(?:\s[^>]*)?>[\s\S]*?</w:r>")
 _RPR_RE = re.compile(r"<w:rPr>[\s\S]*?</w:rPr>")
-_T_RE = re.compile(r"<w:t([^>]*)>([\s\S]*?)</w:t>")
+# Require whitespace or '>' after w:t so <w:tab/> is never mistaken for <w:t>.
+_T_RE = re.compile(r"<w:t((?:\s[^>]*)?)>([\s\S]*?)</w:t>")
+# Runs with these children must be left verbatim — rebuilding via <w:t> drops them.
+_STRUCTURAL_RE = re.compile(
+    r"<w:(?:tab|br|cr|drawing|object|pict|fldChar|instrText|sym|footnoteReference|endnoteReference)\b"
+)
 
 
 def _run_rpr(run_xml: str) -> str:
@@ -25,6 +30,10 @@ def _run_text(run_xml: str) -> str:
     return "".join(parts)
 
 
+def _run_is_structural(run_xml: str) -> bool:
+    return bool(_STRUCTURAL_RE.search(run_xml))
+
+
 def _make_run(rpr: str, text: str) -> str:
     # Preserve spaces at edges
     space_attr = ' xml:space="preserve"' if (text[:1].isspace() or text[-1:].isspace() or "  " in text) else ""
@@ -35,7 +44,7 @@ def _make_run(rpr: str, text: str) -> str:
 
 
 def _merge_run_sequence(segment: str) -> str:
-    """Merge consecutive plain runs with identical rPr inside a non-hyperlink segment."""
+    """Merge consecutive plain text runs with identical rPr; leave structural runs intact."""
     runs = list(_RUN_RE.finditer(segment))
     if len(runs) <= 1:
         return segment
@@ -46,17 +55,27 @@ def _merge_run_sequence(segment: str) -> str:
     while i < len(runs):
         # copy gap before this run
         out.append(segment[last_end : runs[i].start()])
-        rpr = _run_rpr(runs[i].group(0))
-        texts = [_run_text(runs[i].group(0))]
+        run_xml = runs[i].group(0)
+        if _run_is_structural(run_xml):
+            # Keep <w:tab/> / breaks / fields verbatim — _make_run would drop them.
+            out.append(run_xml)
+            last_end = runs[i].end()
+            i += 1
+            continue
+        rpr = _run_rpr(run_xml)
+        texts = [_run_text(run_xml)]
         j = i + 1
         while j < len(runs):
+            nxt = runs[j].group(0)
+            if _run_is_structural(nxt):
+                break
             # only merge if nothing but whitespace between runs
             between = segment[runs[j - 1].end() : runs[j].start()]
             if between.strip():
                 break
-            if _run_rpr(runs[j].group(0)) != rpr:
+            if _run_rpr(nxt) != rpr:
                 break
-            texts.append(_run_text(runs[j].group(0)))
+            texts.append(_run_text(nxt))
             j += 1
         out.append(_make_run(rpr, "".join(texts)))
         last_end = runs[j - 1].end()

@@ -179,6 +179,7 @@ def validate_ats_password(password: str | None) -> dict[str, Any]:
 
 def load_ats_credentials() -> dict[str, Any]:
     email = (settings.ATS_DEFAULT_EMAIL or "").strip()
+    fallback = (getattr(settings, "ATS_FALLBACK_EMAIL", "") or "").strip()
     password = (settings.ATS_DEFAULT_PASSWORD or "").strip()
     if not email or not password:
         return {
@@ -196,7 +197,16 @@ def load_ats_credentials() -> dict[str, Any]:
             "policy_errors": check["errors"],
             "email_masked": mask_email(email),
         }
-    return {"ok": True, "email": email, "password": password, "email_masked": mask_email(email)}
+    out: dict[str, Any] = {
+        "ok": True,
+        "email": email,
+        "password": password,
+        "email_masked": mask_email(email),
+    }
+    if fallback and fallback.lower() != email.lower():
+        out["fallback_email"] = fallback
+        out["fallback_email_masked"] = mask_email(fallback)
+    return out
 
 
 def _visible(page, selector: str) -> bool:
@@ -260,7 +270,33 @@ def detect_captcha(page) -> bool:
     for sel in CAPTCHA_MARKERS:
         if _visible(page, sel):
             return True
+    # TikTok / ByteDance shape CAPTCHA overlays often lack classic iframe markers
+    try:
+        text = (_page_text(page) or "").lower()
+        if "select" in text and "same shape" in text:
+            return True
+        if "confirm" in text and ("refresh" in text or "report a problem" in text):
+            # weak signal — only with a modal-looking canvas/img dense region
+            if page.locator("canvas, img").count() >= 1 and page.locator("text=Confirm").count():
+                return True
+    except Exception:
+        pass
     return False
+
+
+def try_solve_captcha_with_screen_locate(page) -> dict[str, Any]:
+    """Attempt graphical CAPTCHA via .agents/skills/screen-locate."""
+    try:
+        from app.modules.application_engine.screen_locate_captcha import (
+            solve_graphical_captcha_on_page,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"screen_locate_import_failed:{exc}"}
+    try:
+        return solve_graphical_captcha_on_page(page)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("screen-locate captcha solve failed: %s", exc)
+        return {"ok": False, "error": f"screen_locate_exception:{exc}"}
 
 
 def detect_account_wall(page) -> bool:
@@ -345,15 +381,30 @@ def create_or_sign_in_on_page(
 ) -> dict[str, Any]:
     """Fill Create Account or Sign In on an open page. Never clicks application Submit."""
     if detect_captcha(page):
-        return sanitize_account_payload(
-            {
-                "ok": False,
-                "error": "captcha_required",
-                "message": "CAPTCHA detected — cannot complete account step automatically.",
-                "email_masked": mask_email(email),
-                "submitted": False,
-            }
-        )
+        solved = try_solve_captcha_with_screen_locate(page)
+        if not solved.get("ok"):
+            return sanitize_account_payload(
+                {
+                    "ok": False,
+                    "error": "captcha_required",
+                    "message": "CAPTCHA detected — screen-locate solve failed.",
+                    "captcha_solve": solved,
+                    "email_masked": mask_email(email),
+                    "submitted": False,
+                }
+            )
+        page.wait_for_timeout(800)
+        if detect_captcha(page) and not detect_registered(page):
+            return sanitize_account_payload(
+                {
+                    "ok": False,
+                    "error": "captcha_required",
+                    "message": "CAPTCHA still present after screen-locate clicks.",
+                    "captcha_solve": solved,
+                    "email_masked": mask_email(email),
+                    "submitted": False,
+                }
+            )
 
     if not detect_account_wall(page) and detect_registered(page):
         return sanitize_account_payload(
@@ -402,18 +453,36 @@ def create_or_sign_in_on_page(
     text = _page_text(page)
     stage = _stage_value(page)
     if detect_captcha(page):
+        solved = try_solve_captcha_with_screen_locate(page)
+        if solved.get("ok"):
+            page.wait_for_timeout(800)
+            if detect_registered(page):
+                return sanitize_account_payload(
+                    {
+                        "ok": True,
+                        "auth_mode": attempt.get("mode"),
+                        "email_masked": mask_email(email),
+                        "captcha_solved_via": "screen_locate",
+                        "attempts": [
+                            {"mode": a.get("mode"), "submitted_auth": a.get("submitted_auth")}
+                            for a in attempts
+                        ],
+                        "submitted": False,
+                    }
+                )
         return sanitize_account_payload(
             {
                 "ok": False,
                 "error": "captcha_required",
                 "email_masked": mask_email(email),
+                "captcha_solve": solved,
                 "submitted": False,
             }
         )
 
     exists = _match_any(text, EMAIL_EXISTS_PATTERNS) or ("email_exists" in stage)
     if exists and attempt.get("mode") == "create_account":
-        # Retry once via Sign In
+        # Retry once via Sign In with the same email
         attempt2 = _try_signin(page, email, password)
         attempts.append(attempt2)
         if detect_registered(page):
@@ -426,6 +495,61 @@ def create_or_sign_in_on_page(
                     "attempts": [
                         {"mode": a.get("mode"), "submitted_auth": a.get("submitted_auth")} for a in attempts
                     ],
+                    "submitted": False,
+                }
+            )
+        # Same email cannot create + sign-in failed → try fallback email for Create Account
+        fallback = (getattr(settings, "ATS_FALLBACK_EMAIL", "") or "").strip()
+        if fallback and fallback.lower() != email.lower():
+            _click_first(page, CREATE_TAB_SELECTORS)
+            attempt3 = _try_create(page, fallback, password)
+            attempts.append({**attempt3, "email_masked": mask_email(fallback)})
+            if detect_registered(page):
+                return sanitize_account_payload(
+                    {
+                        "ok": True,
+                        "auth_mode": "create_account_fallback_email",
+                        "email_masked": mask_email(fallback),
+                        "primary_email_existed": True,
+                        "used_fallback_email": True,
+                        "attempts": [
+                            {"mode": a.get("mode"), "submitted_auth": a.get("submitted_auth")}
+                            for a in attempts
+                        ],
+                        "submitted": False,
+                    }
+                )
+            # If fallback also already exists, try sign-in with fallback
+            text_fb = _page_text(page)
+            if _match_any(text_fb, EMAIL_EXISTS_PATTERNS):
+                attempt4 = _try_signin(page, fallback, password)
+                attempts.append({**attempt4, "email_masked": mask_email(fallback)})
+                if detect_registered(page):
+                    return sanitize_account_payload(
+                        {
+                            "ok": True,
+                            "auth_mode": "sign_in_fallback_email",
+                            "email_masked": mask_email(fallback),
+                            "used_fallback_email": True,
+                            "attempts": [
+                                {"mode": a.get("mode"), "submitted_auth": a.get("submitted_auth")}
+                                for a in attempts
+                            ],
+                            "submitted": False,
+                        }
+                    )
+            return sanitize_account_payload(
+                {
+                    "ok": False,
+                    "error": "fallback_email_auth_failed",
+                    "message": (
+                        "Primary email already registered; fallback create/sign-in "
+                        "did not reach application form."
+                    ),
+                    "email_masked": mask_email(fallback),
+                    "primary_email_masked": mask_email(email),
+                    "email_existed": True,
+                    "used_fallback_email": True,
                     "submitted": False,
                 }
             )

@@ -113,11 +113,13 @@ def fill_ats_form_pause(
     ensure_registered_form: bool = True,
     headless: bool | None = None,
     keep_open_ms: int = 0,
+    restore_storage_state_path: str | None = None,
 ) -> dict[str, Any]:
     """Open company ATS form, fill from profile, hard-stop before Submit. Always reviewable.
 
     keep_open_ms > 0 leaves the browser open after fill (for 「查看表单」review) then closes.
     headless overrides settings.BROWSER_HEADLESS when set (open-form uses headed).
+    restore_storage_state_path reuses cookies from a prior manual-register browser session.
     """
     url = (ats_url or "").strip()
     profile = build_profile_for_cart_item(
@@ -215,22 +217,34 @@ def fill_ats_form_pause(
                 browser = playwright.chromium.launch(headless=headless, channel="chrome")
             except Exception:
                 browser = playwright.chromium.launch(headless=headless)
-            context = browser.new_context()
+            ctx_kwargs: dict[str, Any] = {}
+            restore_path = (restore_storage_state_path or "").strip()
+            if restore_path and Path(restore_path).is_file():
+                ctx_kwargs["storage_state"] = restore_path
+            context = browser.new_context(**ctx_kwargs)
             page = context.new_page()
             page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
             page.wait_for_timeout(600)
 
             if ensure_registered_form:
+                from app.modules.application_engine.ats_account import detect_registered
+
                 # If still on job posting / account wall, advance using Phase 3–4 helpers.
+                # Skip re-auth when restored session already looks registered.
                 stage = ""
                 try:
                     stage = (page.locator("#stage").inner_text(timeout=300) or "").lower()
                 except Exception:
                     stage = ""
-                if "registered" not in stage and not page.locator("[data-testid='application-form']").count():
+                already_in = detect_registered(page) or ("registered" in stage)
+                if (
+                    not already_in
+                    and "registered" not in stage
+                    and not page.locator("[data-testid='application-form']").count()
+                ):
                     if page.locator("[data-automation-id='jobPostingApplyButton']").count():
                         run_apply_autofill_on_page(page, resume_path=resume_path, click_apply=True)
-                    if detect_account_wall(page):
+                    if detect_account_wall(page) and not detect_registered(page):
                         creds = load_ats_credentials()
                         if creds.get("ok"):
                             create_or_sign_in_on_page(

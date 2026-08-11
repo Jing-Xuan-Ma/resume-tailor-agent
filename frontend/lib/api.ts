@@ -629,6 +629,28 @@ export async function createJdSession(
   });
 }
 
+export async function gotoClaudeDesktop(req: {
+  jd_text: string;
+  project_name?: string;
+  project_id?: string;
+  auto_send?: boolean;
+}): Promise<{
+  ok: boolean;
+  project_name?: string | null;
+  project_id?: string | null;
+  chars?: number | null;
+  error?: string | null;
+  hint?: string | null;
+  steps?: Record<string, unknown>[];
+}> {
+  return post("/api/v1/resume-workspace/goto-claude-desktop", {
+    jd_text: req.jd_text,
+    project_name: req.project_name,
+    project_id: req.project_id,
+    auto_send: req.auto_send ?? true,
+  });
+}
+
 export async function analyzeJd(
   session_id: string
 ): Promise<AnalyzeResponse> {
@@ -1127,6 +1149,10 @@ export type CartApplyState = {
   fill_plan?: Array<Record<string, unknown>>;
   dry_run?: boolean;
   paused_before_submit?: boolean;
+  needs_manual_register?: boolean;
+  manual_register_reason?: string | null;
+  manual_register_opened?: boolean;
+  register_storage_state_path?: string | null;
   updated_at?: string;
   note?: string;
   timeline?: Array<{ status?: string; at?: string; error?: string | null }>;
@@ -1341,6 +1367,66 @@ export async function openShoppingCartFilledForm(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id, keep_open_ms }),
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+export async function openShoppingCartRegister(
+  cart_id: string,
+  item_id: string,
+  user_id: string,
+  keep_open_ms = 1_800_000
+): Promise<{
+  ok: boolean;
+  opened?: boolean;
+  focused_existing?: boolean;
+  ats_url?: string;
+  account_wall?: boolean;
+  already_registered?: boolean;
+  method?: string;
+  message?: string;
+  error?: string;
+}> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/shopping-cart/${encodeURIComponent(cart_id)}/items/${encodeURIComponent(item_id)}/open-register`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id, keep_open_ms }),
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+export async function confirmShoppingCartRegistered(
+  cart_id: string,
+  item_id: string,
+  user_id: string,
+  continue_apply = true
+): Promise<{
+  ok: boolean;
+  cart_id: string;
+  item_id: string;
+  message?: string;
+  apply?: CartApplyState;
+  phase5?: { ok?: boolean; apply?: CartApplyState; error?: string };
+  snapshot?: Record<string, unknown>;
+}> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/shopping-cart/${encodeURIComponent(cart_id)}/items/${encodeURIComponent(item_id)}/confirm-registered`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id, continue_apply }),
     }
   );
   if (!res.ok) {

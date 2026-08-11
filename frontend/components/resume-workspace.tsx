@@ -13,6 +13,7 @@ import {
   exportVersion,
   getVersionPreviewUrl,
   previewVersionPdf,
+  gotoClaudeDesktop,
 } from "@/lib/api";
 import FlowStepper from "@/components/flow-stepper";
 import JdPanel from "@/components/jd-panel";
@@ -78,6 +79,8 @@ export default function ResumeWorkspace({
   const [numPages, setNumPages] = useState<number | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [rewriting, setRewriting] = useState(false);
+  const [goingClaude, setGoingClaude] = useState(false);
+  const [claudeHandoffMsg, setClaudeHandoffMsg] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [exporting, setExporting] = useState<"pdf" | "docx" | "text" | null>(null);
   const initializedRef = useRef(false);
@@ -379,6 +382,41 @@ export default function ResumeWorkspace({
     setPdfPreviewUrl(null);
     setBootNotice(null);
     await initSession(pasteInput.trim(), { autoTailor: true, label: "the pasted JD" });
+  };
+
+  const handleGotoClaudeDesktop = async () => {
+    const text = (jdText || "").trim();
+    if (!text || text === EMPTY_JD_HINT.trim()) {
+      setClaudeHandoffMsg("Paste or open a real JD first.");
+      return;
+    }
+    setGoingClaude(true);
+    setClaudeHandoffMsg("Copying JD… opening Claude (fast path, a few seconds)…");
+    try {
+      // Local clipboard backup so you can Cmd+V manually if automation misses focus.
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        /* backend also pbcopy's */
+      }
+      const result = await gotoClaudeDesktop({ jd_text: text });
+      if (result.ok) {
+        setClaudeHandoffMsg("Sent JD to Claude Desktop (Resume project).");
+      } else {
+        const detail = [result.error, result.hint].filter(Boolean).join(" — ");
+        setClaudeHandoffMsg(
+          (detail || "Failed to hand off to Claude Desktop.") +
+            " JD is on clipboard — focus Claude input and press Cmd+V, then Cmd+Enter."
+        );
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Claude Desktop handoff failed";
+      setClaudeHandoffMsg(
+        `${msg} JD is on clipboard — focus Claude input and press Cmd+V, then Cmd+Enter.`
+      );
+    } finally {
+      setGoingClaude(false);
+    }
   };
 
   const handleAgent = async (
@@ -830,22 +868,42 @@ export default function ResumeWorkspace({
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-gutter:stable]"
           data-testid="workspace-jd-panel"
         >
-          <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <p className="text-[12px] text-slate-500">
               Review JD and hard requirements, then continue to Tailor.
             </p>
-            <button
-              type="button"
-              data-testid="goto-tailor"
-              onClick={() => {
-                setFocusStep("tailor");
-                setWorkspacePanel("tailor");
-              }}
-              className="shrink-0 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
-            >
-              Go to Tailor →
-            </button>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <button
+                type="button"
+                data-testid="goto-claude-desktop"
+                disabled={goingClaude}
+                onClick={() => void handleGotoClaudeDesktop()}
+                className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+                title="Copy JD → Claude Desktop pinned Resume project → paste & send"
+              >
+                {goingClaude ? "Opening Claude…" : "Goto Claude Desktop"}
+              </button>
+              <button
+                type="button"
+                data-testid="goto-tailor"
+                onClick={() => {
+                  setFocusStep("tailor");
+                  setWorkspacePanel("tailor");
+                }}
+                className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+              >
+                Go to Tailor →
+              </button>
+            </div>
           </div>
+          {claudeHandoffMsg ? (
+            <p
+              className="mb-2 text-[11px] text-slate-600"
+              data-testid="goto-claude-desktop-status"
+            >
+              {claudeHandoffMsg}
+            </p>
+          ) : null}
           <JdPanel jdText={jdText} loading={analyzing} expandContent jobLabel={jobLabel} />
         </div>
       ) : (

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   confirmShoppingCartItem,
+  confirmShoppingCartRegistered,
   generateShoppingCart,
   getLatestShoppingCart,
   getShoppingCart,
@@ -10,6 +11,7 @@ import {
   getShoppingCartFillScreenshotUrl,
   getShoppingCartItemPreviewUrl,
   openShoppingCartFilledForm,
+  openShoppingCartRegister,
   previewShoppingCart,
   startShoppingCartApply,
   type CartFillReview,
@@ -85,6 +87,28 @@ function formatSeconds(ms?: number | null): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+function formatApplyError(error?: string | null): string {
+  const e = (error || "").trim();
+  if (!e) return "";
+  if (e === "no_official_ats_url") {
+    return "Jobright 未找到官方投递链接（无法自动打开 ATS）";
+  }
+  if (e === "captcha_required") {
+    return "验证码无法自动完成，需自行注册公司账户";
+  }
+  return e;
+}
+
+function needsManualRegister(item: ShoppingCartItem): boolean {
+  const apply = item.apply;
+  if (!apply) return false;
+  return Boolean(
+    apply.needs_manual_register ||
+      apply.error === "captcha_required" ||
+      apply.manual_register_opened
+  );
+}
+
 function applyStatusLabel(
   status?: string | null,
   apply?: {
@@ -92,6 +116,8 @@ function applyStatusLabel(
     phase3_done?: boolean;
     phase4_done?: boolean;
     email_masked?: string | null;
+    needs_manual_register?: boolean;
+    error?: string | null;
   } | null
 ): string {
   switch (status) {
@@ -112,15 +138,36 @@ function applyStatusLabel(
     case "filled":
       return "表单填写中";
     case "ready_to_submit":
-      return "待一键提交";
+      return "✓ 可投递（待一键提交）";
     case "submitted":
       return "已提交";
     case "failed":
-      return "投递失败";
+      return apply?.needs_manual_register || apply?.error === "captcha_required"
+        ? "需自行注册账户"
+        : "投递失败";
     case "idle":
     default:
       return "未开始投递";
   }
+}
+
+function applySortRank(item: ShoppingCartItem): number {
+  const st = item.apply?.status || "idle";
+  if (st === "ready_to_submit") return 0;
+  if (st === "submitted") return 1;
+  if (st === "filled" || st === "registered" || st === "on_ats" || st === "applying") return 2;
+  if (st === "queued" || st === "navigating") return 3;
+  if (st === "failed") return 8;
+  if (item.status === "generating" || item.status === "stalled") return 6;
+  if (item.status === "failed") return 9;
+  return 5;
+}
+
+function itemShortLabel(item: ShoppingCartItem): string {
+  const company = (item.company || "?").trim();
+  const pos = (item.position || "").trim();
+  const shortPos = pos.length > 36 ? `${pos.slice(0, 36)}…` : pos;
+  return shortPos ? `${company} · ${shortPos}` : company;
 }
 
 export default function ShoppingCartPanel({
@@ -143,6 +190,8 @@ export default function ShoppingCartPanel({
   const [fillLoadingId, setFillLoadingId] = useState<string | null>(null);
   const [openFormBusyId, setOpenFormBusyId] = useState<string | null>(null);
   const [openFormMessage, setOpenFormMessage] = useState<string | null>(null);
+  const [registerBusyId, setRegisterBusyId] = useState<string | null>(null);
+  const [confirmRegisterBusyId, setConfirmRegisterBusyId] = useState<string | null>(null);
 
   const [selectedApplyIds, setSelectedApplyIds] = useState<Record<string, boolean>>({});
 
@@ -381,6 +430,56 @@ export default function ShoppingCartPanel({
     }
   };
 
+  const openManualRegister = async (item: ShoppingCartItem) => {
+    if (!cart?.cart_id || !item.item_id) return;
+    setRegisterBusyId(item.item_id);
+    setOpenFormMessage(null);
+    setError(null);
+    try {
+      const res = await openShoppingCartRegister(cart.cart_id, item.item_id, userId);
+      setOpenFormMessage(
+        res.message ||
+          (res.focused_existing
+            ? "已聚焦 ATS 注册窗口，请完成验证码并注册"
+            : "已打开 ATS 注册页，请亲自完成注册后点「已注册完成」")
+      );
+      await refreshCart();
+    } catch (err) {
+      const atsUrl = item.apply?.ats_url;
+      if (atsUrl) {
+        window.open(atsUrl, "_blank", "noopener,noreferrer");
+        setOpenFormMessage("后端打开失败，已用浏览器新标签打开 ATS（请自行注册后点「已注册完成」）");
+      } else {
+        setError(err instanceof Error ? err.message : "打开注册页失败");
+      }
+    } finally {
+      setRegisterBusyId(null);
+    }
+  };
+
+  const confirmManualRegister = async (item: ShoppingCartItem) => {
+    if (!cart?.cart_id || !item.item_id) return;
+    setConfirmRegisterBusyId(item.item_id);
+    setOpenFormMessage(null);
+    setError(null);
+    try {
+      const res = await confirmShoppingCartRegistered(cart.cart_id, item.item_id, userId, true);
+      setApplyMessage(res.message || "已确认注册，继续自动投递中…");
+      if (res.phase5 && res.phase5.ok === false) {
+        setError(
+          (res.phase5 as { apply?: { error?: string }; error?: string }).apply?.error ||
+            (res.phase5 as { error?: string }).error ||
+            "注册后继续填表失败"
+        );
+      }
+      await refreshCart();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "确认注册失败");
+    } finally {
+      setConfirmRegisterBusyId(null);
+    }
+  };
+
   const onStartApply = async () => {
     if (!cart?.cart_id || applying) return;
     const selected = readyItems
@@ -409,7 +508,23 @@ export default function ShoppingCartPanel({
     }
   };
 
-  const listItems = hasResult ? cart?.items || [] : previewItems;
+  const listItems = useMemo(() => {
+    const raw = hasResult ? cart?.items || [] : previewItems;
+    if (!hasResult) return raw;
+    return [...raw].sort((a, b) => applySortRank(a) - applySortRank(b));
+  }, [hasResult, cart?.items, previewItems]);
+  const readyToSubmitItems = useMemo(
+    () => (cart?.items || []).filter((i) => i.apply?.status === "ready_to_submit"),
+    [cart?.items]
+  );
+  const applyFailedItems = useMemo(
+    () => (cart?.items || []).filter((i) => i.apply?.status === "failed"),
+    [cart?.items]
+  );
+  const manualRegisterItems = useMemo(
+    () => applyFailedItems.filter((i) => needsManualRegister(i)),
+    [applyFailedItems]
+  );
   const pendingCount = previewItems.filter((i) => i.ok !== false || i.status === "pending").length;
   const canRefine =
     !refining && !hasResult && previewItems.some((i) => i.ok !== false && i.status !== "unresolved");
@@ -448,16 +563,56 @@ export default function ShoppingCartPanel({
           className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
           data-testid="cart-apply-bar"
         >
-          <div className="text-xs text-slate-600">
+          <div className="min-w-0 flex-1 text-xs text-slate-600">
             {cartGenerating ? (
               <span className="mr-2 rounded bg-amber-100 px-1.5 py-0.5 text-amber-900">
                 仍有职位生成中
               </span>
             ) : null}
-            已勾选可投递 {selectedReadyCount}/{readyItems.length}
+            勾选待自动投递 {selectedReadyCount}/{readyItems.length}
             {" · "}queued {cart?.apply_summary?.queued ?? 0}
-            {" · "}ready_to_submit {cart?.apply_summary?.ready_to_submit ?? 0}
-            {" · "}failed {cart?.apply_summary?.failed ?? 0}
+            {" · "}可提交 {cart?.apply_summary?.ready_to_submit ?? 0}
+            {" · "}投递失败 {cart?.apply_summary?.failed ?? 0}
+            {readyToSubmitItems.length ? (
+              <div className="mt-1 text-emerald-800" data-testid="cart-ready-to-submit-list">
+                可投递：
+                {readyToSubmitItems.map((i) => itemShortLabel(i)).join("；")}
+                <button
+                  type="button"
+                  className="ml-2 underline"
+                  onClick={() => {
+                    const id = readyToSubmitItems[0]?.item_id;
+                    if (id) setExpandedId(id);
+                  }}
+                >
+                  定位
+                </button>
+              </div>
+            ) : null}
+            {manualRegisterItems.length ? (
+              <div className="mt-1 text-amber-900" data-testid="cart-manual-register-list">
+                需自行注册账户（验证码）：
+                {manualRegisterItems
+                  .map(
+                    (i) =>
+                      `${itemShortLabel(i)}（${
+                        i.apply?.manual_register_reason ||
+                        formatApplyError(i.apply?.error) ||
+                        "需人工注册"
+                      }）`
+                  )
+                  .join("；")}
+              </div>
+            ) : null}
+            {applyFailedItems.filter((i) => !needsManualRegister(i)).length ? (
+              <div className="mt-1 text-rose-800" data-testid="cart-apply-failed-list">
+                其它投递失败：
+                {applyFailedItems
+                  .filter((i) => !needsManualRegister(i))
+                  .map((i) => `${itemShortLabel(i)}（${formatApplyError(i.apply?.error) || "unknown"}）`)
+                  .join("；")}
+              </div>
+            ) : null}
             {applyMessage ? <span className="mt-1 block text-emerald-800">{applyMessage}</span> : null}
             {openFormMessage ? (
               <span className="mt-1 block text-emerald-800" data-testid="cart-open-form-msg">
@@ -530,10 +685,17 @@ export default function ShoppingCartPanel({
                 ? "生成中…"
                 : item.status || (item.ok ? (hasResult ? "ready_md" : "pending") : "failed");
           const applySt = item.apply?.status || "idle";
+          const applyErr = formatApplyError(item.apply?.error);
           return (
             <div
               key={key}
-              className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+              className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${
+                applySt === "ready_to_submit"
+                  ? "border-emerald-400 ring-1 ring-emerald-200"
+                  : applySt === "failed"
+                    ? "border-rose-200"
+                    : "border-slate-200"
+              }`}
               data-testid={`cart-item-${key}`}
             >
               <div className="flex w-full items-start gap-2 px-4 py-3">
@@ -586,8 +748,20 @@ export default function ShoppingCartPanel({
                       : item.error && item.status === "failed"
                         ? ` · ${item.error}`
                         : ""}
-                    {item.apply?.error ? ` · apply: ${item.apply.error}` : ""}
+                    {applyErr ? ` · ${applyErr}` : ""}
                   </div>
+                  {applySt === "ready_to_submit" ? (
+                    <div className="mt-1 text-[11px] font-semibold text-emerald-700">
+                      这条可以继续投递（表单已填好，待一键提交）
+                    </div>
+                  ) : null}
+                  {needsManualRegister(item) && applySt === "failed" ? (
+                    <div className="mt-1 text-[11px] font-semibold text-amber-900">
+                      {item.apply?.manual_register_reason ||
+                        formatApplyError(item.apply?.error) ||
+                        "需要你自行完成公司账户注册"}
+                    </div>
+                  ) : null}
                   {item.apply?.jobright_url ? (
                     <a
                       href={item.apply.jobright_url}
@@ -638,6 +812,31 @@ export default function ShoppingCartPanel({
                 )}
               </button>
               </div>
+              {needsManualRegister(item) && applySt === "failed" ? (
+                <div
+                  className="flex flex-wrap items-center gap-2 border-t border-amber-100 bg-amber-50/80 px-4 py-2"
+                  data-testid="cart-manual-register-actions"
+                >
+                  <button
+                    type="button"
+                    data-testid="cart-open-register-btn"
+                    disabled={registerBusyId === item.item_id}
+                    className="inline-flex items-center rounded-lg bg-amber-700 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40"
+                    onClick={() => void openManualRegister(item)}
+                  >
+                    {registerBusyId === item.item_id ? "打开中…" : "去注册"}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="cart-confirm-registered-btn"
+                    disabled={confirmRegisterBusyId === item.item_id}
+                    className="inline-flex items-center rounded-lg border border-amber-700 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-900 disabled:opacity-40"
+                    onClick={() => void confirmManualRegister(item)}
+                  >
+                    {confirmRegisterBusyId === item.item_id ? "继续投递中…" : "已注册完成"}
+                  </button>
+                </div>
+              ) : null}
 
               {open && item.ok && hasResult && cart?.cart_id && item.item_id ? (
                 <div className="border-t border-slate-100 px-4 py-3">

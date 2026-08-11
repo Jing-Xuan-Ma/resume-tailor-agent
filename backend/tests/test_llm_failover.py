@@ -32,7 +32,7 @@ async def test_failover_from_dead_openai_model():
     result = await llm.ainvoke([("human", "Reply with exactly: PONG")])
     text = str(getattr(result, "content", result) or "")
     assert "PONG" in text.upper() or "pong" in text.lower() or len(text) > 0
-    assert llm.last_provider in {"zhipu", "bigmodel", "google", "openai", "yiling-glm"}
+    assert llm.last_provider in {"zhipu", "bigmodel", "google", "openai", "yiling-glm", "sensenova"}
     # If openai 503'd, last_provider should not stay on a dead path with glm-4v-flash
     print(
         "failover used provider=", llm.last_provider, "model=", llm.last_model, "text=", text[:80]

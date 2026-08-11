@@ -31,6 +31,33 @@
 
 -->
 
+## [2026-08-11] JD 步增加 Goto Claude Desktop 本机自动化交接
+
+**背景**:希望在 Jobs→JD 流程里一键把当前 JD 交给本机 Claude Desktop 里已固定好的 Resume Project(侧边栏 Pins),复用项目内已写好的 Career Strategist prompt,而不是再走后端 LLM API。
+
+**变更内容**:
+- 新增 `backend/app/modules/resume_workspace/claude_desktop.py`:macOS 自动化 — `pbcopy` 写入剪贴板 → 激活 Claude.app → 优先 `claude://claude.ai/project/{id}` deep link,否则截 Claude 窗口并用已有 `screen-locate` 点 Pins 里的 Resume → 点输入区 → Cmd+V → Cmd+Enter 发送。
+- API:`POST /api/v1/resume-workspace/goto-claude-desktop`;配置项 `CLAUDE_DESKTOP_PROJECT_ID` / `CLAUDE_DESKTOP_PROJECT_NAME`。
+- 前端 JD 面板在「Go to Tailor →」左侧增加「Goto Claude Desktop」按钮。
+
+**踩过的坑**:
+- Claude Desktop 是 Electron,Accessibility 树几乎不可用,不能靠 AX 找 Pins/输入框。
+- 纯 Return 往往只换行,发送要用 Cmd+Enter(此前手工探测已确认)。
+- 未配置 project UUID 时走 UI-TARS 定位,单次约数十秒;配上 UUID 后 deep link 可跳过定位。
+
+**结论/影响**:JD 步可一键把岗位描述送进固定 Resume Project。需本机已装 Claude、辅助功能授权给跑 backend 的进程;建议在 `.env` 填 `CLAUDE_DESKTOP_PROJECT_ID` 以加速。
+
+## [2026-08-11] 修复 Goto Claude Desktop 未粘贴/未发送
+
+**背景**:用户点击按钮后 Claude 能打开并进到 Resume,但输入框没有贴上 JD、也没有发送。
+
+**变更内容**:
+- 原先用窗口高度 82% 的固定点去点输入框,实际 composer 约在 90% 高度,容易点到空白区导致 Cmd+V/Cmd+Enter 落空。
+- 改为二次 screen-locate 定位「Write a message」输入框;粘贴前重新 `pbcopy`;双击聚焦后再 Cmd+A / Cmd+V / Cmd+Enter。
+- 前端点击时同步写入系统剪贴板作兜底。
+
+**结论/影响**:粘贴发送对准真实输入框;backend 需重启后生效。
+
 ## [2026-08-07] 新增 Stop/SubagentStop 收尾校验 Hook
 
 **背景**:希望 Claude Code 在每轮收尾前自动检查改动是否符合基本质量门槛(ruff 通过、有测试目录时跑 pytest、前端有 lint 就跑 lint、正经代码改动要同步 DEVLOG),而不是靠人工事后检查。
@@ -272,3 +299,57 @@
 - Claude Browser 面板的 `computer` 点击工具在会话中段开始对若干按钮(尤其是 "Confirm → Apply"、"进入 Auto apply"两个关键操作)间歇性不触发——用 `document.elementFromPoint` 核实过点击坐标精确落在正确的按钮上、按钮 `disabled=false`,但合成点击就是没有派发到 React 的 onClick;改用 JS 原生 `.click()` 直接调用该 DOM 节点后立即生效,证明是浏览器自动化工具本身的合成事件时序问题,不是应用逻辑的 bug,不需要改动任何产品代码。
 
 **结论/影响**:Portfolio/Twitter/来源/EEO 四类字段现在有完整的存储→映射→UI 编辑闭环,且 EEO 字段有独立于置信度阈值的强制人工确认保护,不会被"高置信度"误判成可以自动提交。顺带发现的两个 bug(双花 LLM 调用、来源筛选接口报错)已修复并有 before/after 证据;field_mapper 的关键词顺序冲突已修复且验证了双向不误伤。4 次真实浏览器全流程运行(不同公司、不同 ATS 网关类型)全部安全停在 Submit 前,没有一次误填账号密码或意外提交,4 家 ATS sandbox fixture 的直接扫描验证全部通过。
+
+## [2026-08-11] 修复简历母版 EDUCATION 两行学位行的两端对齐拉伸+异常换行
+
+**背景**:用户反馈生成的 PDF 里 "Master of Science in Data Science" / "Bachelor of Science in Actuarial Sciences" 两行单词间距异常大,格式明显不对;同时反馈 PROJECTS 从两个被裁到一个后页面下方留了一大块空白,要求排查原因并修复。
+
+**变更内容**:
+- 定位到根因在母版文件本身(`data/templates/master/Jingxuan_Resume_Data_Analyst.docx`,注入流水线 `ooxml_inject.py` 只做文本级替换、从不改动这两行的段落结构,是纯透传),不在生成代码里:这两行原来用几十到上百个手打空格 + 段落两端对齐(`w:jc w:val="both"`)模拟"学位左对齐、地点/日期右对齐"的效果。这套空格数量是按 Word 里 Calibri 字体宽度手动数出来的,但整条流水线用 LibreOffice headless 转 PDF(`ResumeTemplateEditor.convert_to_pdf_via_libreoffice`),字体度量跟 Word 不完全一致,导致这行文字被空格撑爆单行宽度、被迫换行——"Baltimore, US"/"Cork, Ireland | Beijing, China" 掉到下一行。一旦换行,"Master of Science in Data Science" 这行就不再是段落最后一行,两端对齐会把它的词间距强行拉伸撑满整行,就是用户看到的异常大空隙。母版里上面那行(机构名+日期)碰巧没触发换行,所以没暴露这个问题。
+- 直接编辑母版 `word/document.xml`:把这两行的空格 padding 替换成真正的 DOCX 右对齐制表符(`<w:tabs><w:tab w:val="right" w:pos="11338"/></w:tabs>`,11338 twips = 页面内容区右边界,取自机构名那行本身已经渲染正确的右边界位置,与之对齐),不再依赖字体测量出的空格数,渲染引擎换了也不会再触发换行。改动脚本见会话记录(未入库,仅一次性用于生成新母版字节)。
+- 用真实生成流水线(`master_inject.inject_content` + `one_page_lock.enforce_one_page`,取 `data/shopping_cart/96025237-.../meta.json` 里一份真实已生成的简历数据)跑了修复前后对比,并跑了 `pytest tests/ -k "resume_workspace or ooxml or master or one_page or shopping_cart"`(37 项)确认无回归。
+
+**量化结果**:
+- 指标:EDUCATION 两行学位行的渲染结果(LibreOffice headless 渲染 PDF 后用 `pdfplumber` 逐词取坐标核对是否同行、单词间距是否正常)
+- 改动前:两行均异常换行("Baltimore, US"/"Cork, Ireland | Beijing, China" 掉到下一行),单词间距被两端对齐拉伸到 13~44pt(正常应为 2~3pt),原始输出 `devlog/evidence/2026-08-11_master-template-degree-line-justify-wrap_before.log`
+- 改动后:两行均不再换行,右侧地点/日期与学位文字同行右对齐(右边界与机构名行对齐),单词间距恢复到 2~3pt 正常范围,原始输出 `devlog/evidence/2026-08-11_master-template-degree-line-justify-wrap_after.log`
+- 测量方法:同一份 docx 修复前/后分别用项目实际使用的 LibreOffice 二进制 (`/Applications/LibreOffice.app/Contents/MacOS/soffice --headless --convert-to pdf`) 渲染,`pdfplumber.extract_words()` 取每个单词的 (top, x0, x1) 坐标直接比对,非目测估计
+
+**踩过的坑**:
+- 最初怀疑"两个项目裁到一个后留白"和这个排版 bug 是同一个根因,用真实的 3-项目/3-经历简历数据(同一份 `meta.json`)分别在修复前、修复后跑 `enforce_one_page`,发现两种母版下都稳定裁到只剩 1 个 project 才能进 1 页——说明这份内容量本身就超出一页较多(不是排版 bug 多占的那 ~24pt/2 行能弥补的),`one_page_lock.py` 按整条经历/项目为粒度裁剪(设计上明确不缩字号/不压行距)导致裁多了产生留白,是独立于本次 bug 的既有设计取舍,没有一并修改裁剪粒度。
+- 一开始尝试直接从 `tailored['projects']` 数组里摘掉某个 project 来快速验证裁剪逻辑,渲染结果页数在两次相同输入下不一致(1 页/2 页跳变),排查后发现是测试方法错了:直接摘数组元素而不同步写 `hidden_entries`,导致 `ooxml_inject.delete_hidden_entries` 没有真正删除该 project 在 DOCX 里的原始段落块(母版原文依然整段留着,只是没被替换成新 bullet 文本),页数因此不稳定。改用 `enforce_one_page()` 本身(它会正确维护 `hidden_entries`)重新验证后结果稳定可复现,原先"不确定性"的怀疑是测试脚手架的 bug,不是生产代码的 bug。
+
+**结论/影响**:EDUCATION 学位行的异常空格和换行问题已在母版文件层面根治,不依赖后续任何生成代码改动即可对所有职位生效(母版是 pass-through,不会被本次或以后的 tailoring 改写覆盖)。"projects 裁剪后留白"确认是 `one_page_lock.py` 整条裁剪粒度的既有设计行为,不是这次的 bug,本次未改动裁剪逻辑本身,只是本次修复顺带省出约 24pt(2 行)空间,对压线的边界情况会有帮助。
+
+## [2026-08-11] 修复 merge_runs 误吃 w:tab 导致 EDUCATION 学位行再次两端对齐拉伸
+
+**背景**:母版已用右对齐制表符修好学位行,但用户反馈生成简历里 "Master of Science in Data Science" / "Bachelor of Science in Actuarial Sciences" 单词间距再次异常大、地点掉到下一行。
+
+**变更内容**:
+- 根因在 `ooxml_merge_runs.py`:注入流水线第一步 `merge_runs_in_document` 会重建 run。旧 `_T_RE = r"<w:t([^>]*)>"` 把 `<w:tab/>` 的前缀 `<w:t` 误匹配成文本节点(attrs=`ab/`),于是 (1) 抽出的文本变成字面量 `<w:t>Baltimore, US` 再被 `escape` 成 `&lt;w:t&gt;...`;(2) 重建 run 时丢掉真正的 `<w:tab/>`。制表符丢失后地点跟学位挤在一起超宽换行,`w:jc=both` 把未换行的那截单词间距拉满整行。
+- 修复: `_T_RE` 改为要求 `<w:t` 后必须是空白或 `>`(两处: `ooxml_merge_runs` + `ooxml_inject`);含 `<w:tab`/`<w:br` 等结构子节点的 run 整段原样保留,不再走 `_make_run`。
+- 新增 `tests/test_ooxml_merge_tabs.py` 锁住该回归。
+
+**量化结果**:
+- 改动前(已生成 docx):学位行 `run_tabs=0`,Master 行出现 `&lt;w:t&gt;Baltimore, US`;证据 `devlog/evidence/2026-08-11_merge-runs-drops-degree-tabs_before.log`
+- 改动后(`inject_content`):两行均保留 run 级 tab、无转义污染;LibreOffice 渲染后学位词间距 2.2~5.1pt,Baltimore/Cork 与学位同行右对齐;证据 `devlog/evidence/2026-08-11_merge-runs-drops-degree-tabs_after.log`
+
+**踩过的坑**:
+- 上午只改了母版 OOXML 就以为根治,忽略注入必跑的 `merge_runs` 会把 tab 吃掉——母版直出 PDF 正常、经 inject 的 PDF 仍坏,必须用完整 `inject_content` 路径复测。
+
+**结论/影响**:重新 tailor / 生成即可恢复正常学位行排版;旧版本产物需重新生成,不会自动回写。
+
+## [2026-08-11] Shopping Cart PDF 误用 DB 过期母版,学位行间距问题复发
+
+**背景**:merge_runs/母版 tab 修好后,用户在 Shopping Cart 预览里仍看到学位行两端对齐拉伸。
+
+**变更内容**:
+- 根因: `_resume_pdf_bytes` 先读磁盘母版,又被 `db.get_active_template(...).docx_bytes` 覆盖;该 DB 副本是旧母版(手打空格+`jc=both`,无 `<w:tab/>`),与已修复的 `data/templates/master/...docx` 不一致。Workspace tailor 本来就只用磁盘母版,所以那边正常、Cart 仍坏。
+- 去掉 Shopping Cart 对过期 DB 母版的覆盖,渲染始终 `ensure_master_template_bytes()`。
+- `ensure_user_has_master_template` 改为按 sha256 与磁盘母版比对,不一致则重新 `save_template` 刷新缓存。
+
+**量化结果**:
+- 改动前(用户 active template):Master 行 `run_tabs=0` 且含 10+ 连续空格
+- 改动后:走 Cart 同路径 `_resume_pdf_bytes` 渲染 UBS 简历,学位词间距正常、Baltimore/Cork 同行右对齐
+
+**结论/影响**:需重启后端进程加载新代码后,在 Shopping Cart 重新 Confirm/生成 PDF 即可;仅刷新页面不够。

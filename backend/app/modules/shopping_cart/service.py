@@ -54,11 +54,12 @@ def _resume_pdf_bytes(*, user_id: str, full_resume: dict[str, Any]) -> bytes:
         )
         from app.modules.resume_workspace.one_page_lock import enforce_one_page
 
+        # Always render from the locked disk master — never the user's cached
+        # resume_templates.docx_bytes. That DB copy is seeded once and goes stale
+        # when the master file is fixed (e.g. EDUCATION degree-line tabs), which
+        # reintroduced justify-stretched word spacing in cart previews.
         ensure_user_has_master_template(user_id)
         master = ensure_master_template_bytes()
-        template = db.get_active_template(user_id) or {}
-        if template.get("docx_bytes"):
-            master = template["docx_bytes"]
         if not master:
             return ResumeTemplateEditor.generate_pdf_from_resume(full_resume)
 
@@ -722,6 +723,27 @@ def open_item_filled_form(
     from app.modules.shopping_cart.apply_worker import open_item_filled_form as _open
 
     return _open(cart_id=cart_id, item_id=item_id, user_id=user_id, keep_open_ms=keep_open_ms)
+
+
+def open_item_register_page(
+    *, cart_id: str, item_id: str, user_id: str, keep_open_ms: int = 1_800_000
+) -> dict[str, Any]:
+    from app.modules.shopping_cart.apply_worker import open_item_register_page as _open
+
+    return _open(cart_id=cart_id, item_id=item_id, user_id=user_id, keep_open_ms=keep_open_ms)
+
+
+def confirm_item_manual_register(
+    *, cart_id: str, item_id: str, user_id: str, continue_apply: bool = True
+) -> dict[str, Any]:
+    from app.modules.shopping_cart.apply_worker import confirm_item_manual_register as _confirm
+
+    return _confirm(
+        cart_id=cart_id,
+        item_id=item_id,
+        user_id=user_id,
+        continue_apply=continue_apply,
+    )
 
 
 def get_fill_screenshot_bytes(*, cart_id: str, item_id: str, user_id: str) -> tuple[bytes, str]:

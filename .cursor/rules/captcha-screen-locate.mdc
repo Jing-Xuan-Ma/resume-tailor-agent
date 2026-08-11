@@ -1,0 +1,23 @@
+---
+description: Graphical CAPTCHA handling must use screen-locate skill
+alwaysApply: true
+---
+
+# CAPTCHA → screen-locate
+
+When a company ATS / careers site shows a **graphical CAPTCHA** (shape matching, image select, puzzle, etc.):
+
+1. Take **one** screenshot of the CAPTCHA challenge (viewport).
+2. Use `.agents/skills/screen-locate` — locate **all** click targets from that **same** image before clicking, including shape objects **and** `Confirm` / `确认` / `输入确认`:
+
+```bash
+uv run .agents/skills/screen-locate/scripts/locate.py \
+  --image <screenshot.png> --instruction "<one target per call>"
+```
+
+Prefer `solve_graphical_captcha_on_page` / `locate_many_on_image` (single shot → many locates → ordered clicks).
+
+3. Take `coordinates.image` `{x,y}` and click via Playwright (`page.mouse.click`) in order: targets first, then Confirm.
+4. Do **not** re-screenshot between each target locate by default. Only re-shot as fallback if Confirm was not found on the first image.
+5. Do **not** hard-fail on CAPTCHA detection without attempting screen-locate first.
+6. Never claim CAPTCHA is unsolvable solely because DOM selectors are missing — use vision locate.

@@ -192,6 +192,10 @@ def start_apply_batch(
                     "form_url",
                     "storage_state_path",
                     "screenshot_path",
+                    "needs_manual_register",
+                    "manual_register_reason",
+                    "manual_register_opened",
+                    "register_storage_state_path",
                 ]
                 if was_failed
                 else None

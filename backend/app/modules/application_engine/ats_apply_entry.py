@@ -91,25 +91,34 @@ def _click_first(
     *,
     timeout_ms: int = 4000,
 ) -> dict[str, Any]:
+    def _frames() -> list[Any]:
+        # Playwright pages can put action buttons/forms inside iframes.
+        # Searching frames makes the generic apply/autofill heuristics work across more ATS pages.
+        try:
+            return list(getattr(page, "frames") or []) or [page.main_frame]
+        except Exception:
+            return [getattr(page, "main_frame", page)]
+
     for selector in selectors:
         try:
-            matches = page.locator(selector)
-            if matches.count() == 0:
-                continue
-            loc = matches.first
-            if not loc.is_visible():
-                continue
-            try:
-                text = (loc.inner_text(timeout=800) or "").strip()
-            except Exception:
-                text = ""
-            if _is_submit_ish(text):
-                continue
-            if "manually" in text.lower():
-                continue
-            loc.click(timeout=timeout_ms)
-            page.wait_for_timeout(700)
-            return {"ok": True, "selector": selector, "text": text}
+            for frame in _frames():
+                matches = frame.locator(selector)
+                if matches.count() == 0:
+                    continue
+                loc = matches.first
+                if not loc.is_visible():
+                    continue
+                try:
+                    text = (loc.inner_text(timeout=800) or "").strip()
+                except Exception:
+                    text = ""
+                if _is_submit_ish(text):
+                    continue
+                if "manually" in text.lower():
+                    continue
+                loc.click(timeout=timeout_ms)
+                page.wait_for_timeout(700)
+                return {"ok": True, "selector": selector, "text": text}
         except Exception:
             continue
     return {"ok": False}
@@ -117,8 +126,14 @@ def _click_first(
 
 def _visible(page, selector: str) -> bool:
     try:
-        loc = page.locator(selector).first
-        return loc.count() > 0 and loc.is_visible()
+        for frame in list(getattr(page, "frames") or []) + [getattr(page, "main_frame", page)]:
+            try:
+                loc = frame.locator(selector).first
+                if loc.count() > 0 and loc.is_visible():
+                    return True
+            except Exception:
+                continue
+        return False
     except Exception:
         return False
 
@@ -184,16 +199,23 @@ def run_apply_autofill_on_page(
     apply_click = {"ok": True, "skipped": True}
     if click_apply:
         apply_click = _click_first(page, APPLY_SELECTORS)
-        page.wait_for_timeout(500)
+        # Apply click usually triggers async navigation / form render.
+        # Waiting a bit longer improves next-screen detection and reduces false
+        # "apply_or_autofill_not_found" failures.
+        page.wait_for_timeout(1200)
 
     autofill_click = _click_first(page, AUTOFILL_SELECTORS)
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(1200)
 
     resume_attach: dict[str, Any] = {"ok": False, "skipped": True}
     if resume_path and (autofill_click.get("ok") or _visible(page, "#after-autofill") or _visible(page, "[data-testid='after-autofill']")):
         resume_attach = _attach_resume(page, resume_path)
 
     next_screen = _detect_next_screen(page)
+    # Some ATS pages render the application form without a stable "#stage" label.
+    # If we can already see form markers, treat it as "application_form".
+    if next_screen == "unknown" and any(_visible(page, sel) for sel in FORM_MARKERS):
+        next_screen = "application_form"
     ok = bool(autofill_click.get("ok")) or (
         bool(apply_click.get("ok"))
         and not apply_click.get("skipped")

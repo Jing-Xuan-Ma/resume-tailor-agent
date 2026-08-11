@@ -182,6 +182,11 @@ def is_usable_job_apply_url(url: str | None) -> bool:
                 "/apply",
                 "/position",
                 "/resume/",
+                # Pinpoint/Indeed-like job pages sometimes use /postings/<id>
+                # (e.g. impulsespace.pinpoint.com/postings/...)
+                "/postings/",
+                # Some scrapers/logs have historically captured misspellings.
+                "/portings/",
                 "/search/",  # lifeattiktok.com/search/<id>
             )
         )

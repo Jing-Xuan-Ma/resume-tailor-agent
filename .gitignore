@@ -67,3 +67,7 @@ frontend/tsconfig.tsbuildinfo
 **/chrome-profile/
 **/chrome-profile2/
 **/chromium-profile/
+
+# local Jobright session (do not commit)
+data/jobright_cookies.json
+data/jobright_storage_state.json

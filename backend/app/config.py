@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     ENABLE_GMAIL_SEND: bool = False
 
     # LLM — primary provider selection
-    LLM_PROVIDER: str = "openai"
+    LLM_PROVIDER: str = "sensenova"
     # When preferred provider fails (503/429/timeout), try other configured keys.
     LLM_FAILOVER: bool = True
 
@@ -75,6 +75,8 @@ class Settings(BaseSettings):
     RADIUS_API_KEY: str = ""
     # yiling gateway (router.c.yiling.top) — separate key scoped to glm-5.2 only
     YILING_GLM_API_KEY: str = ""
+    # SenseNova (商汤日日新) — OpenAI-compatible chat completions
+    SENSENOVA_API_KEY: str = ""
     # Zhipu / BigModel (智谱) — OpenAI-compatible paas/v4
     BIGMODEL_API_KEY: str = ""
     ZHIPU_API_KEY: str = ""
@@ -91,8 +93,8 @@ class Settings(BaseSettings):
     AZURE_OPENAI_BASE_URL: str = ""
 
     # ── LLM model defaults ───────────────────────────────────
-    DEFAULT_TAILOR_MODEL: str = "gpt-5.5"
-    DEFAULT_PARSER_MODEL: str = "gpt-5.5"
+    DEFAULT_TAILOR_MODEL: str = "deepseek-v4-flash"
+    DEFAULT_PARSER_MODEL: str = "deepseek-v4-flash"
     DEFAULT_EMBEDDING_MODEL: str = "text-embedding-3-large"
     # Phase 2 evidence / anti-fabrication LLM pass (expensive). Off = skip for speed.
     ENABLE_EVIDENCE_GUARD: bool = True
@@ -100,8 +102,8 @@ class Settings(BaseSettings):
     SHOPPING_CART_FAST_PATH: bool = True
     # Cover letter uses light LLM by default (company + JD grounded).
     SHOPPING_CART_COVER_LLM: bool = True
-    FAST_TAILOR_MODEL: str = "gemini-3.5-flash"
-    CONTENT_TAILOR_MODEL: str = "glm-5.2"
+    FAST_TAILOR_MODEL: str = "deepseek-v4-flash"
+    CONTENT_TAILOR_MODEL: str = "deepseek-v4-flash"
     # Content rewrite: one LLM batch per resume module, run in parallel.
     CONTENT_REWRITE_PARALLEL_MODULES: bool = True
     # Soft timeout per cart item: mark stalled (keep generating) so UI can proceed.
@@ -182,6 +184,7 @@ class Settings(BaseSettings):
 
     # ATS account (Create Account / Sign In on company boards). Never commit real values.
     ATS_DEFAULT_EMAIL: str = ""
+    ATS_FALLBACK_EMAIL: str = ""
     ATS_DEFAULT_PASSWORD: str = ""
     ATS_PASSWORD_MIN_LENGTH: int = 8
     ATS_PASSWORD_REQUIRE_UPPER: bool = True
@@ -190,6 +193,11 @@ class Settings(BaseSettings):
     ATS_PASSWORD_REQUIRE_SPECIAL: bool = True
     # Jobright job detail template for cart apply navigation (Phase 2+).
     JOBRIGHT_JOB_URL_TEMPLATE: str = "https://jobright.ai/jobs/info/{intern_job_id}"
+    # Logged-in Jobright session for Original Job Post (Playwright storage_state JSON).
+    # Prefer storage_state; cookies file is Cookie-Editor export fallback.
+    # Empty = auto-detect data/jobright_storage_state.json / data/jobright_cookies.json.
+    JOBRIGHT_STORAGE_STATE_PATH: str = ""
+    JOBRIGHT_COOKIES_PATH: str = ""
     # Phase 2: prefer live Playwright Jobright → Original Job Post click.
     # When false, use scraped company apply URL first; optionally fall back to live nav.
     CART_APPLY_LIVE_NAV: bool = False
@@ -197,6 +205,15 @@ class Settings(BaseSettings):
     # Phase 3: live Playwright Apply → Autofill with Resume on company ATS.
     # Local file:// / sandbox fixtures always allowed; production ATS needs this or ALLOW_LIVE_BROWSER_FILL.
     CART_APPLY_LIVE_ENTRY: bool = False
+
+    # Claude Desktop handoff (JD step → pinned Project). macOS + Accessibility required.
+    # Project UUID from https://claude.ai/project/<uuid> — strongly recommended (instant deep link).
+    CLAUDE_DESKTOP_PROJECT_ID: str = ""
+    CLAUDE_DESKTOP_PROJECT_NAME: str = "Resume"
+    # true = use UI-TARS screen-locate (slow, needs Screen Recording). Default false = heuristics.
+    CLAUDE_DESKTOP_USE_VISION: bool = False
+    # Hard cap for the whole handoff (seconds).
+    CLAUDE_DESKTOP_TIMEOUT_S: int = 75
 
     @property
     def CORS_ORIGINS_LIST(self) -> list[str]:

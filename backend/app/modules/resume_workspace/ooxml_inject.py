@@ -21,7 +21,8 @@ SECTION_HEADINGS = {
 }
 
 _P_RE = re.compile(r"<w:p[\s\S]*?</w:p>")
-_T_RE = re.compile(r"<w:t([^>]*)>([\s\S]*?)</w:t>")
+# Require whitespace or '>' after w:t so <w:tab/> is never mistaken for <w:t>.
+_T_RE = re.compile(r"<w:t((?:\s[^>]*)?)>([\s\S]*?)</w:t>")
 _HYPER_RE = re.compile(r"<w:hyperlink[\s\S]*?</w:hyperlink>")
 _RUN_RE = re.compile(r"<w:r(?:\s[^>]*)?>[\s\S]*?</w:r>")
 _RPR_RE = re.compile(r"<w:rPr>[\s\S]*?</w:rPr>")
