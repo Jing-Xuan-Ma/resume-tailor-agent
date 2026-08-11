@@ -220,3 +220,24 @@
 - 一开始怀疑是"合起来跑触发了状态污染"(比如共享 SQLite 测试数据库),但实际排查后发现更简单直接的原因就是"真实网络调用的抖动概率在更多次调用下更容易命中"——没有把简单问题往复杂了想,先做最省事的复现测试(单独重跑),再决定往哪个方向深挖。
 
 **结论/影响**:Stop hook 的"轻检查"层现在真正轻量(90秒,确定性,不依赖外部网络状态),不会再被真实 LLM 调用的偶发抖动误伤而拦下本身没问题的改动。7 个依赖真实网络的测试函数改为需要显式 `-m network` 才会跑,作为独立于快速门禁之外的真实端到端验证手段保留。
+
+## [2026-08-11] 修复简历生成 PDF 严重超一页(NameError 静默回退 + 一页锁未接入交互流程)
+
+**背景**:用户反馈"简历生成这一环"产出的 PDF 严重超过一页,内容里有大量重复、结构被破坏。用真实职位(Retensa · Data Analytics Associate)走 Jobs→JD→Tailor 完整浏览器流程复现,确认 `resume.pdf` 实测 2 页,`word/document.xml` 逐段落 dump 后发现联系方式行(有超链接、理论上 `apply_text_replacements` 会跳过不碰)里被插进了职位名+公司名,summary 文字在 EDUCATION 段落里重复 2-3 次,经历标题右侧(本该是"地点|日期")被另一条经历的"职位|公司"覆盖——不是内容改写出了问题,是排版结构被写乱了。
+
+**变更内容**:
+- 定位到两个独立根因(用 `unittest.mock` 打点 + 直接调用 `ResumeWorkspaceService.rewrite()` 逐步骤 trace 排除,而不是靠读代码猜):
+  1. `backend/app/modules/resume_workspace/service.py` 的 `rewrite()` 调用了 `content_integrity_check(...)` 和 `hyperlink_check(...)`(均定义在 `master_inject.py`),但这两个函数从未被 `import` 进 `service.py`。干净的 OOXML 段落级注入(`inject_ooxml`)其实每次都成功了,但紧接着这两行一执行就抛 `NameError`,被外层一个 `except Exception as exc: template_docx = None` 悄悄吞掉,代码转而回退到另一套基于全文暴力字符串替换的旧版 `ResumeTemplateEditor` 注入器——这套东西不区分段落/run 边界,把改写后的文字见缝插针地塞进任意匹配到的位置,这就是"到处重复、结构错乱"的直接来源。补上这两个函数的 import 后,单独复测(拦截 `_store_version_file` 的入参、在写盘前直接读取校验)确认 XML 里不再有跨字段串味。
+  2. 修完①之后 PDF 仍然是 2 页:仓库里其实已经有一套写得很完整的"渲染真实 PDF → 用 `pdfplumber` 数真实页数 → 超页就砍相关性最低的一条经历/项目 → 重渲染,最多 5 轮"的强制单页逻辑(`one_page_lock.py::enforce_one_page`),但只接在了购物车批量投递路径(`shopping_cart/service.py`)上,用户实际在用的 Jobs→JD→Tailor 交互式 Tailor 页面走的是 `resume_workspace/service.py::rewrite()`,从未调用过它——`run_quality_gate` 里那层"单页"检查只是字符数估算(`markdown_len > 6500`),既不准也不会真的删内容。把 `enforce_one_page` 接入 `rewrite()`,用它返回的真实 `docx_bytes`/`pdf_bytes`/`final_resume` 替换原来的直接 `inject_content` 调用,`markdown` 的渲染时机也相应挪到裁剪之后,避免导出的 `.md` 里残留已经被裁掉的条目。
+
+**量化结果**:
+- 指标:同一职位/同一 demo 用户走完整流程后,`resume.pdf` 的实际渲染页数(`file` 命令读 PDF 头部页数)
+- 改动前:2 pages,`word/document.xml` 段落级 dump 显示跨字段内容互相覆盖/重复,原始证据 `devlog/evidence/2026-08-11_resume-pdf-overflow-content-integrity-check_before.log`
+- 改动后:1 page,53(或对应职位下)段全部对应回各自本该出现的字段,无重复;另用不同职位(Love's Travel Stops · Merchandising Analytics Intern)重新走一遍完整浏览器流程复测同样 1 page,原始证据 `devlog/evidence/2026-08-11_resume-pdf-overflow-content-integrity-check_after.log`
+- 测量方法:`file resume.pdf` 读页数 + `xml.etree` 逐段落文本 dump 人工比对母本结构 + LibreOffice 转 PNG 目视核对
+
+**踩过的坑**:
+- 一开始怀疑是并发请求(前端 React StrictMode 在开发环境下确实观察到同一 JD 被重复创建 session、重复调用 `/agent` 两次)污染了共享可变状态,写了好几版 monkeypatch 脚本去复现"两个并发 `rewrite()` 互相脏读脏写"——排查后发现 `get_master_inventory` 每次调用都是从 SQLite `json.loads` 出来的全新 dict,并不共享引用,这个方向是错的。
+- 第二个误判:以为是 `insert_missing_experiences`(把母版里没有的经历用"捐献者"段落格式插入)本身在拼接 run 时越界,写了逐步骤打印每个函数返回值的 trace 脚本,结果发现 `inject_ooxml` 四个内部步骤全程都是干净的——问题实际发生在 `inject_content()` 返回之后、`_store_version_file` 写盘之前的那几行,顺着这个范围往回读代码才看到那个被吞掉的 `NameError`。教训是:内容烂了不代表烂在生成内容的那一步,得用最小复现脚本逐段落/逐函数打点,不能只靠读代码推理"应该"是哪里出问题。
+
+**结论/影响**:交互式 Tailor 流程现在和购物车批量投递路径共用同一套"真实渲染页数做依据"的单页强制逻辑,不再各写一套、行为不一致。副作用是 `rewrite()` 里多了一次同步 LibreOffice 渲染(单轮约几秒,超页需要裁剪时按轮数线性增加,最多 5 轮),用一次性拿到准确的 `pdf_bytes` 顺便省掉了 preview 接口原来"首次访问再异步转 PDF"的那次重复渲染。
