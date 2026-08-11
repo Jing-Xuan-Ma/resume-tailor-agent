@@ -85,6 +85,21 @@ async def batch_generate(request: BatchGenerateRequest, background_tasks: Backgr
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.get("/latest")
+async def latest_cart(
+    user_id: str = Query(...),
+    intern_job_ids: str = Query(..., description="Comma-separated intern job ids"),
+):
+    """Restore the best existing cart for this selection (prefers finished drafts)."""
+    ids = [s.strip() for s in (intern_job_ids or "").split(",") if s.strip()]
+    if not ids:
+        raise HTTPException(status_code=400, detail="intern_job_ids required")
+    cart = service.find_latest_cart_for_jobs(user_id=user_id, intern_job_ids=ids)
+    if not cart:
+        raise HTTPException(status_code=404, detail="No matching cart")
+    return cart
+
+
 @router.get("/{cart_id}")
 async def get_cart(cart_id: str, user_id: str = Query(...)):
     cart = service.get_cart(cart_id, user_id=user_id)

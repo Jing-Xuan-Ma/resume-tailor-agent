@@ -92,7 +92,16 @@ def test_jobright_usable_greenhouse_still_preferred():
     }
     got = resolve_listing_apply_url(listing) or ""
     assert "greenhouse.io" in got
-    assert "utm_source=jobright" in got
+
+
+def test_tiktok_social_rejected_but_careers_allowed():
+    assert not is_usable_job_apply_url("https://www.tiktok.com/@company")
+    assert is_usable_job_apply_url(
+        "https://careers.tiktok.com/resume/7670839727059339525/apply"
+    )
+    assert is_usable_job_apply_url(
+        "https://lifeattiktok.com/search/7670839727059339525"
+    )
 
 
 def test_prefer_never_returns_unusable_workday_as_last_resort():

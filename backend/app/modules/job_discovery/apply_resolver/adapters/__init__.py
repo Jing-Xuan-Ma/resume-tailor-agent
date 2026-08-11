@@ -5,12 +5,14 @@ from __future__ import annotations
 from app.modules.job_discovery.apply_resolver.adapters.base import AtsSearchAdapter
 from app.modules.job_discovery.apply_resolver.adapters.greenhouse import GreenhouseAdapter
 from app.modules.job_discovery.apply_resolver.adapters.lever import LeverAdapter
+from app.modules.job_discovery.apply_resolver.adapters.lifeattiktok import LifeAtTikTokAdapter
 from app.modules.job_discovery.apply_resolver.adapters.workday import WorkdayAdapter
 
 ADAPTERS: list[AtsSearchAdapter] = [
     WorkdayAdapter(),
     GreenhouseAdapter(),
     LeverAdapter(),
+    LifeAtTikTokAdapter(),
 ]
 
 

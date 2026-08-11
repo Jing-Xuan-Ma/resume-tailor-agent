@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   confirmShoppingCartItem,
   generateShoppingCart,
+  getLatestShoppingCart,
   getShoppingCart,
   getShoppingCartFillReview,
   getShoppingCartFillScreenshotUrl,
@@ -19,6 +20,7 @@ import {
 interface ShoppingCartPanelProps {
   userId: string;
   internJobIds: string[];
+  initialCartId?: string | null;
 }
 
 const FILL_REVIEW_STEPS = [
@@ -33,6 +35,50 @@ type FillStep = (typeof FILL_REVIEW_STEPS)[number]["id"];
 
 /** Module-level dedupe so React Strict Mode double-mount doesn't fire two batches. */
 const inFlightBatches = new Map<string, Promise<ShoppingCartResponse>>();
+
+function cartStorageKey(userId: string, idsKey: string): string {
+  return `shopping-cart:v1:${userId}:${idsKey}`;
+}
+
+function rememberCartId(userId: string, idsKey: string, cartId: string) {
+  try {
+    sessionStorage.setItem(cartStorageKey(userId, idsKey), cartId);
+  } catch {
+    /* ignore */
+  }
+  if (typeof window === "undefined") return;
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("cartId") !== cartId) {
+      url.searchParams.set("cartId", cartId);
+      window.history.replaceState({}, "", url.toString());
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function readRememberedCartId(userId: string, idsKey: string): string | null {
+  try {
+    return sessionStorage.getItem(cartStorageKey(userId, idsKey));
+  } catch {
+    return null;
+  }
+}
+
+function selectReadyDefaults(items: ShoppingCartItem[]): Record<string, boolean> {
+  const nextMap: Record<string, boolean> = {};
+  for (const item of items || []) {
+    if (
+      item.item_id &&
+      item.ok &&
+      (item.status === "ready_md" || item.status === "confirmed")
+    ) {
+      nextMap[item.item_id] = true;
+    }
+  }
+  return nextMap;
+}
 
 function formatSeconds(ms?: number | null): string {
   if (ms == null || Number.isNaN(ms)) return "—";
@@ -77,7 +123,11 @@ function applyStatusLabel(
   }
 }
 
-export default function ShoppingCartPanel({ userId, internJobIds }: ShoppingCartPanelProps) {
+export default function ShoppingCartPanel({
+  userId,
+  internJobIds,
+  initialCartId = null,
+}: ShoppingCartPanelProps) {
   const [previewItems, setPreviewItems] = useState<ShoppingCartItem[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [cart, setCart] = useState<ShoppingCartResponse | null>(null);
@@ -109,23 +159,59 @@ export default function ShoppingCartPanel({ userId, internJobIds }: ShoppingCart
     [cart?.items]
   );
 
+  const applyRestoredCart = useCallback(
+    (existing: ShoppingCartResponse) => {
+      setCart(existing);
+      setSelectedApplyIds(selectReadyDefaults(existing.items || []));
+      if (existing.cart_id) rememberCartId(userId, idsKey, existing.cart_id);
+      const firstReady = (existing.items || []).find(
+        (i) => i.ok && i.item_id && (i.status === "ready_md" || i.status === "confirmed")
+      );
+      if (firstReady?.item_id) setExpandedId(firstReady.item_id);
+    },
+    [userId, idsKey]
+  );
+
   const loadPreview = useCallback(async () => {
-    if (!internJobIds.length) return;
+    if (!internJobIds.length || !userId) return;
     setPreviewLoading(true);
     setError(null);
-    setCart(null);
     setApplyMessage(null);
-    setSelectedApplyIds({});
     try {
       const res = await previewShoppingCart(internJobIds);
       setPreviewItems(res.items || []);
+
+      // Restore finished/in-progress cart so remount doesn't dump user back to「待 Refine」.
+      let restored: ShoppingCartResponse | null = null;
+      const remembered = initialCartId || readRememberedCartId(userId, idsKey);
+      if (remembered) {
+        try {
+          restored = await getShoppingCart(remembered, userId);
+        } catch {
+          restored = null;
+        }
+      }
+      if (!restored) {
+        try {
+          restored = await getLatestShoppingCart(userId, internJobIds);
+        } catch {
+          restored = null;
+        }
+      }
+      if (restored?.cart_id) {
+        applyRestoredCart(restored);
+      } else {
+        setCart(null);
+        setSelectedApplyIds({});
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load selected jobs");
       setPreviewItems([]);
+      setCart(null);
     } finally {
       setPreviewLoading(false);
     }
-  }, [internJobIds]);
+  }, [internJobIds, userId, idsKey, initialCartId, applyRestoredCart]);
 
   useEffect(() => {
     void loadPreview();
@@ -136,6 +222,7 @@ export default function ShoppingCartPanel({ userId, internJobIds }: ShoppingCart
     try {
       const next = await getShoppingCart(cart.cart_id, userId);
       setCart(next);
+      if (next.cart_id) rememberCartId(userId, idsKey, next.cart_id);
       // Auto-select newly ready items for apply (keep prior unchecks).
       setSelectedApplyIds((prev) => {
         const nextMap = { ...prev };
@@ -154,7 +241,7 @@ export default function ShoppingCartPanel({ userId, internJobIds }: ShoppingCart
     } catch {
       /* ignore poll errors */
     }
-  }, [cart?.cart_id, userId]);
+  }, [cart?.cart_id, userId, idsKey]);
 
   // Poll while batch is still generating (progressive ready items).
   useEffect(() => {
@@ -202,6 +289,7 @@ export default function ShoppingCartPanel({ userId, internJobIds }: ShoppingCart
       }
       const res = await pending;
       setCart(res);
+      if (res.cart_id) rememberCartId(userId, idsKey, res.cart_id);
       setSelectedApplyIds({});
       // Don't expand in-progress items — ok=false would look like a failure.
       const firstReady = (res.items || []).find(
@@ -385,6 +473,16 @@ export default function ShoppingCartPanel({ userId, internJobIds }: ShoppingCart
             onClick={() => void onStartApply()}
           >
             {applying ? "导航 ATS 中…" : `投递已勾选（${selectedReadyCount}）`}
+          </button>
+          <button
+            type="button"
+            disabled={refining || cartGenerating}
+            data-testid="cart-re-refine-btn"
+            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-40"
+            onClick={() => void runGenerate()}
+            title="会新建一轮生成，覆盖当前购物车视图"
+          >
+            {refining ? "重新生成中…" : "重新 Refine"}
           </button>
         </div>
       ) : null}

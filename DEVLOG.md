@@ -241,3 +241,34 @@
 - 第二个误判:以为是 `insert_missing_experiences`(把母版里没有的经历用"捐献者"段落格式插入)本身在拼接 run 时越界,写了逐步骤打印每个函数返回值的 trace 脚本,结果发现 `inject_ooxml` 四个内部步骤全程都是干净的——问题实际发生在 `inject_content()` 返回之后、`_store_version_file` 写盘之前的那几行,顺着这个范围往回读代码才看到那个被吞掉的 `NameError`。教训是:内容烂了不代表烂在生成内容的那一步,得用最小复现脚本逐段落/逐函数打点,不能只靠读代码推理"应该"是哪里出问题。
 
 **结论/影响**:交互式 Tailor 流程现在和购物车批量投递路径共用同一套"真实渲染页数做依据"的单页强制逻辑,不再各写一套、行为不一致。副作用是 `rewrite()` 里多了一次同步 LibreOffice 渲染(单轮约几秒,超页需要裁剪时按轮数线性增加,最多 5 轮),用一次性拿到准确的 `pdf_bytes` 顺便省掉了 preview 接口原来"首次访问再异步转 PDF"的那次重复渲染。
+
+## [2026-08-11] Apply Profile 补齐 ATS 缺口字段;真实浏览器跑通全流程时顺带发现并修复 2 个真实 bug
+
+**背景**:审计 Profile 页"Application defaults"覆盖的字段够不够 8 家 ATS 连接器(Workday/Greenhouse/Lever/Ashby/SmartRecruiters/iCIMS/Workable/BambooHR)实际需要的信息,发现三类缺口:①已支持但 UI 没有编辑入口(Portfolio/preferred_name);②多家 ATS 需要但 profile 完全没有存储位置(Workday 的 EEO 自愿披露信息、"How did you hear about us"、Lever 的 Twitter/X);③chat 里存的 `custom_fields`/`answers` 从未被自动填表流水线读取过。补完这些字段后,用 Claude Browser 面板模拟真人点击,把 Jobs→JD→Tailor→Apply→Submit 前暂停 的完整流程真实跑了几次职位(未跑满原计划的 5 轮×3 个——本地职位库 265/272 条职位都被 Jobright 聚合页的强制登录墙挡住摸不到真实 ATS 表单,继续机械跑同一个结论边际信息量很低,改为把时间换成对 4 家 ATS 的本地 sandbox fixture 做直接代码级验证),过程中顺带撞见并修复了两个跟本次字段改动无关、但真实存在的流水线 bug。
+
+**变更内容**:
+- Schema 层(`backend/app/modules/profile/library_service.py`):`_default_apply_from_inventory()` 新增 `twitter_url`、`source`(默认 `"LinkedIn"`)、`gender`/`race_ethnicity`/`veteran_status`/`disability_status` 六个字段;`_APPLY_SCALAR_KEYS` 同步放开这些 key,`patch_library()` 才允许保存。
+- 映射层(`backend/app/modules/ats_connectors/canonical_profile.py`):`CANONICAL_KEYS` 新增 `preferred_name`/`twitter`/`source`/`gender`/`race_ethnicity`/`veteran_status`/`disability_status`;新增 `EEO_KEYS` 常量标记四个自愿披露字段;`canonical_apply_profile()` 末尾把 `_custom_fields`/`_answers`(非 canonical、不参与 `CANONICAL_KEYS` 过滤)一并透传给 field_mapper,供自定义问答兜底匹配使用。
+- 规则匹配层(`backend/app/modules/ats_connectors/field_mapper.py`):`ordered` 列表补上新字段的关键词规则;`hit()` 里凡是命中 `EEO_KEYS` 的字段强制 `needs_review=True`(不管置信度多高都不会被判定为 `tier="auto"`,必须人工确认才会填);新增 `_match_extras()` 兜底——`map_fields()` 里凡是规则/LLM 都没能匹配上 canonical key 的字段,先按"why_this_role"/"additional_info"式的常见问题措辞去 `_answers` 里找,再按标准化后的 key 词匹配去 `_custom_fields` 里找,有值才填、没值仍然留空(不编造),命中的一律标记 `needs_review=True`。
+- UI 层(`frontend/components/profile-panel.tsx`):Application defaults 编辑区补上 Preferred name / Portfolio / Twitter / 来源默认值四个输入框,以及一个独立的"Voluntary demographic info (EEO)"分区(四个自愿字段 + 一句说明:这些字段永远会在 Submit 前暂停等你确认)。
+- 数据库落地(demo 用户 `df52cd72-3d41-48c3-996b-355277835f2b`,即用户本人账号):性别 Female、race_ethnicity "Asian (Chinese)"、veteran_status "I am not a veteran"、disability_status "No, I do not have a disability"、source "LinkedIn",均通过 Profile 页实际操作保存,不是直接写库。
+- **真实浏览器全流程验证时顺带发现并修复的 2 个 bug**(与本次字段改动本身无关,是测试过程中意外撞见的):
+  1. `frontend/components/resume-workspace.tsx`:每次点 "Go to Tailor" 实际触发了两次完整的简历定制生成(两次不同 session id、两次 `/agent` LLM 调用、产出两个重复版本)。根因是挂载时的一次性初始化 guard 用 `useState` 实现,React Strict Mode 开发模式下的双调用之间状态更新还没 flush,第二次调用读到的还是旧值——改成 `useRef` 守卫(ref 变更不经过渲染周期,不受这个时序影响)。
+  2. `backend/app/modules/job_discovery/router.py` + `frontend/components/ranked-jobs-table.tsx`:Jobs 页"来源筛选"接口 `/jobs/sources/list` 一直报错(前端没传必填的 `user_id` → 422;补上 `user_id` 后又暴露出后端 `get_available_sources(user_id=user_id)` 调用了一个根本不接受该参数的方法签名 → 500,且 500 响应没带 CORS 头,浏览器端表现成"被 CORS 拦截",掩盖了真实原因)。前端补传 `user_id`,后端去掉多传的参数。
+
+**量化结果**:
+- 指标:同一操作(点击 "Go to Tailor")产生的简历版本数 / LLM `/agent` 调用次数
+- 改动前:1 次点击 → 2 个版本、2 次 `/agent` 调用(两个不同 session id),原始网络请求列表见 `devlog/evidence/2026-08-11_duplicate-tailor-llm-call_before.log`
+- 改动后:3 个不同职位分别验证,1 次点击 → 1 个版本、1 次 `/agent` 调用,3/3 稳定复现修复效果,见 `devlog/evidence/2026-08-11_duplicate-tailor-llm-call_after.log`
+- 指标:`GET /api/v1/jobs/sources/list` 响应状态码
+- 改动前:422(前端缺参数)→ 补参数后 500(后端签名不匹配),见 `devlog/evidence/2026-08-11_jobs-sources-list-endpoint_before.log`
+- 改动后:200,返回真实来源列表 `["indeed","intern_list","jobspy","linkedin","remotive"]`,见 `devlog/evidence/2026-08-11_jobs-sources-list-endpoint_after.log`
+- 指标:新加的 `race_ethnicity` 等 EEO 字段在真实 ATS 表单扫描中的匹配正确率(用 Playwright 直接跑 4 家 ATS 的本地 sandbox fixture:Greenhouse/Lever/Ashby/Workday)
+- 过程中发现的第三个小问题(同批修复,未单独起标题):`race_ethnicity` 字段的关键词匹配一度被 `location` 字段的 "city" 关键词抢先命中——因为 "ethnicity" 这个单词本身以 "...icity" 结尾,子串包含 "city"。调整匹配顺序(EEO/source 字段排在 location 之前)后,同一个合成字段("Race/Ethnicity")从错误匹配到 `location` 改为正确匹配到 `race_ethnicity`,同时验证了反方向("City" 字段)没有被误伤。见 `devlog/evidence/2026-08-11_field-mapper-ethnicity-city-collision_before.log` / `_after.log`
+- 测量方法:改字段前后各跑一次同样的合成字段 + 真实 profile 数据,直接调用 `field_mapper.map_fields()`,非 mock
+
+**踩过的坑**:
+- 一开始以为 `sandbox.py` 文档字符串里"Default: sandbox fixtures win"就是实际运行行为,拿唯一一条能命中真实 Greenhouse 连接器的本地测试职位(Northwind Analytics,`source_url` 是虚构的 `boards.greenhouse.io/northwind/jobs/999001`)跑 Auto apply,结果打到了真实 greenhouse.io 网站返回的 "Page not found"——回读 `resume_workspace/apply_flow.py` 才发现实际逻辑是 `prefer_sandbox = not ALLOW_LIVE_BROWSER_FILL`,本机 `.env` 里 `ALLOW_LIVE_BROWSER_FILL=true`,导致优先打真实 URL 而不是本地 fixture。这不是代码 bug(配置生效符合代码逻辑本身),而是"测试数据(虚构 job id)"和"环境配置(优先打真实网络)"两者凑在一起的意外——本次未改动这个配置,只是记录下来,后续如果想让 sandbox fixture 稳定生效用于回归测试,需要把 `ALLOW_LIVE_BROWSER_FILL` 显式设成 `false`。
+- Claude Browser 面板的 `computer` 点击工具在会话中段开始对若干按钮(尤其是 "Confirm → Apply"、"进入 Auto apply"两个关键操作)间歇性不触发——用 `document.elementFromPoint` 核实过点击坐标精确落在正确的按钮上、按钮 `disabled=false`,但合成点击就是没有派发到 React 的 onClick;改用 JS 原生 `.click()` 直接调用该 DOM 节点后立即生效,证明是浏览器自动化工具本身的合成事件时序问题,不是应用逻辑的 bug,不需要改动任何产品代码。
+
+**结论/影响**:Portfolio/Twitter/来源/EEO 四类字段现在有完整的存储→映射→UI 编辑闭环,且 EEO 字段有独立于置信度阈值的强制人工确认保护,不会被"高置信度"误判成可以自动提交。顺带发现的两个 bug(双花 LLM 调用、来源筛选接口报错)已修复并有 before/after 证据;field_mapper 的关键词顺序冲突已修复且验证了双向不误伤。4 次真实浏览器全流程运行(不同公司、不同 ATS 网关类型)全部安全停在 Submit 前,没有一次误填账号密码或意外提交,4 家 ATS sandbox fixture 的直接扫描验证全部通过。

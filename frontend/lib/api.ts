@@ -1247,6 +1247,24 @@ export async function getShoppingCart(
   return res.json() as Promise<ShoppingCartResponse>;
 }
 
+/** Best existing cart for this job selection (prefers finished drafts). */
+export async function getLatestShoppingCart(
+  user_id: string,
+  intern_job_ids: string[]
+): Promise<ShoppingCartResponse | null> {
+  const params = new URLSearchParams({
+    user_id,
+    intern_job_ids: intern_job_ids.join(","),
+  });
+  const res = await fetch(`${API_BASE}/api/v1/shopping-cart/latest?${params}`);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<ShoppingCartResponse>;
+}
+
 export async function confirmShoppingCartItem(
   cart_id: string,
   item_id: string,

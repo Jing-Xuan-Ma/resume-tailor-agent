@@ -655,6 +655,19 @@ def get_cart(cart_id: str, user_id: str | None = None) -> dict[str, Any] | None:
     return enrich_cart_for_response({**meta, "items": items})
 
 
+def find_latest_cart_for_jobs(
+    *,
+    user_id: str,
+    intern_job_ids: list[str],
+) -> dict[str, Any] | None:
+    cart_id = store.find_latest_matching_cart_id(
+        user_id=user_id, intern_job_ids=intern_job_ids
+    )
+    if not cart_id:
+        return None
+    return get_cart(cart_id, user_id=user_id)
+
+
 def start_apply(
     *,
     cart_id: str,

@@ -41,6 +41,8 @@ _ATS_HOST_PARTS = (
 )
 
 # Company info / social / directories — never treat as apply targets.
+# Note: do NOT put bare "tiktok.com" here — substring match would reject
+# careers.tiktok.com / lifeattiktok.com career deep links.
 _NON_APPLY_HOST_PARTS = (
     "crunchbase.com",
     "x.com",
@@ -48,13 +50,22 @@ _NON_APPLY_HOST_PARTS = (
     "facebook.com",
     "instagram.com",
     "youtube.com",
-    "tiktok.com",
     "glassdoor.com",
     "levels.fyi",
     "bloomberg.com",
     "businesswire.com",
     "prnewswire.com",
     "wikipedia.org",
+)
+
+# Exact social / marketing hosts (not careers ATS).
+_NON_APPLY_EXACT_HOSTS = frozenset(
+    {
+        "tiktok.com",
+        "www.tiktok.com",
+        "m.tiktok.com",
+        "vm.tiktok.com",
+    }
 )
 
 
@@ -111,6 +122,14 @@ def is_aggregator_url(url: str | None) -> bool:
     return any(part in host for part in _AGGREGATOR_HOST_PARTS)
 
 
+def _is_non_apply_host(host: str) -> bool:
+    if not host:
+        return False
+    if host in _NON_APPLY_EXACT_HOSTS:
+        return True
+    return any(part in host for part in _NON_APPLY_HOST_PARTS)
+
+
 def is_usable_job_apply_url(url: str | None) -> bool:
     """True if URL looks like a real job apply page (not a dead career-site root)."""
     raw = normalize_apply_url(url)
@@ -119,7 +138,7 @@ def is_usable_job_apply_url(url: str | None) -> bool:
     host = _host(raw)
     if not host:
         return False
-    if any(part in host for part in _NON_APPLY_HOST_PARTS):
+    if _is_non_apply_host(host):
         return False
     parts = _path_parts(raw)
     lower = raw.lower()
@@ -154,8 +173,20 @@ def is_usable_job_apply_url(url: str | None) -> bool:
     # Non-ATS company sites need a careers/jobs path signal
     if not any(part in host for part in _ATS_HOST_PARTS):
         careerish = any(
-            k in lower for k in ("/job", "/jobs", "/career", "/careers", "/apply", "/position")
+            k in lower
+            for k in (
+                "/job",
+                "/jobs",
+                "/career",
+                "/careers",
+                "/apply",
+                "/position",
+                "/resume/",
+                "/search/",  # lifeattiktok.com/search/<id>
+            )
         )
+        if host.endswith("lifeattiktok.com") or host.startswith("careers.tiktok."):
+            careerish = careerish or "/search/" in lower or "/resume/" in lower
         if not careerish:
             return False
 
@@ -166,8 +197,11 @@ def is_ats_or_company_apply_url(url: str | None) -> bool:
     host = _host(url)
     if not host or is_aggregator_url(url):
         return False
-    if any(part in host for part in _NON_APPLY_HOST_PARTS):
+    if _is_non_apply_host(host):
         return False
+    # TikTok / ByteDance proprietary career sites
+    if "lifeattiktok.com" in host or host.startswith("careers.tiktok.com"):
+        return is_usable_job_apply_url(url)
     if any(part in host for part in _ATS_HOST_PARTS):
         return True
     # Company career page only when path looks like jobs/careers/apply

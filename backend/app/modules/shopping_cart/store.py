@@ -52,6 +52,60 @@ def load_cart_meta(cart_id: str) -> dict[str, Any] | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def find_latest_matching_cart_id(
+    *,
+    user_id: str,
+    intern_job_ids: list[str],
+) -> str | None:
+    """Return newest cart for this user whose items match the intern_job_id set.
+
+    Prefers carts that already have ready/confirmed drafts over still-generating ones,
+    so a remount / accidental re-click does not hide a finished batch.
+    """
+    want = {str(x).strip() for x in intern_job_ids if str(x).strip()}
+    if not user_id or not want:
+        return None
+    if not CART_ROOT.exists():
+        return None
+
+    best_id: str | None = None
+    best_score: tuple[int, int, float] | None = None
+
+    for path in CART_ROOT.glob("*/cart.json"):
+        try:
+            meta = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if str(meta.get("user_id") or "") != str(user_id):
+            continue
+        items = meta.get("items") or []
+        if not isinstance(items, list):
+            continue
+        got = {str(i.get("intern_job_id") or "").strip() for i in items if isinstance(i, dict)}
+        got.discard("")
+        if got != want:
+            continue
+        ready_n = sum(
+            1
+            for i in items
+            if isinstance(i, dict)
+            and i.get("ok")
+            and i.get("status") in ("ready_md", "confirmed")
+        )
+        status = str(meta.get("status") or "")
+        # Higher is better: more ready items, then finished cart status, then mtime.
+        finished = 1 if status in ("ready", "complete", "completed") or (
+            ready_n == len(want) and ready_n > 0
+        ) else 0
+        mtime = path.stat().st_mtime
+        score = (ready_n, finished, mtime)
+        if best_score is None or score > best_score:
+            best_score = score
+            best_id = path.parent.name
+
+    return best_id
+
+
 def save_item_files(
     *,
     cart_id: str,

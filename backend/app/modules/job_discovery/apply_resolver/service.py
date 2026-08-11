@@ -36,6 +36,8 @@ def resolve_apply_url(
     hint_bag: dict[str, Any] = dict(hints or {})
     if raw_text and "raw_text" not in hint_bag:
         hint_bag["raw_text"] = raw_text
+    if company_s and "company" not in hint_bag:
+        hint_bag["company"] = company_s
 
     cached = False
     if company_s:

@@ -1,8 +1,9 @@
-"""Phase 2: open Jobright job page → click Original Job Post → land on ATS URL."""
+"""Phase 2: open Jobright job page → click Original Job Post / APPLY NOW → land on ATS URL."""
 
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -27,12 +28,20 @@ _ORIGINAL_POST_SELECTORS = [
     "a[href*='greenhouse.io']",
     "a[href*='lever.co']",
     "a[href*='ashbyhq.com']",
+    "a[href*='lifeattiktok.com']",
+    "a[href*='careers.tiktok.com']",
 ]
+
+_APPLY_NOW_RE = re.compile(r"APPLY\s*NOW", re.I)
+_SIGNUP_WALL_RE = re.compile(r"Sign\s*Up\s*to\s*Apply", re.I)
 
 
 def detect_ats_type(url: str | None) -> str:
+    host = _host(url or "")
+    if "lifeattiktok.com" in host or host.startswith("careers.tiktok."):
+        return "lifeattiktok"
     connector = connector_for(url)
-    return str(getattr(connector, "ats_type", None) or "generic")
+    return str(getattr(connector, "ats_type", None) or "") or "generic"
 
 
 def _host(url: str) -> str:
@@ -73,13 +82,49 @@ def resolve_ats_from_scraped(
     return None
 
 
+def _page_has_signup_wall(page: Any) -> bool:
+    try:
+        if page.get_by_text(_SIGNUP_WALL_RE).count() > 0:
+            return True
+    except Exception:
+        pass
+    try:
+        body = (page.inner_text("body") or "")[:4000]
+        return bool(_SIGNUP_WALL_RE.search(body))
+    except Exception:
+        return False
+
+
+def _try_click_open_external(context: Any, page: Any, loc: Any, timeout_ms: int) -> str | None:
+    """Click a locator; return popup / navigated URL if it leaves Jobright."""
+    try:
+        with context.expect_page(timeout=8000) as new_page_info:
+            loc.click(timeout=5000)
+        new_page = new_page_info.value
+        new_page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
+        return new_page.url
+    except Exception:
+        pass
+    try:
+        with page.expect_navigation(wait_until="domcontentloaded", timeout=timeout_ms):
+            loc.click(timeout=5000)
+        return page.url
+    except Exception:
+        try:
+            loc.click(timeout=5000)
+            page.wait_for_timeout(1500)
+            return page.url
+        except Exception:
+            return None
+
+
 def navigate_jobright_to_ats(
     *,
     jobright_url: str,
     timeout_ms: int | None = None,
     headless: bool | None = None,
 ) -> dict[str, Any]:
-    """Live Playwright: Jobright detail → Original Job Post → final ATS URL."""
+    """Live Playwright: Jobright detail → Original Job Post / APPLY NOW → final ATS URL."""
     timeout_ms = int(timeout_ms or settings.BROWSER_TIMEOUT_MS or 30000)
     headless = settings.BROWSER_HEADLESS if headless is None else bool(headless)
     jr = normalize_apply_url(jobright_url) or (jobright_url or "").strip()
@@ -102,6 +147,7 @@ def navigate_jobright_to_ats(
     screenshot_note = None
     final_url = None
     clicked = False
+    employer_site_mode = False
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=headless)
@@ -110,7 +156,14 @@ def navigate_jobright_to_ats(
             page.goto(jr, wait_until="domcontentloaded", timeout=timeout_ms)
             page.wait_for_timeout(1500)
 
-            # Prefer popup / new-tab open for Original Job Post
+            try:
+                employer_site_mode = page.get_by_text(
+                    re.compile(r"Apply on Employer Site", re.I)
+                ).count() > 0
+            except Exception:
+                employer_site_mode = False
+
+            # Prefer popup / new-tab open for Original Job Post / ATS anchors
             for selector in _ORIGINAL_POST_SELECTORS:
                 try:
                     matches = page.locator(selector)
@@ -130,29 +183,34 @@ def navigate_jobright_to_ats(
                         clicked = True
                         break
 
-                    try:
-                        with context.expect_page(timeout=8000) as new_page_info:
-                            loc.click(timeout=5000)
-                        new_page = new_page_info.value
-                        new_page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
-                        final_url = new_page.url
+                    opened = _try_click_open_external(context, page, loc, timeout_ms)
+                    if opened and "jobright.ai" not in _host(opened):
+                        final_url = opened
                         clicked = True
                         break
-                    except Exception:
-                        try:
-                            with page.expect_navigation(
-                                wait_until="domcontentloaded", timeout=timeout_ms
-                            ):
-                                loc.click(timeout=5000)
-                            final_url = page.url
-                            clicked = True
-                            break
-                        except Exception:
-                            continue
+                    if _page_has_signup_wall(page):
+                        screenshot_note = "jobright_login_required_for_employer_site"
+                        break
                 except Exception:
                     continue
 
-            if not final_url:
+            # Employer-site jobs often only expose a green APPLY NOW button (no Original Post link).
+            if not final_url and screenshot_note != "jobright_login_required_for_employer_site":
+                try:
+                    btn = page.get_by_role("button", name=_APPLY_NOW_RE)
+                    if btn.count() == 0:
+                        btn = page.get_by_text(_APPLY_NOW_RE)
+                    if btn.count() > 0 and btn.first.is_visible():
+                        opened = _try_click_open_external(context, page, btn.first, timeout_ms)
+                        clicked = True
+                        if opened and "jobright.ai" not in _host(opened):
+                            final_url = opened
+                        elif _page_has_signup_wall(page):
+                            screenshot_note = "jobright_login_required_for_employer_site"
+                except Exception:
+                    pass
+
+            if not final_url and screenshot_note != "jobright_login_required_for_employer_site":
                 # Scan all external links as last resort
                 try:
                     hrefs = page.eval_on_selector_all(
@@ -172,11 +230,12 @@ def navigate_jobright_to_ats(
                         clicked = True
                         break
 
-            if not final_url:
-                try:
-                    screenshot_note = "original_job_post_not_found"
-                except Exception:
-                    pass
+            if not final_url and not screenshot_note:
+                screenshot_note = (
+                    "jobright_login_required_for_employer_site"
+                    if employer_site_mode and _page_has_signup_wall(page)
+                    else "original_job_post_not_found"
+                )
 
             browser.close()
     except Exception as exc:  # noqa: BLE001
@@ -196,6 +255,7 @@ def navigate_jobright_to_ats(
             "method": "jobright_original_post_click",
             "jobright_url": jr,
             "clicked": clicked,
+            "employer_site_mode": employer_site_mode,
         }
 
     return {
@@ -205,6 +265,7 @@ def navigate_jobright_to_ats(
         "method": "jobright_original_post_click",
         "jobright_url": jr,
         "clicked": clicked,
+        "employer_site_mode": employer_site_mode,
     }
 
 
@@ -213,7 +274,7 @@ def resolve_ats_from_company_resolver(
     intern_job_id: str,
     source_url: str | None = None,
 ) -> dict[str, Any] | None:
-    """Fallback: company ATS cache + Greenhouse/Workday board search by title."""
+    """Fallback: company ATS cache + Greenhouse/Workday/LifeAtTikTok board search by title."""
     try:
         from app.modules.job_discovery.apply_resolver import resolve_apply_url
         from app.modules.job_discovery.apply_url import (
@@ -234,6 +295,7 @@ def resolve_ats_from_company_resolver(
     if not title:
         return None
     hints: dict[str, Any] = {
+        "company": company,
         "source_url": source_url or job.get("source_url"),
         "raw_text": job.get("jd_text") or "",
     }
@@ -267,6 +329,7 @@ def resolve_ats_from_company_resolver(
         "resolver_message": getattr(result, "message", None),
         "company": company,
         "title": title,
+        "adapter": getattr(result, "adapter", None),
     }
 
 
@@ -315,6 +378,7 @@ def resolve_ats_url_for_item(
             "method": nav.get("method") or "none",
             "jobright_url": jobright_url,
             "resolver_message": (resolved or {}).get("resolver_message") if resolved else None,
+            "employer_site_mode": nav.get("employer_site_mode"),
         }
 
     return {

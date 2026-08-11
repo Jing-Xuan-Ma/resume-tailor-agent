@@ -14,6 +14,7 @@ function CartBody({ userId }: { userId: string }) {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+  const initialCartId = searchParams.get("cartId");
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6">
@@ -24,7 +25,11 @@ function CartBody({ userId }: { userId: string }) {
         </p>
       </div>
       {internJobIds.length ? (
-        <ShoppingCartPanel userId={userId} internJobIds={internJobIds} />
+        <ShoppingCartPanel
+          userId={userId}
+          internJobIds={internJobIds}
+          initialCartId={initialCartId}
+        />
       ) : (
         <p className="text-sm text-slate-500">
           缺少 internJobIds。请从{" "}
