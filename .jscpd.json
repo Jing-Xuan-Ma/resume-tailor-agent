@@ -1,0 +1,8 @@
+{
+  "threshold": 1,
+  "minLines": 15,
+  "minTokens": 70,
+  "reporters": ["consoleFull"],
+  "ignore": ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/.venv/**", "**/data/**", "**/artifacts/**"],
+  "path": ["backend/app", "frontend/app", "frontend/components", "frontend/lib"]
+}

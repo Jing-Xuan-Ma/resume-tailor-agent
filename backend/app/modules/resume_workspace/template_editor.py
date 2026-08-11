@@ -1,9 +1,7 @@
-import json
 import re
 import tempfile
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
 
 
 class ResumeTemplateEditor:
@@ -14,8 +12,8 @@ class ResumeTemplateEditor:
     def load_template(self, docx_bytes: bytes) -> dict:
         try:
             from docx import Document
-        except ImportError:
-            raise RuntimeError("python-docx is required for template editing")
+        except ImportError as exc:
+            raise RuntimeError("python-docx is required for template editing") from exc
 
         doc = Document(BytesIO(docx_bytes))
         run_map = {}
@@ -30,15 +28,17 @@ class ResumeTemplateEditor:
                     font_size = None
                     if run.font.size:
                         font_size = str(int(run.font.size.pt))
-                    editable_blocks.append({
-                        "block_id": block_id,
-                        "paragraph_index": p_idx,
-                        "run_index": r_idx,
-                        "text": run.text,
-                        "bold": bool(run.bold),
-                        "font_name": font_name,
-                        "font_size": font_size,
-                    })
+                    editable_blocks.append(
+                        {
+                            "block_id": block_id,
+                            "paragraph_index": p_idx,
+                            "run_index": r_idx,
+                            "text": run.text,
+                            "bold": bool(run.bold),
+                            "font_name": font_name,
+                            "font_size": font_size,
+                        }
+                    )
 
         self._run_map = run_map
         self._paragraph_count = len(doc.paragraphs)
@@ -51,8 +51,8 @@ class ResumeTemplateEditor:
     def apply_text_replacements(self, docx_bytes: bytes, replacements: dict[str, str]) -> bytes:
         try:
             from docx import Document
-        except ImportError:
-            raise RuntimeError("python-docx is required for template editing")
+        except ImportError as exc:
+            raise RuntimeError("python-docx is required for template editing") from exc
 
         doc = Document(BytesIO(docx_bytes))
 
@@ -68,11 +68,11 @@ class ResumeTemplateEditor:
         doc.save(output)
         return output.getvalue()
 
-    def _run_id_for_paragraph_text(self, paragraph_text: str, template_docx: bytes) -> Optional[str]:
+    def _run_id_for_paragraph_text(self, paragraph_text: str, template_docx: bytes) -> str | None:
         try:
             from docx import Document
-        except ImportError:
-            raise RuntimeError("python-docx is required")
+        except ImportError as exc:
+            raise RuntimeError("python-docx is required") from exc
 
         doc = Document(BytesIO(template_docx))
         # Rebuild run map if not already loaded
@@ -88,11 +88,13 @@ class ResumeTemplateEditor:
                     return block_id
         return None
 
-    def build_replacement_map(self, original_resume: dict, tailored_resume: dict, template_docx: bytes) -> dict[str, str]:
+    def build_replacement_map(
+        self, original_resume: dict, tailored_resume: dict, template_docx: bytes
+    ) -> dict[str, str]:
         try:
             from docx import Document
-        except ImportError:
-            raise RuntimeError("python-docx is required")
+        except ImportError as exc:
+            raise RuntimeError("python-docx is required") from exc
 
         doc = Document(BytesIO(template_docx))
         if not self._run_map:
@@ -144,12 +146,12 @@ class ResumeTemplateEditor:
             blocks["skills"] = resume["skills_certifications"]
         return blocks
 
-    def _find_best_match(self, original_text: str, text_blocks: dict[str, str]) -> Optional[str]:
+    def _find_best_match(self, original_text: str, text_blocks: dict[str, str]) -> str | None:
         original_lower = original_text.lower()
         best_match = None
         best_score = 0
 
-        for key, new_text in text_blocks.items():
+        for _key, new_text in text_blocks.items():
             score = self._similarity_score(original_lower, new_text.lower())
             if score > best_score:
                 best_score = score
@@ -175,8 +177,8 @@ class ResumeTemplateEditor:
         try:
             from docx import Document
             from docx.shared import Inches, Pt
-        except ImportError:
-            raise RuntimeError("python-docx is required")
+        except ImportError as exc:
+            raise RuntimeError("python-docx is required") from exc
 
         document = Document()
 
@@ -237,7 +239,8 @@ class ResumeTemplateEditor:
 
             for item in items:
                 if key == "education":
-                    heading = " | ".join(str(p) for p in [item.get("institution", ""), item.get("date_range", "")] if p)
+                    edu_bits = [item.get("institution", ""), item.get("date_range", "")]
+                    heading = " | ".join(str(p) for p in edu_bits if p)
                     if heading:
                         p = document.add_paragraph()
                         run = p.add_run(heading)
@@ -253,7 +256,9 @@ class ResumeTemplateEditor:
                         p.alignment = 3
                 else:
                     left = item.get("title") or item.get("name", "")
-                    middle = item.get("company") or ", ".join(str(t) for t in (item.get("tools") or []))
+                    middle = item.get("company") or ", ".join(
+                        str(t) for t in (item.get("tools") or [])
+                    )
                     heading = " | ".join(str(p) for p in [left, middle] if p)
                     if item.get("date_range"):
                         heading += f" - {item['date_range']}"
@@ -295,7 +300,7 @@ class ResumeTemplateEditor:
         return docx_bytes.getvalue()
 
     @staticmethod
-    def generate_export_docx(full_resume: dict, template_docx: Optional[bytes] = None) -> bytes:
+    def generate_export_docx(full_resume: dict, template_docx: bytes | None = None) -> bytes:
         if template_docx:
             return template_docx
         return ResumeTemplateEditor.generate_preview_pdf(full_resume)
@@ -304,7 +309,6 @@ class ResumeTemplateEditor:
     def convert_docx_to_pdf_via_word(docx_bytes: bytes, *, label: str = "preview") -> bytes:
         """True master-layout PDF via Microsoft Word COM (Windows)."""
         import sys
-        import tempfile
         from pathlib import Path
 
         repo_root = Path(__file__).resolve().parents[4]
@@ -319,9 +323,26 @@ class ResumeTemplateEditor:
             return pdf_out.read_bytes()
 
     @staticmethod
-    def convert_to_pdf_via_libreoffice(docx_bytes: bytes, timeout_seconds: int = 30) -> bytes:
+    def _find_soffice_binary() -> str:
+        import shutil
+
+        on_path = shutil.which("soffice") or shutil.which("libreoffice")
+        if on_path:
+            return on_path
+        candidates = [
+            Path.home() / "Applications" / "LibreOffice.app" / "Contents" / "MacOS" / "soffice",
+            Path("/Applications/LibreOffice.app/Contents/MacOS/soffice"),
+            Path("/usr/bin/soffice"),
+            Path("/opt/homebrew/bin/soffice"),
+        ]
+        for c in candidates:
+            if c.exists():
+                return str(c)
+        return "soffice"
+
+    @staticmethod
+    def convert_to_pdf_via_libreoffice(docx_bytes: bytes, timeout_seconds: int = 60) -> bytes:
         import subprocess
-        import tempfile
         from pathlib import Path
 
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp_docx:
@@ -329,11 +350,12 @@ class ResumeTemplateEditor:
             docx_path = tmp_docx.name
 
         pdf_path = docx_path.replace(".docx", ".pdf")
+        soffice_bin = ResumeTemplateEditor._find_soffice_binary()
 
         try:
             result = subprocess.run(
                 [
-                    "soffice",
+                    soffice_bin,
                     "--headless",
                     "--convert-to",
                     "pdf",
@@ -348,17 +370,25 @@ class ResumeTemplateEditor:
                 raise RuntimeError(f"LibreOffice conversion failed: {result.stderr.decode()}")
             with open(pdf_path, "rb") as f:
                 return f.read()
-        except FileNotFoundError:
-            raise RuntimeError("LibreOffice not found. Install it and ensure 'soffice' is on PATH.")
-        except subprocess.TimeoutExpired:
-            raise RuntimeError(f"LibreOffice conversion timed out after {timeout_seconds}s")
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                "LibreOffice not found. Install it and ensure 'soffice' is on PATH."
+            ) from exc
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                f"LibreOffice conversion timed out after {timeout_seconds}s"
+            ) from exc
         finally:
             Path(docx_path).unlink(missing_ok=True)
             Path(pdf_path).unlink(missing_ok=True)
 
     @staticmethod
     def generate_pdf_from_resume(full_resume: dict) -> bytes:
-        """Plain-text PDF preview — no Markdown markers (##, **, #)."""
+        """Plain-text PDF fallback — no Markdown markers (##, **, #).
+
+        Does not mutate resume structure. Prefer Word master + enforce_one_page
+        for delivery PDFs; this path only shrinks type / hard-clips overflow.
+        """
         raw_lines = ResumeTemplateEditor._render_plain_lines(full_resume)
 
         configs = [
@@ -370,7 +400,7 @@ class ResumeTemplateEditor:
         top = 752
         bottom = 36
 
-        selected_lines = raw_lines
+        selected_lines = None
         selected = configs[-1]
         for config in configs:
             wrapped = ResumeTemplateEditor._wrap_lines(raw_lines, config["wrap_width"])
@@ -379,6 +409,10 @@ class ResumeTemplateEditor:
                 selected_lines = wrapped
                 selected = config
                 break
+        if selected_lines is None:
+            wrapped = ResumeTemplateEditor._wrap_lines(raw_lines, selected["wrap_width"])
+            max_lines = int((top - bottom) / selected["leading"])
+            selected_lines = wrapped[:max_lines]
 
         return ResumeTemplateEditor._render_pdf(
             selected_lines,
@@ -386,6 +420,7 @@ class ResumeTemplateEditor:
             leading=selected["leading"],
             top=top,
             page_height=page_height,
+            bottom=bottom,
         )
 
     @staticmethod
@@ -417,10 +452,18 @@ class ResumeTemplateEditor:
                 parts = [p for p in [edu.get("institution"), edu.get("date_range")] if p]
                 if parts:
                     lines.append(ResumeTemplateEditor._strip_md(" | ".join(str(p) for p in parts)))
-                degree_bits = [p for p in [edu.get("degree"), edu.get("field"), edu.get("location")] if p]
+                degree_bits = [
+                    p for p in [edu.get("degree"), edu.get("field"), edu.get("location")] if p
+                ]
                 if degree_bits:
-                    lines.append(ResumeTemplateEditor._strip_md(" | ".join(str(p) for p in degree_bits)))
-        for key, title in [("experiences", "PROFESSIONAL EXPERIENCE"), ("projects", "PROJECTS")]:
+                    lines.append(
+                        ResumeTemplateEditor._strip_md(" | ".join(str(p) for p in degree_bits))
+                    )
+        for key, title in [
+            ("experiences", "PROFESSIONAL EXPERIENCE"),
+            ("projects", "PROJECTS"),
+            ("competitions", "COMPETITIONS"),
+        ]:
             items = resume.get(key, [])
             if not items:
                 continue
@@ -432,7 +475,11 @@ class ResumeTemplateEditor:
                 heading = " | ".join(str(p) for p in [left, mid] if p)
                 right_bits = [p for p in [item.get("location"), item.get("date_range")] if p]
                 if right_bits:
-                    heading = f"{heading}  —  {' | '.join(str(p) for p in right_bits)}" if heading else " | ".join(str(p) for p in right_bits)
+                    heading = (
+                        f"{heading}  —  {' | '.join(str(p) for p in right_bits)}"
+                        if heading
+                        else " | ".join(str(p) for p in right_bits)
+                    )
                 if heading:
                     lines.append(ResumeTemplateEditor._strip_md(heading))
                 for bullet in item.get("bullets", []):
@@ -455,6 +502,7 @@ class ResumeTemplateEditor:
     @staticmethod
     def _wrap_lines(raw_lines: list[str], width: int) -> list[str]:
         from textwrap import wrap
+
         section_names = {
             "EDUCATION",
             "PROFESSIONAL EXPERIENCE",
@@ -478,7 +526,14 @@ class ResumeTemplateEditor:
         return lines
 
     @staticmethod
-    def _render_pdf(lines: list[str], font_size: float, leading: float, top: int, page_height: int) -> bytes:
+    def _render_pdf(
+        lines: list[str],
+        font_size: float,
+        leading: float,
+        top: int,
+        page_height: int,
+        bottom: int = 36,
+    ) -> bytes:
         objects: list[bytes] = []
 
         def add(obj: str) -> int:
@@ -493,6 +548,9 @@ class ResumeTemplateEditor:
             "SKILLS & CERTIFICATIONS",
         }
 
+        max_lines = max(1, int((top - bottom) / leading))
+        lines = list(lines)[:max_lines]
+
         add("<< /Type /Catalog /Pages 2 0 R >>")
         add("<< /Type /Pages /Kids [] /Count 0 >>")
         font_reg = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
@@ -504,16 +562,17 @@ class ResumeTemplateEditor:
             is_section = line in section_names
             want_bold = is_name or is_section
             if want_bold != current_bold:
-                commands.append(f"/F{'2' if want_bold else '1'} {font_size + (1.5 if is_name else 0)} Tf")
+                commands.append(
+                    f"/F{'2' if want_bold else '1'} {font_size + (1.5 if is_name else 0)} Tf"
+                )
                 current_bold = want_bold
             safe = line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
             commands.append(f"({safe}) Tj")
             commands.append("T*")
         commands.append("ET")
         stream = "\n".join(commands)
-        content_id = add(
-            f"<< /Length {len(stream.encode('cp1252', errors='replace'))} >>\nstream\n{stream}\nendstream"
-        )
+        stream_len = len(stream.encode("cp1252", errors="replace"))
+        content_id = add(f"<< /Length {stream_len} >>\nstream\n{stream}\nendstream")
         page_id = add(
             f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 {page_height}] "
             f"/Resources << /Font << /F1 {font_reg} 0 R /F2 {font_bold} 0 R >> >> "
@@ -532,9 +591,8 @@ class ResumeTemplateEditor:
         pdf.extend(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode("latin-1"))
         for offset in offsets:
             pdf.extend(f"{offset:010d} 00000 n \n".encode("latin-1"))
-        pdf.extend(
-            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF".encode(
-                "latin-1"
-            )
+        trailer = (
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF"
         )
+        pdf.extend(trailer.encode("latin-1"))
         return bytes(pdf)

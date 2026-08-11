@@ -1,15 +1,16 @@
-"""Inject tailored content into master DOCX via OOXML (zip/document.xml) — no python-docx rewrite."""
+"""Inject tailored content into master DOCX via OOXML (zip/document.xml), no python-docx rewrite."""
 
 from __future__ import annotations
 
-from copy import deepcopy
 from typing import Any
 
 from app.modules.resume_workspace.ooxml_inject import inject_ooxml, validate_ooxml
 from app.modules.resume_workspace.ooxml_pack import read_document_xml
 
 
-def inject_content(master_docx: bytes, tailored: dict[str, Any], master_inventory: dict[str, Any]) -> bytes:
+def inject_content(
+    master_docx: bytes, tailored: dict[str, Any], master_inventory: dict[str, Any]
+) -> bytes:
     return inject_ooxml(master_docx, tailored or {}, master_inventory or {})
 
 
@@ -42,7 +43,3 @@ def content_integrity_check(docx_bytes: bytes, inventory: dict[str, Any]) -> dic
 
 def hyperlink_check(master_docx: bytes, gen_docx: bytes) -> dict[str, Any]:
     return validate_ooxml(master_docx, gen_docx)
-
-
-def clone_inventory(inventory: dict[str, Any]) -> dict[str, Any]:
-    return deepcopy(inventory)

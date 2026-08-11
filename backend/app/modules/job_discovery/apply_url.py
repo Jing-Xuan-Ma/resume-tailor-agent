@@ -40,6 +40,23 @@ _ATS_HOST_PARTS = (
     "contacthr.com",
 )
 
+# Company info / social / directories — never treat as apply targets.
+_NON_APPLY_HOST_PARTS = (
+    "crunchbase.com",
+    "x.com",
+    "twitter.com",
+    "facebook.com",
+    "instagram.com",
+    "youtube.com",
+    "tiktok.com",
+    "glassdoor.com",
+    "levels.fyi",
+    "bloomberg.com",
+    "businesswire.com",
+    "prnewswire.com",
+    "wikipedia.org",
+)
+
 
 def normalize_apply_url(url: str | None) -> str | None:
     """Clean markdown/Indeed escapes so URLs parse and open correctly.
@@ -102,6 +119,8 @@ def is_usable_job_apply_url(url: str | None) -> bool:
     host = _host(raw)
     if not host:
         return False
+    if any(part in host for part in _NON_APPLY_HOST_PARTS):
+        return False
     parts = _path_parts(raw)
     lower = raw.lower()
     parts_l = [p.lower() for p in parts]
@@ -132,6 +151,14 @@ def is_usable_job_apply_url(url: str | None) -> bool:
     if not parts and not is_aggregator_url(raw):
         return False
 
+    # Non-ATS company sites need a careers/jobs path signal
+    if not any(part in host for part in _ATS_HOST_PARTS):
+        careerish = any(
+            k in lower for k in ("/job", "/jobs", "/career", "/careers", "/apply", "/position")
+        )
+        if not careerish:
+            return False
+
     return True
 
 
@@ -139,10 +166,12 @@ def is_ats_or_company_apply_url(url: str | None) -> bool:
     host = _host(url)
     if not host or is_aggregator_url(url):
         return False
+    if any(part in host for part in _NON_APPLY_HOST_PARTS):
+        return False
     if any(part in host for part in _ATS_HOST_PARTS):
         return True
-    # Non-aggregator http(s) career page — treat as company site.
-    return True
+    # Company career page only when path looks like jobs/careers/apply
+    return is_usable_job_apply_url(url)
 
 
 def prefer_official_apply_url(

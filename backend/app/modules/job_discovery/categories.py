@@ -149,6 +149,7 @@ def slug_for_label(label: str) -> str | None:
 
 def all_ingest_queries(*, primary_extra: bool = True) -> list[str]:
     """Flatten unique ingest queries; DA/BA first."""
+    _ = primary_extra  # reserved for future primary-query weighting
     ordered_slugs = [
         "data_analysis",
         "business_analyst",

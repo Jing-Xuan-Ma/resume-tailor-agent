@@ -1,16 +1,15 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app import db
 from app.config import settings
 from app.core.events import JobDiscoveredEvent, event_bus
 from app.core.rate_limit import rate_limiter
-from app.modules.application_engine.artifacts import create_application_artifacts
 from app.modules.application_engine.application_saver import save_application_plan
+from app.modules.application_engine.artifacts import create_application_artifacts
 from app.modules.application_engine.planner import ApplicationPlanner
-from app.modules.job_discovery.orchestrator import discover_all
 from app.modules.job_discovery import job_index
 from app.modules.job_discovery.categories import (
     classify_job,
@@ -18,15 +17,14 @@ from app.modules.job_discovery.categories import (
     slug_for_label,
     ui_categories,
 )
+from app.modules.job_discovery.job_list_service import job_list_service
+from app.modules.job_discovery.orchestrator import discover_all
 from app.modules.job_discovery.schemas import (
     JobBookmarkRequest,
     JobBookmarkResponse,
     JobDiscoverRequest,
-    JobHistoryRecord,
     JobHistoryResponse,
     JobIndexIngestRequest,
-    JobIndexLeadRequest,
-    JobIndexLeadResponse,
     JobIndexStatsResponse,
     JobIngestRequest,
     JobListResponse,
@@ -36,17 +34,16 @@ from app.modules.job_discovery.schemas import (
     JobResponse,
 )
 from app.modules.job_discovery.scorer import score_job_detailed, tokenize
-from app.modules.resume_tailor.nodes.cover_letter import CoverLetterNode
-from app.modules.resume_tailor.service import ResumeTailorService
-from app.modules.resume_tailor.nodes.parse_jd import JDParsingNode
-from app.modules.job_discovery.job_list_service import job_list_service
+from app.modules.profile.library_service import get_master_inventory
+from app.modules.resume_core.cover_letter import CoverLetterNode
+from app.modules.resume_core.parse_jd import JDParsingNode
+from app.modules.resume_workspace.service import ResumeWorkspaceService
 from app.modules.safety.audit_log import audit
 from app.modules.safety.daily_limits import check_application_limit
 
-
 router = APIRouter()
 parser = JDParsingNode()
-tailor_service = ResumeTailorService()
+workspace_service = ResumeWorkspaceService()
 cover_letter_node = CoverLetterNode()
 application_planner = ApplicationPlanner()
 
@@ -87,14 +84,14 @@ async def discover_jobs(request: JobDiscoverRequest):
         if request.work_model:
             wm = request.work_model.lower()
             provider_jobs = [
-                j for j in provider_jobs
+                j
+                for j in provider_jobs
                 if job_index.infer_work_model(j.get("location"), j.get("raw_text")) == wm
             ]
         if request.source_platform:
             sp = request.source_platform.lower()
             provider_jobs = [
-                j for j in provider_jobs
-                if (j.get("source_platform") or "").lower() == sp
+                j for j in provider_jobs if (j.get("source_platform") or "").lower() == sp
             ]
     else:
         # JR-1 default: read local catalog only (no provider fan-out).
@@ -177,13 +174,18 @@ async def discover_jobs(request: JobDiscoverRequest):
             parsed=parsed,
             match_score=final_score,
         )
-        await event_bus.publish(JobDiscoveredEvent(
-            user_id=request.user_id,
-            job_id=UUID(job_id),
-            source_platform=lead.get("source_platform") or "local_phase2",
-            match_score=final_score,
-        ))
-        jobs.append(db.get_job(job_id, str(request.user_id)) or db.list_jobs(str(request.user_id), limit=1)[0])
+        await event_bus.publish(
+            JobDiscoveredEvent(
+                user_id=request.user_id,
+                job_id=UUID(job_id),
+                source_platform=lead.get("source_platform") or "local_phase2",
+                match_score=final_score,
+            )
+        )
+        jobs.append(
+            db.get_job(job_id, str(request.user_id))
+            or db.list_jobs(str(request.user_id), limit=1)[0]
+        )
     return JobListResponse(jobs=jobs)
 
 
@@ -200,125 +202,6 @@ async def ingest_job_index(request: JobIndexIngestRequest):
     )
     return result
 
-
-def _extension_token_ok(token: str | None) -> bool:
-    expected = (settings.EXTENSION_BRIDGE_TOKEN or "").strip()
-    if not expected:
-        # Empty token config: allow only in development.
-        return settings.APP_ENV == "development"
-    provided = (token or "").strip()
-    return bool(provided) and provided == expected
-
-
-def _workbench_urls(job_id: str) -> dict[str, str]:
-    base = (settings.FRONTEND_BASE_URL or "http://localhost:3000").rstrip("/")
-    root = f"{base}/?view=resume&jobId={job_id}"
-    return {
-        # Jobright already shows JD — open Tailor (agent + PDF) directly.
-        "workspace_url": f"{root}&step=tailor",
-        "apply_step_url": f"{root}&step=apply",
-        # Outreach is a dedicated page — never embed beside the PDF.
-        "outreach_step_url": f"{base}/outreach?jobId={job_id}",
-    }
-
-
-@router.post("/index/leads", response_model=JobIndexLeadResponse)
-async def upsert_index_lead(
-    request: JobIndexLeadRequest,
-    x_extension_token: str | None = Header(default=None, alias="X-Extension-Token"),
-):
-    """Upsert one job into the shared catalog (Jobright extension / import bridge)."""
-    if not _extension_token_ok(x_extension_token):
-        raise HTTPException(status_code=401, detail="Invalid or missing X-Extension-Token")
-
-    meta = dict(request.metadata or {})
-    jobright_url = (request.jobright_url or meta.get("jobright_url") or meta.get("page_url") or "").strip() or None
-    page_url = (meta.get("page_url") or jobright_url or "").strip() or None
-    apply_url = (meta.get("apply_url") or "").strip() or None
-    # Jobright Apply = company ATS when usable; thin Workday roots fall back to board.
-    from app.modules.job_discovery.apply_url import (
-        is_usable_job_apply_url,
-        normalize_apply_url,
-        prefer_official_apply_url,
-    )
-
-    apply_url = normalize_apply_url(apply_url)
-    platform = (request.source_platform or "jobright_extension").strip()
-    if (
-        apply_url
-        and is_usable_job_apply_url(apply_url)
-        and (
-            ("jobright" in platform.lower() and "jobright.ai" not in apply_url.lower())
-            or "utm_source=jobright" in apply_url.lower()
-        )
-    ):
-        source_url = apply_url
-    else:
-        source_url = prefer_official_apply_url(
-            request.source_url,
-            apply_url,
-            jobright_url if jobright_url and "jobright.ai" not in jobright_url.lower() else None,
-            page_url if page_url and "jobright.ai" not in page_url.lower() else None,
-            board_fallback=jobright_url or page_url or request.source_url,
-        )
-    if jobright_url:
-        meta["jobright_url"] = jobright_url
-    if page_url:
-        meta["page_url"] = page_url
-    if apply_url:
-        meta["apply_url"] = apply_url
-    meta["has_external_apply"] = bool(
-        apply_url and "jobright.ai" not in apply_url.lower()
-    )
-    if request.category:
-        meta["category"] = request.category
-
-    lead = {
-        "title": request.title.strip(),
-        "company": request.company.strip(),
-        "location": request.location,
-        "source_url": source_url,
-        "source_platform": request.source_platform or "jobright_extension",
-        "raw_text": request.raw_text,
-        "work_model": request.work_model,
-        "category": request.category,
-        "metadata": meta,
-    }
-
-    from app.modules.job_discovery.quality import assess_listing_quality
-
-    verdict = assess_listing_quality(lead, min_chars=int(settings.JOB_INDEX_MIN_JD_CHARS))
-    quality_ok = bool(verdict.get("ok"))
-    quality_reason = str(verdict.get("reason") or "unknown")
-    if settings.JOB_INDEX_QUALITY_GATE and not quality_ok and not request.force:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "message": "Listing failed quality gate",
-                "reason": quality_reason,
-                "body_len": verdict.get("body_len"),
-                "hint": "Paste a fuller JD, add an http(s) apply URL, or retry with force=true.",
-            },
-        )
-
-    meta["quality"] = {
-        "ok": quality_ok,
-        "reason": quality_reason,
-        "body_len": verdict.get("body_len"),
-        "forced": bool(request.force and not quality_ok),
-    }
-    lead["metadata"] = meta
-
-    listing_id, created = job_index.upsert_lead(lead)
-    urls = _workbench_urls(listing_id)
-    return JobIndexLeadResponse(
-        id=listing_id,
-        created=created,
-        source_platform=str(lead["source_platform"]),
-        quality_ok=quality_ok,
-        quality_reason=quality_reason,
-        **urls,
-    )
 
 @router.get("/index/stats", response_model=JobIndexStatsResponse)
 async def job_index_stats():
@@ -371,6 +254,7 @@ async def reclassify_job_index():
     n = db.backfill_listing_categories(classify_job)
     return {"updated": n, "counts": db.count_job_listings_by_category("active")}
 
+
 class AutoDiscoverRequest(BaseModel):
     user_id: UUID
     query: str | None = None
@@ -388,7 +272,10 @@ async def auto_discover_jobs(request: AutoDiscoverRequest):
             parsed = resume.get("parsed") or {}
             query = parsed.get("title") or ""
         if not query:
-            raise HTTPException(status_code=400, detail="No resume found. Please upload a resume or provide a search query.")
+            raise HTTPException(
+                status_code=400,
+                detail="No resume found. Please upload a resume or provide a search query.",
+            )
 
     discover_request = JobDiscoverRequest(
         user_id=request.user_id,
@@ -432,16 +319,26 @@ async def recommended_jobs(user_id: UUID = Query(...), top_n: int = Query(10, ge
     all_jobs = db.list_jobs(str(user_id), limit=200)
     processed = db.list_processed_job_ids(str(user_id))
     filtered = [
-        {"id": j["id"], "title": j["title"], "company": j["company"], "location": j["location"],
-         "source_platform": j["source_platform"], "source_url": j["source_url"],
-         "match_score": j.get("match_score"), "raw_text": j["raw_text"], "parsed": j["parsed"],
-         "created_at": j["created_at"]}
+        {
+            "id": j["id"],
+            "title": j["title"],
+            "company": j["company"],
+            "location": j["location"],
+            "source_platform": j["source_platform"],
+            "source_url": j["source_url"],
+            "match_score": j.get("match_score"),
+            "raw_text": j["raw_text"],
+            "parsed": j["parsed"],
+            "created_at": j["created_at"],
+        }
         for j in all_jobs
         if j.get("match_score") is not None and j["match_score"] >= 85 and j["id"] not in processed
     ]
     filtered.sort(key=lambda x: x["match_score"] or 0, reverse=True)
     top = filtered[:top_n]
-    return JobRecommendResponse(jobs=top, total_candidates=len(filtered), already_processed=len(processed))
+    return JobRecommendResponse(
+        jobs=top, total_candidates=len(filtered), already_processed=len(processed)
+    )
 
 
 @router.get("/history", response_model=JobHistoryResponse)
@@ -471,27 +368,46 @@ async def prepare_application_for_job(job_id: UUID, request: JobPrepareApplicati
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    tailored = await tailor_service.tailor(
-        user_id=request.user_id,
-        resume_id=request.resume_id,
+    user_id = str(request.user_id)
+    session = workspace_service.create_session(
+        user_id=user_id,
         jd_text=job["raw_text"],
-        job_id=job_id,
+        job_id=str(job_id),
     )
-    db.record_job_action(str(request.user_id), str(job_id), "resume_prepared",
-                         {"tailored_resume_id": tailored.get("tailored_resume_id")})
+    rewrite = await workspace_service.rewrite(
+        user_id=user_id,
+        session_id=session["id"],
+        instruction="Tailor resume for this role from the job description.",
+    )
+    version_id = rewrite["new_version_id"]
+    full_resume = rewrite.get("full_resume") or {}
+    tailored = {
+        "tailored_resume_id": version_id,
+        "draft_id": version_id,
+        "tailored_resume": full_resume,
+        "markdown": rewrite.get("markdown") or "",
+        "session_id": session["id"],
+        "content_delta": rewrite.get("content_delta") or {},
+    }
+    db.record_job_action(
+        user_id,
+        str(job_id),
+        "resume_prepared",
+        {"tailored_resume_id": version_id, "session_id": session["id"]},
+    )
 
     cover_letter = None
     if request.include_cover_letter:
-        original_resume = tailor_service._rebuild_resume_data(str(request.user_id))
+        original_resume = get_master_inventory(user_id) or full_resume
         generated = await cover_letter_node.run(
             job=job,
-            tailored_resume=tailored.get("tailored_resume") or {},
+            tailored_resume=full_resume,
             original_resume=original_resume,
         )
         cover_letter_id = db.save_cover_letter(
-            user_id=str(request.user_id),
+            user_id=user_id,
             job_id=str(job_id),
-            tailored_resume_id=tailored.get("tailored_resume_id"),
+            tailored_resume_id=version_id,
             text=generated["text"],
             metadata={"model": generated.get("model"), "source": generated.get("source")},
         )
@@ -499,38 +415,63 @@ async def prepare_application_for_job(job_id: UUID, request: JobPrepareApplicati
 
     application_plan = None
     if request.include_application_plan:
-        user = db.get_user(str(request.user_id)) or {}
-        profile = {**user, **(db.get_profile(str(request.user_id)) or {}), **request.user_profile}
+        user = db.get_user(user_id) or {}
+        profile = {**user, **(db.get_profile(user_id) or {}), **request.user_profile}
         artifacts = create_application_artifacts(
-            user_id=str(request.user_id),
+            user_id=user_id,
             application_run_id=str(job_id),
-            draft=tailor_service.get_draft(request.user_id, tailored.get("draft_id")) if tailored.get("draft_id") else None,
+            draft={
+                "markdown": tailored.get("markdown") or "",
+                "full_resume": full_resume,
+            },
             cover_letter=cover_letter,
+            company=job.get("company"),
+            position=job.get("title"),
         )
         planned = application_planner.build_plan(
             job=job,
             user_profile=profile,
-            tailored_resume_id=tailored.get("tailored_resume_id"),
+            tailored_resume_id=version_id,
             auto_submit=request.auto_submit,
             submit_mode=request.submit_mode,
             artifacts=artifacts,
         )
         planned["plan"]["cover_letter_id"] = cover_letter["id"] if cover_letter else None
         run_id = save_application_plan(
-            user_id=str(request.user_id),
+            user_id=user_id,
             job_id=str(job_id),
-            tailored_resume_id=tailored.get("tailored_resume_id"),
+            tailored_resume_id=version_id,
             ats_type=planned["plan"]["ats_type"],
             plan=planned["plan"],
             answers=planned["answers"],
             submit_mode=planned["plan"]["mode"],
         )
-        action = "auto_submitted" if planned["plan"]["mode"] == "auto_submit" else "prepared_for_submit"
-        db.record_job_action(str(request.user_id), str(job_id), action,
-                             {"application_run_id": run_id, "ats_type": planned["plan"]["ats_type"]})
-        audit(str(request.user_id), "job_application_package_prepared", {"job_id": str(job_id)}, application_run_id=run_id)
-        status = "prepared_for_auto_submit" if planned["plan"]["mode"] == "auto_submit" else "prepared_pending_manual_review"
-        db.update_application_run_status(run_id=run_id, user_id=str(request.user_id), status=status, submission_result={})
+        action = (
+            "auto_submitted" if planned["plan"]["mode"] == "auto_submit" else "prepared_for_submit"
+        )
+        db.record_job_action(
+            user_id,
+            str(job_id),
+            action,
+            {"application_run_id": run_id, "ats_type": planned["plan"]["ats_type"]},
+        )
+        audit(
+            user_id,
+            "job_application_package_prepared",
+            {"job_id": str(job_id)},
+            application_run_id=run_id,
+        )
+        status = (
+            "prepared_for_auto_submit"
+            if planned["plan"]["mode"] == "auto_submit"
+            else "prepared_pending_manual_review"
+        )
+        db.update_application_run_status(
+            run_id=run_id,
+            user_id=user_id,
+            status=status,
+            submission_result={},
+        )
         application_plan = {"application_run_id": run_id, "status": status, **planned}
 
     return JobPrepareApplicationResponse(
@@ -615,7 +556,7 @@ async def to_resume_workspace(job_id: str, user_id: str = Query(...)):
 
 @router.get("/sources/list", response_model=dict)
 async def list_sources(user_id: str = Query(...)):
-    return {"sources": job_list_service.get_available_sources(user_id=user_id)}
+    return {"sources": job_list_service.get_available_sources()}
 
 
 def _synthetic_job_text(query: str, location: str | None, idx: int) -> str:

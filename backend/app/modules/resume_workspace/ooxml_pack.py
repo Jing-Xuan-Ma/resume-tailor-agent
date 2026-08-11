@@ -24,8 +24,3 @@ def write_document_xml(docx_bytes: bytes, document_xml: str) -> bytes:
             dst.writestr(info, data)
     src.close()
     return out_buf.getvalue()
-
-
-def read_member(docx_bytes: bytes, name: str) -> bytes:
-    with ZipFile(BytesIO(docx_bytes)) as z:
-        return z.read(name)

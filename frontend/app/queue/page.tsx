@@ -2,21 +2,22 @@
 
 import AuthGate from "@/components/auth-gate";
 import ApplicationQueuePanel from "@/components/application-queue-panel";
+import AppTopNav from "@/components/app-top-nav";
 import FlowStepper from "@/components/flow-stepper";
 
 export default function QueuePage() {
   return (
     <AuthGate>
-      {({ user }) => (
+      {({ user, onLogout }) => (
         <div className="min-h-screen bg-[#f4f6f4] text-slate-950" data-testid="queue-page">
-          <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur">
+          <AppTopNav
+            active="records"
+            displayName={user.full_name || user.email}
+            onLogout={onLogout}
+          />
+          <header className="border-b border-slate-200 bg-white">
             <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                  Resume Agent
-                </p>
-                <h1 className="text-sm font-bold">Apply queue</h1>
-              </div>
+              <h1 className="text-sm font-bold">Apply queue</h1>
               <FlowStepper
                 current="apply"
                 hrefs={{

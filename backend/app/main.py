@@ -2,9 +2,9 @@
 Resume Tailor Agent — FastAPI Entry Point
 """
 
-import structlog
 from contextlib import asynccontextmanager
 
+import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -16,13 +16,12 @@ from app.modules.auth.router import router as auth_router
 from app.modules.chat.router import router as chat_router
 from app.modules.cold_outreach.router import router as cold_outreach_router
 from app.modules.commercial.boundaries import router as commercial_router
-from app.modules.growth_advisor.router import router as growth_advisor_router
 from app.modules.job_discovery.router import router as job_discovery_router
-from app.modules.profile.router import router as profile_router
-from app.modules.resume_tailor.router import router as resume_tailor_router
-from app.modules.resume_workspace.router import router as resume_workspace_router
 from app.modules.llm.router import router as llm_router
-from app.modules.form_fill_engine.api import router as form_fill_engine_router
+from app.modules.profile.router import router as profile_router
+from app.modules.resume_workspace.router import router as resume_workspace_router
+from app.modules.shopping_cart.router import router as shopping_cart_router
+from app.modules.intern_list_viewer.mount import mount_intern_list_viewer
 
 logger = structlog.get_logger()
 
@@ -47,7 +46,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS (explicit origins + optional chrome-extension:// regex for Jobright bridge)
+# CORS
 _cors_kwargs: dict = {
     "allow_origins": settings.CORS_ORIGINS_LIST,
     "allow_credentials": True,
@@ -72,18 +71,17 @@ async def health_check():
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(chat_router, prefix="/api/v1/chat", tags=["Chat"])
 app.include_router(profile_router, prefix="/api/v1/profile", tags=["Profile"])
-app.include_router(resume_tailor_router, prefix="/api/v1/resume-tailor", tags=["Resume Tailor"])
 app.include_router(job_discovery_router, prefix="/api/v1/jobs", tags=["Job Discovery"])
 app.include_router(application_engine_router, prefix="/api/v1/applications", tags=["Application Engine"])
 app.include_router(application_queue_router, prefix="/api/v1/queue", tags=["Application Queue"])
+app.include_router(shopping_cart_router, prefix="/api/v1/shopping-cart", tags=["Shopping Cart"])
 app.include_router(cold_outreach_router, prefix="/api/v1/outreach", tags=["Cold Outreach"])
 app.include_router(commercial_router, prefix="/api/v1/commercial", tags=["Commercial"])
-app.include_router(growth_advisor_router, prefix="/api/v1/growth", tags=["Growth Advisor"])
 app.include_router(resume_workspace_router, prefix="/api/v1/resume-workspace", tags=["Resume Workspace"])
 app.include_router(llm_router, prefix="/api/v1/llm", tags=["LLM"])
-# Form-Fill Decision Engine — shared by Playwright + Chrome extension drivers
-app.include_router(form_fill_engine_router, prefix="/engine", tags=["Form-Fill Engine"])
-app.include_router(form_fill_engine_router, prefix="/api/v1/engine", tags=["Form-Fill Engine"])
+
+# Embed former :8101 intern-list acceptance UI (no separate process required).
+mount_intern_list_viewer(app)
 
 
 if __name__ == "__main__":

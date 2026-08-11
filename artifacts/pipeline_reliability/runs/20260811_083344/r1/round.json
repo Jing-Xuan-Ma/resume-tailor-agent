@@ -1,0 +1,114 @@
+{
+  "round": 1,
+  "started_at": "2026-08-11T00:33:53.578630+00:00",
+  "job_offset": 0,
+  "errors": [
+    "no_ready_to_submit_open_form_buttons",
+    "all_items_failed_apply"
+  ],
+  "jobs": [],
+  "stages_ms": {
+    "select_jobs": 7757,
+    "refine": 156034,
+    "apply": 18086,
+    "open_form": 0,
+    "verify_submit_ui": 96
+  },
+  "gates": {
+    "A1_ui_opens": true,
+    "A2_select": true,
+    "A3_refine": true,
+    "A4_apply": true,
+    "A6_open_form": false,
+    "A5_official_ats": false,
+    "A7_timing": true
+  },
+  "jobs_planned": [
+    {
+      "job_id": "6a79c504b17cba5690363a0d",
+      "company": "TikTok",
+      "title": "Software Engineer Intern (Global E-commerce-Search) - 2027 Summer"
+    },
+    {
+      "job_id": "6a79c504a26ccc369f83abed",
+      "company": "TikTok",
+      "title": "Software Engineer Intern (Global E-commerce-Search) - 2027 Fall"
+    },
+    {
+      "job_id": "6a5af8c4686b4755d1e17d68",
+      "company": "Scale AI",
+      "title": "Technical Advisor Specialist (Part-Time Internship)"
+    }
+  ],
+  "cart_url": "http://127.0.0.1:3000/shoppingcart?internJobIds=6a79c504b17cba5690363a0d%2C6a79c504a26ccc369f83abed%2C6a5af8c4686b4755d1e17d68&from=intern-list",
+  "selected_ids": [
+    "6a79c504b17cba5690363a0d",
+    "6a79c504a26ccc369f83abed",
+    "6a5af8c4686b4755d1e17d68"
+  ],
+  "refine_wait": {
+    "elapsed_ms": 153503,
+    "generating": false,
+    "bar_snippet": "已勾选可投递 3/3 · queued 0 · ready_to_submit 0 · failed 0\n投递已勾选（3）",
+    "items_guess": 5,
+    "done": true
+  },
+  "apply_wait": {
+    "elapsed_ms": 15111,
+    "busy": false,
+    "bar": "已勾选可投递 3/3 · queued 0 · ready_to_submit 0 · failed 3\nQueued 3; ok 0, failed 3 (through Phase 5: form fill → ready_to_submit).\n投递已勾选（3）",
+    "open_form_buttons": 0,
+    "items": [],
+    "done": true
+  },
+  "ready_open_form_count": 0,
+  "open_form_results": [],
+  "cart_id": "3c1f3000-8910-4ef2-8ad3-806533a3a350",
+  "apply_status_api": {
+    "counts": {
+      "idle": 0,
+      "queued": 0,
+      "navigating": 0,
+      "on_ats": 0,
+      "applying": 0,
+      "registered": 0,
+      "filled": 0,
+      "ready_to_submit": 0,
+      "submitted": 0,
+      "failed": 3
+    },
+    "queued": 0,
+    "navigating": 0,
+    "on_ats": 0,
+    "applying": 0,
+    "registered": 0,
+    "filled": 0,
+    "ready_to_submit": 0,
+    "failed": 3,
+    "submitted": 0
+  },
+  "items_api": [
+    {
+      "company": "TikTok",
+      "status": "failed",
+      "ats_url": null,
+      "official": false,
+      "error": "original_job_post_not_found"
+    },
+    {
+      "company": "TikTok",
+      "status": "failed",
+      "ats_url": null,
+      "official": false,
+      "error": "original_job_post_not_found"
+    },
+    {
+      "company": "Scale AI",
+      "status": "failed",
+      "ats_url": null,
+      "official": false,
+      "error": "original_job_post_not_found"
+    }
+  ],
+  "ended_at": "2026-08-11T00:36:55.554923+00:00"
+}

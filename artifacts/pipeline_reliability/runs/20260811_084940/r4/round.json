@@ -1,0 +1,143 @@
+{
+  "round": 4,
+  "started_at": "2026-08-11T01:18:07.149772+00:00",
+  "job_offset": 9,
+  "errors": [],
+  "jobs": [],
+  "stages_ms": {
+    "select_jobs": 17320,
+    "refine": 187109,
+    "apply": 63316,
+    "open_form": 26512,
+    "verify_submit_ui": 106
+  },
+  "gates": {
+    "A1_ui_opens": true,
+    "A2_select": true,
+    "A3_refine": true,
+    "A4_apply": true,
+    "A6_open_form": true,
+    "A5_official_ats": true,
+    "A7_timing": true
+  },
+  "jobs_planned": [
+    {
+      "job_id": "6a77c63a67a1ad0bc53cce34",
+      "company": "Postman",
+      "title": "AI Engineer, Internship - Summer 2026 - Applications Open Now",
+      "ats_url": "https://job-boards.greenhouse.io/postman/jobs/7823417003",
+      "ats_method": "company_ats_resolver"
+    },
+    {
+      "job_id": "6a23b8acd46c0f799608597d",
+      "company": "Scale AI",
+      "title": "AI Builder Intern",
+      "ats_url": "https://job-boards.greenhouse.io/scaleai/jobs/4703343005",
+      "ats_method": "company_ats_resolver"
+    },
+    {
+      "job_id": "6a535a768ef95364ead91ec8",
+      "company": "Scale AI",
+      "title": "AI Builder Intern",
+      "ats_url": "https://job-boards.greenhouse.io/scaleai/jobs/4703343005",
+      "ats_method": "company_ats_resolver"
+    }
+  ],
+  "cart_url": "http://127.0.0.1:3000/shoppingcart?internJobIds=6a77c63a67a1ad0bc53cce34,6a23b8acd46c0f799608597d,6a535a768ef95364ead91ec8&from=intern-list",
+  "selected_ids": [
+    "6a77c63a67a1ad0bc53cce34",
+    "6a23b8acd46c0f799608597d",
+    "6a535a768ef95364ead91ec8"
+  ],
+  "refine_wait": {
+    "elapsed_ms": 181310,
+    "generating": false,
+    "bar_snippet": "已勾选可投递 3/3 · queued 0 · ready_to_submit 0 · failed 0\n投递已勾选（3）",
+    "confirm_buttons": 1,
+    "ready_md_mentions": 3,
+    "done": true,
+    "partial": true
+  },
+  "confirm_pdf": {
+    "clicked": 0,
+    "errors": [],
+    "buttons": 0
+  },
+  "apply_wait": {
+    "elapsed_ms": 60369,
+    "busy": false,
+    "bar": "已勾选可投递 3/3 · queued 0 · ready_to_submit 3 · failed 0\nQueued 3; ok 12, failed 0 (through Phase 5: form fill → ready_to_submit).\n投递已勾选（3）",
+    "open_form_buttons": 3,
+    "items": [],
+    "done": true
+  },
+  "ready_open_form_count": 3,
+  "open_form_results": [
+    {
+      "index": 0,
+      "ui_message": "Opened official ATS and re-filled the form for review (Submit not clicked).",
+      "ms": 8744,
+      "ok": true
+    },
+    {
+      "index": 1,
+      "ui_message": "Opened official ATS and re-filled the form for review (Submit not clicked).",
+      "ms": 8750,
+      "ok": true
+    },
+    {
+      "index": 2,
+      "ui_message": "Opened official ATS and re-filled the form for review (Submit not clicked).",
+      "ms": 8741,
+      "ok": true
+    }
+  ],
+  "cart_id": "21222a2a-2bd4-4b80-a2db-87cb87cb3faa",
+  "apply_status_api": {
+    "counts": {
+      "idle": 0,
+      "queued": 0,
+      "navigating": 0,
+      "on_ats": 0,
+      "applying": 0,
+      "registered": 0,
+      "filled": 0,
+      "ready_to_submit": 3,
+      "submitted": 0,
+      "failed": 0
+    },
+    "queued": 0,
+    "navigating": 0,
+    "on_ats": 0,
+    "applying": 0,
+    "registered": 0,
+    "filled": 0,
+    "ready_to_submit": 3,
+    "failed": 0,
+    "submitted": 0
+  },
+  "items_api": [
+    {
+      "company": "Postman",
+      "status": "ready_to_submit",
+      "ats_url": "https://job-boards.greenhouse.io/postman/jobs/7823417003",
+      "official": true,
+      "error": null
+    },
+    {
+      "company": "Scale AI",
+      "status": "ready_to_submit",
+      "ats_url": "https://job-boards.greenhouse.io/scaleai/jobs/4703343005",
+      "official": true,
+      "error": null
+    },
+    {
+      "company": "Scale AI",
+      "status": "ready_to_submit",
+      "ats_url": "https://job-boards.greenhouse.io/scaleai/jobs/4703343005",
+      "official": true,
+      "error": null
+    }
+  ],
+  "ended_at": "2026-08-11T01:23:01.514785+00:00"
+}

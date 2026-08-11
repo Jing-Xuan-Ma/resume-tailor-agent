@@ -1,9 +1,9 @@
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-
 
 client = TestClient(app)
 
@@ -13,12 +13,6 @@ def test_health_check() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "healthy"
-
-
-def test_persistent_tailored_resume_lookup_returns_404_for_missing_record() -> None:
-    response = client.get(f"/api/v1/resume-tailor/tailored/{uuid4()}")
-
-    assert response.status_code == 404
 
 
 def test_auth_register_login_and_me() -> None:
@@ -46,22 +40,6 @@ def test_profile_api_persists_feedback() -> None:
     )
     assert response.status_code == 200
     assert response.json()["profile"]["verbosity"] == "concise"
-
-
-def test_upload_resume_returns_durable_resume_id_and_latest_record() -> None:
-    user_id = uuid4()
-    response = client.post(
-        "/api/v1/resume-tailor/upload-resume",
-        json={"user_id": str(user_id), "resume_text": "Jane Doe\nPython analyst with SQL experience."},
-    )
-    assert response.status_code == 200
-    body = response.json()
-    assert body["resume_id"]
-    assert body["embedded_count"] > 0
-
-    latest = client.get(f"/api/v1/resume-tailor/resumes/latest?user_id={user_id}")
-    assert latest.status_code == 200
-    assert latest.json()["id"] == body["resume_id"]
 
 
 def test_phase2_job_discovery_creates_jobs() -> None:
@@ -130,7 +108,11 @@ def test_ats_detection_for_common_platforms() -> None:
         user_id = uuid4()
         ingest = client.post(
             "/api/v1/jobs/ingest",
-            json={"user_id": str(user_id), "raw_text": "Engineer\nRequirements: Python", "source_url": url},
+            json={
+                "user_id": str(user_id),
+                "raw_text": "Engineer\nRequirements: Python",
+                "source_url": url,
+            },
         )
         job_id = ingest.json()["id"]
         plan = client.post(
@@ -169,32 +151,17 @@ def test_connector_hints_are_exposed_in_application_plan() -> None:
     assert "first name" in first_name["aliases"]
 
 
+@pytest.mark.network
 def test_prepare_application_for_job_creates_resume_cover_letter_and_plan() -> None:
     user_id = uuid4()
-    resume_id = uuid4()
-    resume_text = """Jane Doe
-jane@example.com
-Data analyst with Python and SQL experience.
-
-PROFESSIONAL EXPERIENCE
-Data Analyst | Example Analytics | Remote - 2022 - Present
-• Built Python and SQL dashboards for weekly business reporting.
-• Automated data quality checks and reduced manual review time by 30%.
-
-SKILLS & CERTIFICATIONS
-Python, SQL, FastAPI, Tableau
-"""
-    upload = client.post(
-        "/api/v1/resume-tailor/upload-resume",
-        json={"user_id": str(user_id), "resume_text": resume_text},
-    )
-    assert upload.status_code == 200
-
     ingest = client.post(
         "/api/v1/jobs/ingest",
         json={
             "user_id": str(user_id),
-            "raw_text": "Data Analyst\nCompany: Example Co\nRequirements: Python, SQL, dashboards, reporting",
+            "raw_text": (
+                "Data Analyst\nCompany: Example Co\n"
+                "Requirements: Python, SQL, dashboards, reporting"
+            ),
             "source_url": "https://job-boards.greenhouse.io/example/jobs/456",
             "source_platform": "greenhouse",
         },
@@ -206,7 +173,6 @@ Python, SQL, FastAPI, Tableau
         f"/api/v1/jobs/{job_id}/prepare-application",
         json={
             "user_id": str(user_id),
-            "resume_id": str(resume_id),
             "include_cover_letter": True,
             "include_application_plan": True,
             "auto_submit": True,
@@ -223,7 +189,9 @@ Python, SQL, FastAPI, Tableau
     assert body["application_plan"]["plan"]["cover_letter_id"] == body["cover_letter"]["id"]
     assert body["application_plan"]["plan"]["artifacts"].get("resume")
     assert body["application_plan"]["plan"]["artifacts"].get("cover_letter")
-    resume_answer = next(answer for answer in body["application_plan"]["answers"] if answer["field_name"] == "resume")
+    resume_answer = next(
+        answer for answer in body["application_plan"]["answers"] if answer["field_name"] == "resume"
+    )
     assert resume_answer["answer"].endswith(("resume.pdf", "resume.txt"))
 
 
@@ -307,7 +275,12 @@ def test_cold_outreach_draft_and_mark_sent() -> None:
 
     draft = client.post(
         "/api/v1/outreach/draft",
-        json={"user_id": str(user_id), "job_id": job_id, "contact_name": "Alex", "channel": "email"},
+        json={
+            "user_id": str(user_id),
+            "job_id": job_id,
+            "contact_name": "Alex",
+            "channel": "email",
+        },
     )
     assert draft.status_code == 200
     body = draft.json()
@@ -317,32 +290,3 @@ def test_cold_outreach_draft_and_mark_sent() -> None:
     sent = client.post(f"/api/v1/outreach/{body['id']}/mark-sent", json={"user_id": str(user_id)})
     assert sent.status_code == 200
     assert sent.json()["status"] == "sent_by_user"
-
-
-def test_growth_advisor_creates_gap_plan() -> None:
-    user_id = uuid4()
-    upload = client.post(
-        "/api/v1/resume-tailor/upload-resume",
-        json={"user_id": str(user_id), "resume_text": "Jane Doe\nPython analyst with SQL dashboard experience."},
-    )
-    assert upload.status_code == 200
-    ingest = client.post(
-        "/api/v1/jobs/ingest",
-        json={
-            "user_id": str(user_id),
-            "raw_text": "Machine Learning Engineer\nRequirements: Python, Kubernetes, model monitoring, CI/CD",
-            "source_platform": "manual",
-        },
-    )
-    assert ingest.status_code == 200
-
-    plan = client.post(
-        "/api/v1/growth/analyze",
-        json={"user_id": str(user_id), "job_id": ingest.json()["id"]},
-    )
-    assert plan.status_code == 200
-    body = plan.json()
-    assert body["target_role"]
-    assert body["gaps"]
-    assert body["recommendations"]
-    assert body["roadmap"]

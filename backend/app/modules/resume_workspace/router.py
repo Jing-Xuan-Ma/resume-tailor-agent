@@ -1,29 +1,46 @@
-from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Form
-from fastapi.responses import Response
+from pathlib import Path
 
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import Response
+from pydantic import BaseModel
+
+from app import db
+from app.modules.resume_workspace.apply_flow import (
+    confirm_submit,
+    get_apply,
+    start_apply,
+    start_apply_async,
+)
+from app.modules.resume_workspace.constitution import constitution_api_payload
 from app.modules.resume_workspace.schemas import (
-    CreateJdSessionRequest,
-    CreateJdSessionResponse,
-    AnalyzeResponse,
-    KeywordMatchItem,
-    RewriteRequest,
-    RewriteResponse,
+    ActivateTemplateResponse,
     AgentTurnRequest,
     AgentTurnResponse,
+    AnalyzeResponse,
     ConfirmResponse,
+    ConfirmSectionMappingRequest,
+    ConfirmSectionMappingResponse,
     ConfirmSubmitRequest,
     ConfirmSubmitResponse,
-    SuggestProjectRequest,
-    SuggestProjectResponse,
-    ListVersionsResponse,
-    VersionItem,
+    CreateJdSessionRequest,
+    CreateJdSessionResponse,
     GetVersionResponse,
+    KeywordMatchItem,
+    ListTemplatesResponse,
+    ListVersionsResponse,
+    RewriteRequest,
+    RewriteResponse,
     StartApplyRequest,
     StartApplyResponse,
+    SuggestProjectRequest,
+    SuggestProjectResponse,
+    TemplateVersionItem,
+    UnmappedSection,
+    UploadTemplateResponse,
+    VersionItem,
 )
 from app.modules.resume_workspace.service import ResumeWorkspaceService
-from app.modules.resume_workspace.apply_flow import start_apply, start_apply_async, get_apply, confirm_submit
-from app.modules.resume_workspace.constitution import constitution_api_payload
+from app.modules.resume_workspace.tech_evidence import run_tech_evidence_scan
 
 router = APIRouter()
 workspace_service = ResumeWorkspaceService()
@@ -264,13 +281,16 @@ async def suggest_project(version_id: str, request: SuggestProjectRequest):
 async def list_versions(session_id: str, user_id: str = Query(...)):
     versions = workspace_service.list_versions(session_id, user_id)
     return ListVersionsResponse(
-        versions=[VersionItem(
-            id=v["id"],
-            version_index=v["version_index"],
-            is_confirmed=bool(v["is_confirmed"]),
-            created_at=v["created_at"],
-            confirmed_at=v.get("confirmed_at"),
-        ) for v in versions]
+        versions=[
+            VersionItem(
+                id=v["id"],
+                version_index=v["version_index"],
+                is_confirmed=bool(v["is_confirmed"]),
+                created_at=v["created_at"],
+                confirmed_at=v.get("confirmed_at"),
+            )
+            for v in versions
+        ]
     )
 
 
@@ -313,7 +333,11 @@ async def export_version(version_id: str, user_id: str = Query(...), format: str
     return Response(
         content=data,
         media_type=media_types.get(fmt, "application/octet-stream"),
-        headers={"Content-Disposition": f'attachment; filename="resume-v{version["version_index"]}.{fmt}"'},
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="resume-v{version["version_index"]}.{fmt}"'
+            )
+        },
     )
 
 
@@ -329,18 +353,27 @@ async def preview_version_pdf(version_id: str, user_id: str = Query(...)):
     return Response(content=pdf, media_type="application/pdf")
 
 
-@router.post("/template/upload")
+@router.post("/template/upload", response_model=UploadTemplateResponse)
 async def upload_template(
     user_id: str = Form(...),
-    file: UploadFile = File(...),
+    file: UploadFile = File(...),  # noqa: B008 - standard FastAPI upload dependency pattern
 ):
+    filename = file.filename or "resume.docx"
+    if not filename.lower().endswith(".docx"):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Only .docx files are accepted "
+                "(run-level XML editing requires Word's native structure)."
+            ),
+        )
     contents = await file.read()
     result = workspace_service.upload_template(
         user_id=user_id,
-        filename=file.filename or "resume.docx",
+        filename=filename,
         docx_bytes=contents,
     )
-    return result
+    return UploadTemplateResponse(**result)
 
 
 @router.get("/template/active")
@@ -352,5 +385,134 @@ async def get_active_template(user_id: str = Query(...)):
         "template_id": template["id"],
         "filename": template["filename"],
         "block_count": len(template["parsed_blocks"]),
+        "resume_structure": template.get("parsed_structure") or {},
+        "unmapped_sections": template.get("unmapped_sections") or [],
         "created_at": template["created_at"],
     }
+
+
+@router.get("/templates", response_model=ListTemplatesResponse)
+async def list_templates(user_id: str = Query(...)):
+    """Full upload history for a user — most recent first. Lets the UI offer
+    'view/roll back to a previous version' instead of only ever seeing latest."""
+    versions = workspace_service.list_template_versions(user_id)
+    return ListTemplatesResponse(
+        templates=[
+            TemplateVersionItem(
+                id=v["id"],
+                filename=v["filename"],
+                is_active=bool(v["is_active"]),
+                resume_structure=v.get("parsed_structure") or {},
+                unmapped_sections=[
+                    UnmappedSection(**s) for s in (v.get("unmapped_sections") or [])
+                ],
+                created_at=v["created_at"],
+                updated_at=v["updated_at"],
+            )
+            for v in versions
+        ]
+    )
+
+
+@router.post("/template/{template_id}/activate", response_model=ActivateTemplateResponse)
+async def activate_template(template_id: str, user_id: str = Query(...)):
+    """Roll back / switch to a previously uploaded resume version."""
+    result = workspace_service.activate_template_version(template_id, user_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Template version not found")
+    return ActivateTemplateResponse(**result)
+
+
+@router.post("/template/section-mapping", response_model=ConfirmSectionMappingResponse)
+async def confirm_section_mapping(request: ConfirmSectionMappingRequest):
+    """User confirms what an unrecognized section heading (e.g. a custom title)
+    actually maps to. Saved for reuse so future uploads with the same heading
+    don't need re-confirming, and re-parses the active template immediately."""
+    try:
+        result = workspace_service.confirm_section_mapping(
+            request.user_id, request.raw_title, request.section_type
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return ConfirmSectionMappingResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# Tech Evidence (Phase 2-pre) — scan a repo, stage candidates as 'pending',
+# only persist to the confirmed evidence base after explicit user review.
+# ---------------------------------------------------------------------------
+
+
+class ScanRepoRequest(BaseModel):
+    user_id: str
+    repo_path: str
+
+
+class TechEvidenceDecision(BaseModel):
+    id: str
+    action: str  # "confirm" | "reject"
+    skill: str | None = None
+    evidence_description: str | None = None
+
+
+class ConfirmTechEvidenceRequest(BaseModel):
+    user_id: str
+    decisions: list[TechEvidenceDecision]
+
+
+@router.post("/tech-evidence/scan")
+async def scan_tech_evidence(request: ScanRepoRequest):
+    """Run Phase 2-pre extraction. Nothing here is 'confirmed' yet — every
+    result lands as pending/auto_rejected, awaiting explicit user review."""
+    repo_path = Path(request.repo_path).expanduser().resolve()
+    if not repo_path.is_dir():
+        raise HTTPException(status_code=400, detail=f"repo_path not found: {repo_path}")
+    entries = run_tech_evidence_scan(repo_path)
+    payload = [
+        {
+            "skill": e.skill,
+            "evidence_file": e.evidence_file,
+            "evidence_description": e.evidence_description,
+            "verified": e.verified,
+            "reject_reason": e.reject_reason,
+        }
+        for e in entries
+    ]
+    ids = db.save_tech_evidence_batch(
+        user_id=request.user_id,
+        source_repo=str(repo_path),
+        entries=payload,
+    )
+    for row_id, item in zip(ids, payload, strict=True):
+        item["id"] = row_id
+    return {
+        "total": len(payload),
+        "verified": sum(1 for p in payload if p["verified"]),
+        "auto_rejected": sum(1 for p in payload if not p["verified"]),
+        "entries": payload,
+    }
+
+
+@router.get("/tech-evidence")
+async def list_tech_evidence(user_id: str = Query(...), status: str | None = Query(None)):
+    return {"entries": db.list_tech_evidence(user_id, status=status)}
+
+
+@router.post("/tech-evidence/confirm")
+async def confirm_tech_evidence(request: ConfirmTechEvidenceRequest):
+    """The human-review gate: only entries the user explicitly confirms (with
+    optional edits) become part of the evidence base Phase 2a can read."""
+    results = []
+    for decision in request.decisions:
+        if decision.action not in {"confirm", "reject"}:
+            raise HTTPException(status_code=400, detail=f"invalid action: {decision.action}")
+        status = "confirmed" if decision.action == "confirm" else "rejected"
+        ok = db.set_tech_evidence_status(
+            evidence_id=decision.id,
+            user_id=request.user_id,
+            status=status,
+            skill=decision.skill,
+            evidence_description=decision.evidence_description,
+        )
+        results.append({"id": decision.id, "status": status, "applied": ok})
+    return {"results": results}

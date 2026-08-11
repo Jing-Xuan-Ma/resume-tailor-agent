@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import AppTopNav from "@/components/app-top-nav";
 import FlowStepper from "@/components/flow-stepper";
 import {
   EditableTierPanel,
@@ -55,11 +56,12 @@ interface ApplyWorkspaceProps {
   jobId?: string;
   company?: string;
   position?: string;
-  returnTo?: string;
   sourceUrl?: string;
   initialFinalPath?: string;
   initialApplyId?: string;
   initialSessionId?: string;
+  displayName?: string;
+  onLogout?: () => void;
 }
 
 function applyStorageKey(versionId: string) {
@@ -72,11 +74,12 @@ export default function ApplyWorkspace({
   jobId,
   company: initialCompany,
   position: initialPosition,
-  returnTo,
   sourceUrl: initialSourceUrl,
   initialFinalPath,
   initialApplyId,
   initialSessionId,
+  displayName,
+  onLogout,
 }: ApplyWorkspaceProps) {
   const [versionId, setVersionId] = useState(initialVersionId || "");
   const [sessionId, setSessionId] = useState(initialSessionId || "");
@@ -113,9 +116,8 @@ export default function ApplyWorkspace({
     if (jobId) q.set("jobId", jobId);
     if (sessionId) q.set("sessionId", sessionId);
     if (versionId) q.set("versionId", versionId);
-    if (returnTo) q.set("returnTo", returnTo);
     return `/?${q.toString()}`;
-  }, [jobId, returnTo, sessionId, versionId]);
+  }, [jobId, sessionId, versionId]);
 
   const outreachHref = useMemo(() => {
     const q = new URLSearchParams();
@@ -506,17 +508,10 @@ export default function ApplyWorkspace({
 
   return (
     <div className="min-h-screen bg-[#f4f6f4] text-slate-950" data-testid="apply-workspace-page">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <AppTopNav active="tailor" displayName={displayName} onLogout={onLogout} />
+      <header className="border-b border-slate-200 bg-white/95">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            {returnTo ? (
-              <a
-                href={returnTo}
-                className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800"
-              >
-                ← Jobright
-              </a>
-            ) : null}
             <a
               href={tailorHref}
               className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -525,9 +520,6 @@ export default function ApplyWorkspace({
               ← Tailor / Confirm
             </a>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                Resume Agent
-              </p>
               <h1 className="text-sm font-bold">Apply workspace</h1>
             </div>
             {(company || position) && (

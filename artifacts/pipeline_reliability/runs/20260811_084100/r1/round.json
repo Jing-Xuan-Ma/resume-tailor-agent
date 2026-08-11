@@ -1,0 +1,121 @@
+{
+  "round": 1,
+  "started_at": "2026-08-11T00:41:07.320821+00:00",
+  "job_offset": 0,
+  "errors": [
+    "refine_incomplete_or_no_ready_items",
+    "no_ready_to_submit_open_form_buttons"
+  ],
+  "jobs": [],
+  "stages_ms": {
+    "select_jobs": 10747,
+    "refine": 421566,
+    "apply": 5970,
+    "open_form": 1,
+    "verify_submit_ui": 92
+  },
+  "gates": {
+    "A1_ui_opens": true,
+    "A2_select": true,
+    "A3_refine": false,
+    "A4_apply": true,
+    "A6_open_form": false,
+    "A5_official_ats": false,
+    "A7_timing": true
+  },
+  "jobs_planned": [
+    {
+      "job_id": "6a23b8acd46c0f799608597d",
+      "company": "Scale AI",
+      "title": "AI Builder Intern",
+      "ats_url": "https://job-boards.greenhouse.io/scaleai/jobs/4703343005",
+      "ats_method": "company_ats_resolver"
+    },
+    {
+      "job_id": "6a535a768ef95364ead91ec8",
+      "company": "Scale AI",
+      "title": "AI Builder Intern",
+      "ats_url": "https://job-boards.greenhouse.io/scaleai/jobs/4703343005",
+      "ats_method": "company_ats_resolver"
+    },
+    {
+      "job_id": "6a57288310c4d945d864d27b",
+      "company": "Cloudflare",
+      "title": "Network Strategy Intern (Fall 2026)",
+      "ats_url": "https://boards.greenhouse.io/cloudflare/jobs/7902104?gh_jid=7902104",
+      "ats_method": "company_ats_resolver"
+    }
+  ],
+  "cart_url": "http://127.0.0.1:3000/shoppingcart?internJobIds=6a23b8acd46c0f799608597d,6a535a768ef95364ead91ec8,6a57288310c4d945d864d27b&from=intern-list",
+  "selected_ids": [
+    "6a23b8acd46c0f799608597d",
+    "6a535a768ef95364ead91ec8",
+    "6a57288310c4d945d864d27b"
+  ],
+  "refine_wait": {
+    "elapsed_ms": 418082,
+    "generating": true,
+    "bar_snippet": "仍有职位生成中已勾选可投递 1/1 · queued 0 · ready_to_submit 0 · failed 0\n投递已勾选（1）",
+    "items_guess": 5,
+    "done": false,
+    "error": "refine_timeout"
+  },
+  "apply_wait": {
+    "elapsed_ms": 3020,
+    "busy": false,
+    "bar": "仍有职位生成中已勾选可投递 1/1 · queued 0 · ready_to_submit 0 · failed 1\nQueued 1; ok 1, failed 1 (through Phase 5: form fill → ready_to_submit).\n投递已勾选（1）",
+    "open_form_buttons": 0,
+    "items": [],
+    "done": true
+  },
+  "ready_open_form_count": 0,
+  "open_form_results": [],
+  "cart_id": "5bd30c23-a374-44d3-a43e-34145e6ddc35",
+  "apply_status_api": {
+    "counts": {
+      "idle": 2,
+      "queued": 0,
+      "navigating": 0,
+      "on_ats": 0,
+      "applying": 0,
+      "registered": 0,
+      "filled": 0,
+      "ready_to_submit": 0,
+      "submitted": 0,
+      "failed": 1
+    },
+    "queued": 0,
+    "navigating": 0,
+    "on_ats": 0,
+    "applying": 0,
+    "registered": 0,
+    "filled": 0,
+    "ready_to_submit": 0,
+    "failed": 1,
+    "submitted": 0
+  },
+  "items_api": [
+    {
+      "company": "Scale AI",
+      "status": "failed",
+      "ats_url": "https://job-boards.greenhouse.io/scaleai/jobs/4703343005",
+      "official": true,
+      "error": "confirm_resume_pdf_required"
+    },
+    {
+      "company": "Scale AI",
+      "status": "idle",
+      "ats_url": null,
+      "official": false,
+      "error": null
+    },
+    {
+      "company": "Cloudflare",
+      "status": "idle",
+      "ats_url": null,
+      "official": false,
+      "error": null
+    }
+  ],
+  "ended_at": "2026-08-11T00:48:25.700447+00:00"
+}

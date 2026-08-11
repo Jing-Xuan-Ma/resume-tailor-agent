@@ -1,26 +1,37 @@
-from pathlib import Path
-from copy import deepcopy
 import json
 import re
+from copy import deepcopy
+from pathlib import Path
 from typing import Any
 
 from app import db
 from app.config import settings
 from app.core.llm_client import get_chat_openai
-from app.modules.resume_tailor.nodes.evidence_guard import EvidenceGuardNode
-from app.modules.resume_workspace.schemas import KeywordMatchItem
-from app.modules.resume_workspace.template_editor import ResumeTemplateEditor
-from app.modules.resume_workspace.diff import compute_resume_diff
-from app.modules.resume_workspace.final_store import extract_company_position, save_final_resume
-from app.modules.resume_workspace.master_template import ensure_user_has_master_template, ensure_master_template_bytes
-from app.modules.resume_workspace.master_inject import inject_content
-from app.modules.resume_workspace.quality_gate import project_for_jd, run_quality_gate
-from app.modules.resume_workspace.format_lock import fingerprint_docx, compare_fingerprints
+from app.modules.resume_core.evidence_guard import EvidenceGuardNode
 from app.modules.resume_workspace.constitution import (
     MASTER_TEMPLATE_LABEL,
     constitution_system_block,
 )
-
+from app.modules.resume_workspace.diff import compute_resume_diff
+from app.modules.resume_workspace.final_store import extract_company_position, save_final_resume
+from app.modules.resume_workspace.format_lock import compare_fingerprints, fingerprint_docx
+from app.modules.resume_workspace.master_inject import (
+    content_integrity_check,
+    hyperlink_check,
+    inject_content,
+)
+from app.modules.resume_workspace.master_template import (
+    ensure_master_template_bytes,
+    ensure_user_has_master_template,
+)
+from app.modules.resume_workspace.one_page_lock import enforce_one_page
+from app.modules.resume_workspace.quality_gate import project_for_jd_async, run_quality_gate
+from app.modules.resume_workspace.schemas import KeywordMatchItem
+from app.modules.resume_workspace.tailoring_pipeline import (
+    build_gap_analysis,
+    rewrite_kept_sections_async,
+)
+from app.modules.resume_workspace.template_editor import ResumeTemplateEditor
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 _RESUME_TEMPLATES_DIR = Path(__file__).resolve().parents[4] / "data" / "templates"
@@ -39,6 +50,7 @@ def _extract_json(text: str) -> dict:
     if text.startswith("```"):
         text = text.split("\n", 1)[1].rsplit("\n", 1)[0]
     return json.loads(text)
+
 
 # Keep current + 3 previous versions (RESUME_CONSTITUTION §8)
 MAX_VERSIONS = 4
@@ -70,8 +82,8 @@ MOCK_RESUME = {
     "candidate_name": "Jingxuan Ma",
     "contact_line": "+1 (410) 240-4366 | jma107@jh.edu | LinkedIn | Portfolio",
     "summary": (
-        "Data Science M.S. student at Johns Hopkins with a background in Applied Statistics "
-        "and data analytics. Skilled in R, advanced SQL, Python ETL pipelines using Apache Airflow, "
+        "Data Science M.S. student at Johns Hopkins with a background in Applied Statistics and "
+        "data analytics. Skilled in R, advanced SQL, Python ETL pipelines using Apache Airflow, "
         "Tableau dashboard development, operations automation, stakeholder collaboration, and AI "
         "prompt engineering to accelerate data analysis."
     ),
@@ -82,7 +94,12 @@ MOCK_RESUME = {
             "field": "Data Science",
             "location": "Baltimore, US",
             "date_range": "August 2025 - June 2027",
-            "coursework": ["Database Systems", "Introduction to Algorithms", "Nonlinear Optimization", "Human-Computer Interaction"],
+            "coursework": [
+                "Database Systems",
+                "Introduction to Algorithms",
+                "Nonlinear Optimization",
+                "Human-Computer Interaction",
+            ],
         },
         {
             "institution": "University College Cork",
@@ -90,59 +107,81 @@ MOCK_RESUME = {
             "field": "Actuarial Sciences",
             "location": "Cork, Ireland | Beijing, China",
             "date_range": "September 2021 - June 2025",
-            "coursework": ["Probability & Statistics", "Actuarial Mathematics", "Financial Mathematics", "Regression Analysis", "Statistical Computing"],
+            "coursework": [
+                "Probability & Statistics",
+                "Actuarial Mathematics",
+                "Financial Mathematics",
+                "Regression Analysis",
+                "Statistical Computing",
+            ],
         },
     ],
     "experiences": [
         {
             "company": "Beijing Yiling Network Technology Co., Ltd.",
-            "title": "AI Agent Intern",
+            "title": "AI Agent Development Intern",
             "location": "Beijing, China",
-            "date_range": "June 2026 - Present",
+            "date_range": "June 2026 - August 2026",
             "github_url": "https://github.com/Jing-Xuan-Ma/resume-tailor-agent",
             "evidence_url": "https://github.com/Jing-Xuan-Ma/resume-tailor-agent",
             "tags": [
-                "ai-agent", "python", "fastapi", "nextjs", "ooxml", "resume",
-                "jd-matching", "quality-gate", "prompt-engineering", "github",
+                "ai-agent",
+                "python",
+                "fastapi",
+                "nextjs",
+                "langgraph",
+                "rag",
+                "chroma",
+                "evidence-guard",
+                "ats",
+                "greenhouse",
+                "lever",
+                "playwright",
             ],
             "bullets": [
                 {
                     "text": (
-                        "Faced with producing JD-matched one-page resumes without breaking a locked Word "
-                        "template, built a Python/FastAPI + Next.js AI agent that ranks roles, extracts "
-                        "keywords, and injects tailored content into the master DOCX via OOXML edits"
+                        "Built an AI job-application agent (FastAPI, LangGraph, Next.js) that "
+                        "tailors resumes via RAG over user experience embeddings in Chroma, with "
+                        "an "
+                        "independent Evidence Guard module rejecting unsupported claims"
                     ),
                     "evidence_from": "yiling_exp_1",
                     "original_text": (
-                        "Faced with producing JD-matched one-page resumes without breaking a locked Word "
-                        "template, built a Python/FastAPI + Next.js AI agent that ranks roles, extracts "
-                        "keywords, and injects tailored content into the master DOCX via OOXML edits"
+                        "Built an AI job-application agent (FastAPI, LangGraph, Next.js) that "
+                        "tailors resumes via RAG over user experience embeddings in Chroma, with "
+                        "an "
+                        "independent Evidence Guard module rejecting unsupported claims"
                     ),
                 },
                 {
                     "text": (
-                        "Designed format-lock and quality-gate checks (shell fingerprint, hyperlink "
-                        "preservation, Word PDF one-page validation, evidence-linked bullets) so delivery "
-                        "copies keep master fonts, margins, and list styles without rebuilding the document"
+                        "Designed a multi-stage pipeline (JD parsing, semantic match, rewrite-only "
+                        "generation, fact-check) and a safety-first application flow with manual "
+                        "confirm by default and optional Playwright ATS auto-submit behind feature "
+                        "flags"
                     ),
                     "evidence_from": "yiling_exp_2",
                     "original_text": (
-                        "Designed format-lock and quality-gate checks (shell fingerprint, hyperlink "
-                        "preservation, Word PDF one-page validation, evidence-linked bullets) so delivery "
-                        "copies keep master fonts, margins, and list styles without rebuilding the document"
+                        "Designed a multi-stage pipeline (JD parsing, semantic match, rewrite-only "
+                        "generation, fact-check) and a safety-first application flow with manual "
+                        "confirm by default and optional Playwright ATS auto-submit behind feature "
+                        "flags"
                     ),
                 },
                 {
                     "text": (
-                        "Implemented JD-conditioned show/hide of experiences and projects plus content-only "
-                        "rewrites with prompt engineering; ran fixture-JD eval loops with PDF/page gates to "
-                        "catch layout and honesty regressions before human review"
+                        "Integrated multi-source job discovery and scoring with ATS-aware "
+                        "application package generation, including cover letters, form answers, "
+                        "and "
+                        "Greenhouse/Lever connectors"
                     ),
                     "evidence_from": "yiling_exp_3",
                     "original_text": (
-                        "Implemented JD-conditioned show/hide of experiences and projects plus content-only "
-                        "rewrites with prompt engineering; ran fixture-JD eval loops with PDF/page gates to "
-                        "catch layout and honesty regressions before human review"
+                        "Integrated multi-source job discovery and scoring with ATS-aware "
+                        "application package generation, including cover letters, form answers, "
+                        "and "
+                        "Greenhouse/Lever connectors"
                     ),
                 },
             ],
@@ -154,19 +193,53 @@ MOCK_RESUME = {
             "date_range": "June 2024 - August 2024",
             "bullets": [
                 {
-                    "text": "Faced with the need to evaluate whether a pricing model library could meet both runtime and maintainability requirements, conducted a structured feasibility analysis across Python, pure & optimized C++, Eigen vectorization, OpenMP, and ctypes-based Python/C++ integration",
+                    "text": (
+                        "Faced with the need to evaluate whether a pricing model library could "
+                        "meet "
+                        "both runtime and maintainability requirements, conducted a structured "
+                        "feasibility analysis across Python, pure & optimized C++, Eigen "
+                        "vectorization, OpenMP, and ctypes-based Python/C++ integration"
+                    ),
                     "evidence_from": "shenwan_exp_1",
-                    "original_text": "Faced with the need to evaluate whether a pricing model library could meet both runtime and maintainability requirements, conducted a structured feasibility analysis across Python, pure & optimized C++, Eigen vectorization, OpenMP, and ctypes-based Python/C++ integration",
+                    "original_text": (
+                        "Faced with the need to evaluate whether a pricing model library could "
+                        "meet "
+                        "both runtime and maintainability requirements, conducted a structured "
+                        "feasibility analysis across Python, pure & optimized C++, Eigen "
+                        "vectorization, OpenMP, and ctypes-based Python/C++ integration"
+                    ),
                 },
                 {
-                    "text": "Built and benchmarked a 100,000-path Monte Carlo pricing simulation, applying compiler optimization, vectorized matrix operations, and multithreaded random-path generation to isolate major bottlenecks in computation-intensive pricing workflows",
+                    "text": (
+                        "Built and benchmarked a 100,000-path Monte Carlo pricing simulation, "
+                        "applying compiler optimization, vectorized matrix operations, and "
+                        "multithreaded random-path generation to isolate major bottlenecks in "
+                        "computation-intensive pricing workflows"
+                    ),
                     "evidence_from": "shenwan_exp_2",
-                    "original_text": "Built and benchmarked a 100,000-path Monte Carlo pricing simulation, applying compiler optimization, vectorized matrix operations, and multithreaded random-path generation to isolate major bottlenecks in computation-intensive pricing workflows",
+                    "original_text": (
+                        "Built and benchmarked a 100,000-path Monte Carlo pricing simulation, "
+                        "applying compiler optimization, vectorized matrix operations, and "
+                        "multithreaded random-path generation to isolate major bottlenecks in "
+                        "computation-intensive pricing workflows"
+                    ),
                 },
                 {
-                    "text": "Delivered a hybrid architecture recommendation that assigned heavy simulation and statistical computation to C++ while keeping configuration, preprocessing, and visualization in Python; reduced runtime from approx. 33.4s to approx. 1.4s with OpenMP optimization",
+                    "text": (
+                        "Delivered a hybrid architecture recommendation that assigned heavy "
+                        "simulation and statistical computation to C++ while keeping "
+                        "configuration, "
+                        "preprocessing, and visualization in Python; reduced runtime from approx. "
+                        "33.4s to approx. 1.4s with OpenMP optimization"
+                    ),
                     "evidence_from": "shenwan_exp_3",
-                    "original_text": "Delivered a hybrid architecture recommendation that assigned heavy simulation and statistical computation to C++ while keeping configuration, preprocessing, and visualization in Python; reduced runtime from approx. 33.4s to approx. 1.4s with OpenMP optimization",
+                    "original_text": (
+                        "Delivered a hybrid architecture recommendation that assigned heavy "
+                        "simulation and statistical computation to C++ while keeping "
+                        "configuration, "
+                        "preprocessing, and visualization in Python; reduced runtime from approx. "
+                        "33.4s to approx. 1.4s with OpenMP optimization"
+                    ),
                 },
             ],
         },
@@ -177,19 +250,51 @@ MOCK_RESUME = {
             "date_range": "June 2023 - August 2023",
             "bullets": [
                 {
-                    "text": "Given the need to support campaign review and market reporting, collected, organized, and cleaned market and customer data from multiple business materials, creating structured datasets for trend analysis and management communication",
+                    "text": (
+                        "Given the need to support campaign review and market reporting, "
+                        "collected, "
+                        "organized, and cleaned market and customer data from multiple business "
+                        "materials, creating structured datasets for trend analysis and management "
+                        "communication"
+                    ),
                     "evidence_from": "yinhua_exp_1",
-                    "original_text": "Given the need to support campaign review and market reporting, collected, organized, and cleaned market and customer data from multiple business materials, creating structured datasets for trend analysis and management communication",
+                    "original_text": (
+                        "Given the need to support campaign review and market reporting, "
+                        "collected, "
+                        "organized, and cleaned market and customer data from multiple business "
+                        "materials, creating structured datasets for trend analysis and management "
+                        "communication"
+                    ),
                 },
                 {
-                    "text": "Used Python, Excel, and visualization techniques to analyze market patterns, prepare charts and analytical materials, and convert raw performance data into insights that could support investment-product marketing decisions",
+                    "text": (
+                        "Used Python, Excel, and visualization techniques to analyze market "
+                        "patterns, prepare charts and analytical materials, and convert raw "
+                        "performance data into insights that could support investment-product "
+                        "marketing decisions"
+                    ),
                     "evidence_from": "yinhua_exp_2",
-                    "original_text": "Used Python, Excel, and visualization techniques to analyze market patterns, prepare charts and analytical materials, and convert raw performance data into insights that could support investment-product marketing decisions",
+                    "original_text": (
+                        "Used Python, Excel, and visualization techniques to analyze market "
+                        "patterns, prepare charts and analytical materials, and convert raw "
+                        "performance data into insights that could support investment-product "
+                        "marketing decisions"
+                    ),
                 },
                 {
-                    "text": "Prepared concise reporting assets for internal stakeholders by translating quantitative findings into business narratives, improving clarity around customer behavior, campaign performance, and market trends",
+                    "text": (
+                        "Prepared concise reporting assets for internal stakeholders by "
+                        "translating "
+                        "quantitative findings into business narratives, improving clarity around "
+                        "customer behavior, campaign performance, and market trends"
+                    ),
                     "evidence_from": "yinhua_exp_3",
-                    "original_text": "Prepared concise reporting assets for internal stakeholders by translating quantitative findings into business narratives, improving clarity around customer behavior, campaign performance, and market trends",
+                    "original_text": (
+                        "Prepared concise reporting assets for internal stakeholders by "
+                        "translating "
+                        "quantitative findings into business narratives, improving clarity around "
+                        "customer behavior, campaign performance, and market trends"
+                    ),
                 },
             ],
         },
@@ -202,42 +307,51 @@ MOCK_RESUME = {
             "date_range": "",
             "bullets": [
                 {
-                    "text": "To build and adapt algorithms for complex risk use cases, designed an end-to-end predictive pipeline integrating SQL-style extraction, missing-value treatment, feature engineering, and statistical modeling to estimate expected claim costs and credit default behavior",
+                    "text": (
+                        "To build and adapt algorithms for complex risk use cases, designed an "
+                        "end-to-end predictive pipeline integrating SQL-style extraction, "
+                        "missing-value treatment, feature engineering, and statistical modeling to "
+                        "estimate expected claim costs and credit default behavior"
+                    ),
                     "evidence_from": "credit_proj_1",
-                    "original_text": "To build and adapt algorithms for complex risk use cases, designed an end-to-end predictive pipeline integrating SQL-style extraction, missing-value treatment, feature engineering, and statistical modeling to estimate expected claim costs and credit default behavior",
+                    "original_text": (
+                        "To build and adapt algorithms for complex risk use cases, designed an "
+                        "end-to-end predictive pipeline integrating SQL-style extraction, "
+                        "missing-value treatment, feature engineering, and statistical modeling to "
+                        "estimate expected claim costs and credit default behavior"
+                    ),
                 },
                 {
-                    "text": "Applied advanced statistics and machine learning libraries (scikit-learn, XGBoost) to train, evaluate, and benchmark regression and tree-based models, leveraging ROC-AUC, F1-score, and cost drivers to balance predictive accuracy with business interpretability.",
+                    "text": (
+                        "Applied advanced statistics and machine learning libraries (scikit-learn, "
+                        "XGBoost) to train, evaluate, and benchmark regression and tree-based "
+                        "models, leveraging ROC-AUC, F1-score, and cost drivers to balance "
+                        "predictive accuracy with business interpretability."
+                    ),
                     "evidence_from": "credit_proj_2",
-                    "original_text": "Applied advanced statistics and machine learning libraries (scikit-learn, XGBoost) to train, evaluate, and benchmark regression and tree-based models, leveraging ROC-AUC, F1-score, and cost drivers to balance predictive accuracy with business interpretability.",
+                    "original_text": (
+                        "Applied advanced statistics and machine learning libraries (scikit-learn, "
+                        "XGBoost) to train, evaluate, and benchmark regression and tree-based "
+                        "models, leveraging ROC-AUC, F1-score, and cost drivers to balance "
+                        "predictive accuracy with business interpretability."
+                    ),
                 },
                 {
-                    "text": "Extended the framework with stochastic modeling via Monte Carlo simulations to analyze skewed loss distributions, interpreting error patterns to translate quantitative outputs into risk-monitoring thresholds and optimized decision-making insights.",
+                    "text": (
+                        "Extended the framework with stochastic modeling via Monte Carlo "
+                        "simulations to analyze skewed loss distributions, interpreting error "
+                        "patterns to translate quantitative outputs into risk-monitoring "
+                        "thresholds "
+                        "and optimized decision-making insights."
+                    ),
                     "evidence_from": "credit_proj_3",
-                    "original_text": "Extended the framework with stochastic modeling via Monte Carlo simulations to analyze skewed loss distributions, interpreting error patterns to translate quantitative outputs into risk-monitoring thresholds and optimized decision-making insights.",
-                },
-            ],
-        },
-        {
-            "name": "Insurance Claims Severity Modeling",
-            "tools": ["Python", "R", "pandas", "scikit-learn", "Monte Carlo Simulation"],
-            "context": "Independent Project",
-            "date_range": "",
-            "bullets": [
-                {
-                    "text": "To estimate claim severity across heterogeneous policy segments, collected and cleaned historical claims data and engineered exposure- and policy-level features to support distributional analysis of loss costs",
-                    "evidence_from": "claims_proj_1",
-                    "original_text": "To estimate claim severity across heterogeneous policy segments, collected and cleaned historical claims data and engineered exposure- and policy-level features to support distributional analysis of loss costs",
-                },
-                {
-                    "text": "Analyzed skewed loss distributions, outliers, and cost drivers; compared regression and tree-based approaches to evaluate trade-offs among predictive accuracy, robustness, and business interpretability for underwriting and reserving use cases",
-                    "evidence_from": "claims_proj_2",
-                    "original_text": "Analyzed skewed loss distributions, outliers, and cost drivers; compared regression and tree-based approaches to evaluate trade-offs among predictive accuracy, robustness, and business interpretability for underwriting and reserving use cases",
-                },
-                {
-                    "text": "Extended the modeling framework with Monte Carlo simulation and performance-benchmarking concepts to evaluate scalable pricing workflows, translating model outputs into risk segmentation, pricing review, and portfolio-level reporting insights",
-                    "evidence_from": "claims_proj_3",
-                    "original_text": "Extended the modeling framework with Monte Carlo simulation and performance-benchmarking concepts to evaluate scalable pricing workflows, translating model outputs into risk segmentation, pricing review, and portfolio-level reporting insights",
+                    "original_text": (
+                        "Extended the framework with stochastic modeling via Monte Carlo "
+                        "simulations to analyze skewed loss distributions, interpreting error "
+                        "patterns to translate quantitative outputs into risk-monitoring "
+                        "thresholds "
+                        "and optimized decision-making insights."
+                    ),
                 },
             ],
         },
@@ -248,27 +362,113 @@ MOCK_RESUME = {
             "date_range": "",
             "bullets": [
                 {
-                    "text": "Built an end-to-end ETL pipeline extracting 11,349 NHTSA complaints and 60 recall actions across Tesla Models 3/S/X/Y (2015–2024); engineered dynamic model-name discovery and ID-based deduplication to reduce 30,777 raw records to 11,349 verified distinct complaints",
+                    "text": (
+                        "Built an end-to-end ETL pipeline extracting 11,349 NHTSA complaints and "
+                        "60 "
+                        "recall actions across Tesla Models 3/S/X/Y (2015–2024); engineered "
+                        "dynamic "
+                        "model-name discovery and ID-based deduplication to reduce 30,777 raw "
+                        "records to 11,349 verified distinct complaints"
+                    ),
                     "evidence_from": "tesla_proj_1",
-                    "original_text": "Built an end-to-end ETL pipeline extracting 11,349 NHTSA complaints and 60 recall actions across Tesla Models 3/S/X/Y (2015–2024); engineered dynamic model-name discovery and ID-based deduplication to reduce 30,777 raw records to 11,349 verified distinct complaints",
+                    "original_text": (
+                        "Built an end-to-end ETL pipeline extracting 11,349 NHTSA complaints and "
+                        "60 "
+                        "recall actions across Tesla Models 3/S/X/Y (2015–2024); engineered "
+                        "dynamic "
+                        "model-name discovery and ID-based deduplication to reduce 30,777 raw "
+                        "records to 11,349 verified distinct complaints"
+                    ),
                 },
                 {
-                    "text": "Engineered frequency- and severity-based risk indicators (crash/fire/injury-weighted scores by model-year and component) in SQL, applying an actuarial-style frequency × severity loss framework to quantify and rank vehicle quality risk across product lines",
+                    "text": (
+                        "Engineered frequency- and severity-based risk indicators "
+                        "(crash/fire/injury-weighted scores by model-year and component) in SQL, "
+                        "applying an actuarial-style frequency × severity loss framework to "
+                        "quantify and rank vehicle quality risk across product lines"
+                    ),
                     "evidence_from": "tesla_proj_2",
-                    "original_text": "Engineered frequency- and severity-based risk indicators (crash/fire/injury-weighted scores by model-year and component) in SQL, applying an actuarial-style frequency × severity loss framework to quantify and rank vehicle quality risk across product lines",
+                    "original_text": (
+                        "Engineered frequency- and severity-based risk indicators "
+                        "(crash/fire/injury-weighted scores by model-year and component) in SQL, "
+                        "applying an actuarial-style frequency × severity loss framework to "
+                        "quantify and rank vehicle quality risk across product lines"
+                    ),
                 },
                 {
-                    "text": "Built and published an interactive Tableau dashboard visualizing component-level risk rankings and recall-lag trends (first complaint to official recall), translating 11,349 complaint records into decision-ready risk insights for quality and safety stakeholders.",
+                    "text": (
+                        "Built and published an interactive Tableau dashboard visualizing "
+                        "component-level risk rankings and recall-lag trends (first complaint to "
+                        "official recall), translating 11,349 complaint records into "
+                        "decision-ready "
+                        "risk insights for quality and safety stakeholders."
+                    ),
                     "evidence_from": "tesla_proj_3",
-                    "original_text": "Built and published an interactive Tableau dashboard visualizing component-level risk rankings and recall-lag trends (first complaint to official recall), translating 11,349 complaint records into decision-ready risk insights for quality and safety stakeholders.",
+                    "original_text": (
+                        "Built and published an interactive Tableau dashboard visualizing "
+                        "component-level risk rankings and recall-lag trends (first complaint to "
+                        "official recall), translating 11,349 complaint records into "
+                        "decision-ready "
+                        "risk insights for quality and safety stakeholders."
+                    ),
+                },
+            ],
+        },
+    ],
+    "competitions": [
+        {
+            "name": "Mathematical Contest in Modeling",
+            "role": "Team Leader",
+            "location": "Remote",
+            "date_range": "February 2023",
+            "bullets": [
+                {
+                    "text": (
+                        "Led a student modeling team through problem scoping, data cleaning, "
+                        "indicator screening, visualization, model development, and technical "
+                        "report writing, coordinating responsibilities to deliver a structured "
+                        "solution under time constraints"
+                    ),
+                    "evidence_from": "comp_mcm_1",
+                    "original_text": (
+                        "Led a student modeling team through problem scoping, data cleaning, "
+                        "indicator screening, visualization, model development, and technical "
+                        "report writing, coordinating responsibilities to deliver a structured "
+                        "solution under time constraints"
+                    ),
+                },
+            ],
+        },
+        {
+            "name": "Mathematical Modeling for College Students",
+            "role": "Team Member",
+            "location": "Remote",
+            "date_range": "September 2022",
+            "bullets": [
+                {
+                    "text": (
+                        "Collected and processed data for statistical modeling tasks; built "
+                        "models using Python and R, analyzed results with SPSS, and contributed "
+                        "to result interpretation and final written recommendations"
+                    ),
+                    "evidence_from": "comp_mmcs_1",
+                    "original_text": (
+                        "Collected and processed data for statistical modeling tasks; built "
+                        "models using Python and R, analyzed results with SPSS, and contributed "
+                        "to result interpretation and final written recommendations"
+                    ),
                 },
             ],
         },
     ],
     "skills_certifications": (
-        "Python, R, SQL, Tableau, Apache Airflow, data cleaning, feature engineering, "
-        "exploratory analysis, Pandas, NumPy, scikit-learn, XGBoost, Monte Carlo Simulation, "
-        "Credit Risk, Claims Modeling, stakeholder reporting"
+        "Python, R, SQL, C, C++, SPSS, data cleaning, feature engineering, exploratory analysis, "
+        "technical documentation, Pandas, NumPy, scikit-learn, XGBoost, matplotlib, regression, "
+        "classification, predictive modeling, model evaluation, visualization, probability, "
+        "regression analysis, hypothesis testing, optimization, model validation, performance "
+        "benchmarking, business insight translation, Actuarial Science, Financial Modeling, "
+        "Pricing Model Analysis, Risk Analytics, Credit Risk, Claims Modeling, Monte Carlo "
+        "Simulation, Apache Airflow, Tableau"
     ),
 }
 
@@ -276,7 +476,8 @@ MOCK_JD_TEXT = """
 Software Engineer - Backend Infrastructure
 
 About the role:
-We are looking for a talented backend infrastructure engineer to join our growing team. You will design and build scalable systems that power our core platform.
+We are looking for a talented backend infrastructure engineer to join our growing team. You
+will design and build scalable systems that power our core platform.
 
 Requirements:
 • 5+ years of experience in backend development
@@ -301,25 +502,68 @@ Responsibilities:
 """
 
 MOCK_KEYWORD_MATCHES = [
-    KeywordMatchItem(keyword="Python", status="covered", source_span_in_jd=[180, 186], suggestion=None),
+    KeywordMatchItem(
+        keyword="Python", status="covered", source_span_in_jd=[180, 186], suggestion=None
+    ),
     KeywordMatchItem(keyword="Go", status="covered", source_span_in_jd=[191, 193], suggestion=None),
-    KeywordMatchItem(keyword="Kafka", status="covered", source_span_in_jd=[459, 464], suggestion=None),
-    KeywordMatchItem(keyword="PostgreSQL", status="covered", source_span_in_jd=[552, 562], suggestion=None),
-    KeywordMatchItem(keyword="Redis", status="covered", source_span_in_jd=[564, 569], suggestion=None),
-    KeywordMatchItem(keyword="Kubernetes", status="covered", source_span_in_jd=[614, 624], suggestion=None),
-    KeywordMatchItem(keyword="Docker", status="covered", source_span_in_jd=[619, 625], suggestion=None),
-    KeywordMatchItem(keyword="distributed systems", status="covered", source_span_in_jd=[274, 294], suggestion=None),
-    KeywordMatchItem(keyword="real-time data processing", status="missing", source_span_in_jd=[701, 726], suggestion="Consider building a real-time dashboard project using Kafka Streams or Flink to process live data."),
-    KeywordMatchItem(keyword="CI/CD pipelines", status="covered", source_span_in_jd=[751, 766], suggestion=None),
-    KeywordMatchItem(keyword="infrastructure as code", status="missing", source_span_in_jd=[791, 814], suggestion="Learn Terraform or Pulumi and create a sample infrastructure repo."),
-    KeywordMatchItem(keyword="machine learning pipelines", status="missing", source_span_in_jd=[872, 898], suggestion="Take an existing ML project and wrap it with MLflow for experiment tracking."),
-    KeywordMatchItem(keyword="microservice architecture", status="covered", source_span_in_jd=[298, 321], suggestion=None),
-    KeywordMatchItem(keyword="team leadership", status="covered", source_span_in_jd=[723, 739], suggestion=None),
+    KeywordMatchItem(
+        keyword="Kafka", status="covered", source_span_in_jd=[459, 464], suggestion=None
+    ),
+    KeywordMatchItem(
+        keyword="PostgreSQL", status="covered", source_span_in_jd=[552, 562], suggestion=None
+    ),
+    KeywordMatchItem(
+        keyword="Redis", status="covered", source_span_in_jd=[564, 569], suggestion=None
+    ),
+    KeywordMatchItem(
+        keyword="Kubernetes", status="covered", source_span_in_jd=[614, 624], suggestion=None
+    ),
+    KeywordMatchItem(
+        keyword="Docker", status="covered", source_span_in_jd=[619, 625], suggestion=None
+    ),
+    KeywordMatchItem(
+        keyword="distributed systems",
+        status="covered",
+        source_span_in_jd=[274, 294],
+        suggestion=None,
+    ),
+    KeywordMatchItem(
+        keyword="real-time data processing",
+        status="missing",
+        source_span_in_jd=[701, 726],
+        suggestion=(
+            "Consider building a real-time dashboard project using Kafka Streams or Flink "
+            "to process live data."
+        ),
+    ),
+    KeywordMatchItem(
+        keyword="CI/CD pipelines", status="covered", source_span_in_jd=[751, 766], suggestion=None
+    ),
+    KeywordMatchItem(
+        keyword="infrastructure as code",
+        status="missing",
+        source_span_in_jd=[791, 814],
+        suggestion="Learn Terraform or Pulumi and create a sample infrastructure repo.",
+    ),
+    KeywordMatchItem(
+        keyword="machine learning pipelines",
+        status="missing",
+        source_span_in_jd=[872, 898],
+        suggestion="Take an existing ML project and wrap it with MLflow for experiment tracking.",
+    ),
+    KeywordMatchItem(
+        keyword="microservice architecture",
+        status="covered",
+        source_span_in_jd=[298, 321],
+        suggestion=None,
+    ),
+    KeywordMatchItem(
+        keyword="team leadership", status="covered", source_span_in_jd=[723, 739], suggestion=None
+    ),
 ]
 
 
 class ResumeWorkspaceService:
-
     def __init__(self):
         self.template_editor = ResumeTemplateEditor()
         self.evidence_guard = EvidenceGuardNode()
@@ -328,21 +572,78 @@ class ResumeWorkspaceService:
         return db.create_jd_session(user_id=user_id, job_id=job_id, jd_text=jd_text)
 
     def upload_template(self, user_id: str, filename: str, docx_bytes: bytes) -> dict:
+        from app.modules.resume_workspace.structure_parser import parse_resume_structure
+
         blocks = self.template_editor.load_template(docx_bytes)
+        custom_mappings = db.get_section_title_mappings(user_id)
+        parsed = parse_resume_structure(docx_bytes, custom_mappings=custom_mappings)
         template_id = db.save_template(
             user_id=user_id,
             filename=filename,
             docx_bytes=docx_bytes,
             parsed_blocks=blocks["blocks"],
+            parsed_structure={"sections": parsed["sections"]},
+            unmapped_sections=parsed["unmapped_sections"],
         )
         return {
             "template_id": template_id,
             "block_count": blocks["block_count"],
             "filename": filename,
+            "resume_structure": {"sections": parsed["sections"]},
+            "unmapped_sections": parsed["unmapped_sections"],
+            "is_active": True,
         }
 
     def get_active_template(self, user_id: str) -> dict | None:
         return db.get_active_template(user_id)
+
+    def list_template_versions(self, user_id: str) -> list[dict]:
+        return db.list_templates(user_id)
+
+    def activate_template_version(self, template_id: str, user_id: str) -> dict | None:
+        ok = db.set_active_template(template_id, user_id)
+        if not ok:
+            return None
+        template = db.get_template(template_id)
+        return {
+            "ok": True,
+            "template_id": template_id,
+            "resume_structure": template["parsed_structure"] if template else {},
+        }
+
+    def confirm_section_mapping(self, user_id: str, raw_title: str, section_type: str) -> dict:
+        from app.modules.resume_workspace.structure_parser import (
+            CANONICAL_SECTIONS,
+            parse_resume_structure,
+        )
+
+        if section_type not in CANONICAL_SECTIONS:
+            raise ValueError(
+                f"Unknown section_type '{section_type}'. Must be one of: "
+                f"{', '.join(sorted(CANONICAL_SECTIONS))}"
+            )
+        db.save_section_title_mapping(user_id, raw_title, section_type)
+
+        template = db.get_active_template(user_id)
+        if not template:
+            return {
+                "ok": True,
+                "template_id": None,
+                "resume_structure": {},
+                "unmapped_sections": [],
+            }
+
+        custom_mappings = db.get_section_title_mappings(user_id)
+        parsed = parse_resume_structure(template["docx_bytes"], custom_mappings=custom_mappings)
+        db.update_template_structure(
+            template["id"], {"sections": parsed["sections"]}, parsed["unmapped_sections"]
+        )
+        return {
+            "ok": True,
+            "template_id": template["id"],
+            "resume_structure": {"sections": parsed["sections"]},
+            "unmapped_sections": parsed["unmapped_sections"],
+        }
 
     async def analyze(self, session_id: str) -> list[dict]:
         session = db.get_jd_session(session_id)
@@ -372,10 +673,12 @@ class ResumeWorkspaceService:
                 human_prompt = f"JD:\n{jd_text}"
                 if resume_text:
                     human_prompt += f"\n\nResume:\n{resume_text}"
-                response = await llm.ainvoke([
-                    ("system", _load_prompt("keyword_analysis.txt")),
-                    ("human", human_prompt),
-                ])
+                response = await llm.ainvoke(
+                    [
+                        ("system", _load_prompt("keyword_analysis.txt")),
+                        ("human", human_prompt),
+                    ]
+                )
                 result = _extract_json(response.content)
                 matches = result.get("keyword_matches", []) or []
             except Exception:
@@ -432,9 +735,25 @@ class ResumeWorkspaceService:
 
         # Heuristic coverage vs inventory keywords commonly on Jingxuan's resume
         inventory = {
-            "sql", "python", "tableau", "excel", "statistics", "pandas", "numpy",
-            "power bi", "powerbi", "r", "etl", "dashboard", "dashboards", "a/b",
-            "experimentation", "postgresql", "mysql", "aws", "dbt",
+            "sql",
+            "python",
+            "tableau",
+            "excel",
+            "statistics",
+            "pandas",
+            "numpy",
+            "power bi",
+            "powerbi",
+            "r",
+            "etl",
+            "dashboard",
+            "dashboards",
+            "a/b",
+            "experimentation",
+            "postgresql",
+            "mysql",
+            "aws",
+            "dbt",
         }
         matches: list[dict] = []
         for kw in keywords:
@@ -501,8 +820,7 @@ class ResumeWorkspaceService:
         return tailored
 
     async def rewrite(
-        self, user_id: str, session_id: str, instruction: str,
-        base_version_id: str | None = None
+        self, user_id: str, session_id: str, instruction: str, base_version_id: str | None = None
     ) -> dict:
         ensure_user_has_master_template(user_id)
 
@@ -518,19 +836,123 @@ class ResumeWorkspaceService:
             # Prefer previous version as diff baseline so highlights show this turn's edits
             if base and isinstance(base.get("full_resume"), dict) and base["full_resume"]:
                 before_for_diff = base["full_resume"]
-        projected = project_for_jd(source_master, jd_text)
+
+        # Parse this JD's own fields once — drives both selection (Phase 2a) and
+        # bullet rewriting (Phase 2b) with the SAME jd_required_skills/jd_keywords,
+        # so "what's relevant" and "what wording to align to" never disagree.
+        from app.modules.resume_core.parse_jd import JDParsingNode
+
+        try:
+            parsed_jd = await JDParsingNode().parse(jd_text)
+            jd_title = parsed_jd.title or ""
+            jd_required_skills = list(parsed_jd.required_skills or [])
+            jd_keywords = list(
+                dict.fromkeys((parsed_jd.ats_keywords or []) + (parsed_jd.preferred_skills or []))
+            )
+        except Exception:
+            jd_title, jd_required_skills, jd_keywords = "", [], []
+
+        projected = await project_for_jd_async(
+            source_master,
+            jd_text,
+            jd_title=jd_title,
+            jd_required_skills=jd_required_skills,
+            jd_keywords=jd_keywords,
+        )
         tailored = self._content_only_tailor(projected, instruction, jd_text)
-        tailored["experiences"] = projected.get("experiences") or []
-        tailored["projects"] = projected.get("projects") or []
-        tailored["competitions"] = projected.get("competitions") or []
+
+        # One batched LLM rewrite for all kept bullets (experiences + projects).
+        section_rewrites = await rewrite_kept_sections_async(
+            {
+                "experiences": projected.get("experiences") or [],
+                "projects": projected.get("projects") or [],
+            },
+            jd_required_skills=jd_required_skills,
+            jd_keywords=jd_keywords,
+        )
+        rewritten_experiences, exp_trace = section_rewrites["experiences"]
+        rewritten_projects, proj_trace = section_rewrites["projects"]
+        evidence_trace = exp_trace + proj_trace
+
+        # Strip the transient _relevance_score annotation (used only by
+        # project_for_jd/one_page_lock trimming order) before it leaks into
+        # the stored resume, the diff, the DOCX injection, or the API response.
+        def _strip_transient(entries: list[dict]) -> list[dict]:
+            out = []
+            for e in entries:
+                e2 = dict(e)
+                e2.pop("_relevance_score", None)
+                out.append(e2)
+            return out
+
+        tailored["experiences"] = _strip_transient(rewritten_experiences)
+        tailored["projects"] = _strip_transient(rewritten_projects)
+        tailored["competitions"] = _strip_transient(projected.get("competitions") or [])
         tailored["hidden_entries"] = projected.get("hidden_entries") or []
-        tailored["skills_certifications"] = (
-            projected.get("skills_certifications") or tailored.get("skills_certifications")
+        tailored["skills_certifications"] = projected.get("skills_certifications") or tailored.get(
+            "skills_certifications"
         )
         gate = run_quality_gate(tailored, jd_text)
-        evidence = await self.evidence_guard.verify(source_master, tailored)
+        if bool(getattr(settings, "ENABLE_EVIDENCE_GUARD", True)):
+            evidence = await self.evidence_guard.verify(source_master, tailored)
+        else:
+            evidence = {
+                "passed": True,
+                "issues": [],
+                "confidence": 1.0,
+                "skipped": True,
+                "notes": "ENABLE_EVIDENCE_GUARD=false",
+            }
         issues = list(evidence.get("issues") or [])
         hard_issues = [i for i in issues if "weak textual support" not in i]
+
+        # Phase 2d: a hard-flagged claim doesn't just get a warning label while
+        # shipping unchanged — it goes back through the Phase 2a decision engine
+        # (accountable, logged) and, since a flagged claim is always forced to
+        # "drop", the actual bullet is removed from the resume that goes out.
+        auto_drops: list[dict[str, Any]] = []
+        if hard_issues:
+            from app.modules.resume_workspace.fabrication_retry import (
+                extract_flagged_claim_texts,
+                rerun_flagged_claims_through_phase_2a,
+            )
+
+            flagged_texts = extract_flagged_claim_texts(hard_issues)
+            retry_decisions = await rerun_flagged_claims_through_phase_2a(
+                flagged_claim_texts=flagged_texts,
+                jd_title=jd_title,
+                jd_required_skills=jd_required_skills,
+                jd_keywords=jd_keywords,
+            )
+            resolved_issue_indices: set[int] = set()
+            for decision in retry_decisions:
+                # decision.item_id is "flagged-{i}" indexing into flagged_texts
+                try:
+                    idx = int(decision.item_id.rsplit("-", 1)[-1])
+                    claim_prefix = flagged_texts[idx]
+                except (ValueError, IndexError):
+                    continue
+                dropped_any = False
+                for section in ("experiences", "projects", "competitions"):
+                    for entry in tailored.get(section) or []:
+                        bullets = entry.get("bullets") or []
+                        kept = [
+                            b
+                            for b in bullets
+                            if not str(b.get("text") or "").startswith(claim_prefix[:100])
+                        ]
+                        if len(kept) != len(bullets):
+                            entry["bullets"] = kept
+                            dropped_any = True
+                if dropped_any:
+                    auto_drops.append({"claim": claim_prefix, "reason": decision.reason})
+                    for i, issue in enumerate(hard_issues):
+                        if issue.rstrip().endswith(claim_prefix.rstrip()):
+                            resolved_issue_indices.add(i)
+            hard_issues = [
+                i for idx, i in enumerate(hard_issues) if idx not in resolved_issue_indices
+            ]
+
         evidence_hard_ok = len(hard_issues) == 0
         tailored["format_check"] = {
             "single_page": "content likely exceeds one page" not in gate["errors"],
@@ -544,12 +966,10 @@ class ResumeWorkspaceService:
             "issues": issues,
             "hard_issues": hard_issues,
             "confidence": evidence.get("confidence"),
-            "notes": (
-                "; ".join(issues[:3])
-                if issues
-                else "ok"
-            ),
+            "notes": ("; ".join(issues[:3]) if issues else "ok"),
         }
+        if auto_drops:
+            tailored["evidence_check"]["auto_dropped_claims"] = auto_drops
         if not gate["ok"] or not evidence_hard_ok:
             tailored["requires_fix"] = True
         if issues and evidence_hard_ok:
@@ -561,25 +981,60 @@ class ResumeWorkspaceService:
         content_delta["diff_baseline"] = (
             "previous_version" if before_for_diff is not source_master else "master_inventory"
         )
+        content_delta["evidence_trace"] = evidence_trace
+        gap_analysis = build_gap_analysis(
+            tailored_resume=tailored,
+            jd_text=jd_text,
+            jd_required_skills=jd_required_skills,
+            jd_keywords=jd_keywords,
+        )
+        content_delta["gap_analysis"] = gap_analysis
 
         self._trim_versions(session_id, user_id)
         version_index = db.get_latest_version_index(session_id, user_id) + 1
 
-        markdown = ResumeTemplateEditor._render_markdown(tailored)
-
         template_record = db.get_active_template(user_id)
         template_docx: bytes | None = None
         template_replacements: dict[str, str] = {}
+        pending_pdf_bytes: bytes | None = None
 
-        # Prefer master DOCX content-only injection (format lock)
+        # Prefer master DOCX content-only injection (format lock), enforced to
+        # a real one-page render — not a character-count heuristic. If the
+        # actual rendered PDF comes out over one page (e.g. an inserted donor
+        # experience block grows the layout), drop the lowest-relevance entry
+        # and re-render until it fits, exactly like the shopping-cart path.
         master_bytes = ensure_master_template_bytes()
         if master_bytes:
             try:
-                template_docx = inject_content(master_bytes, tailored, source_master)
-                fp_m = fingerprint_docx(master_bytes)
-                fp_g = fingerprint_docx(template_docx)
-                fmt_cmp = compare_fingerprints(fp_m, fp_g)
-                content_delta["format_lock"] = fmt_cmp
+                locked = enforce_one_page(
+                    master_docx=master_bytes,
+                    resume=tailored,
+                    master_inventory=source_master,
+                )
+                content_delta["one_page_lock"] = {
+                    "ok": locked.ok,
+                    "page_count": locked.page_count,
+                    "trim_log": locked.trim_log,
+                    "error": locked.error,
+                }
+                if locked.docx_bytes:
+                    template_docx = locked.docx_bytes
+                    if locked.final_resume is not None and locked.final_resume is not tailored:
+                        tailored = locked.final_resume
+                    fp_m = fingerprint_docx(master_bytes)
+                    fp_g = fingerprint_docx(template_docx)
+                    fmt_cmp = compare_fingerprints(fp_m, fp_g)
+                    content_delta["format_lock"] = fmt_cmp
+                    # Non-blocking post-injection sanity checks (RESUME_CONSTITUTION §9):
+                    # did every entry the projection actually kept make it into the real
+                    # generated DOCX text, and did hyperlinks survive the OOXML edit.
+                    # Checked against `tailored` (what SHOULD be visible), not the full
+                    # master — hidden entries are supposed to be absent, that's not a bug.
+                    content_delta["content_integrity"] = content_integrity_check(
+                        template_docx, tailored
+                    )
+                    content_delta["hyperlink_check"] = hyperlink_check(master_bytes, template_docx)
+                pending_pdf_bytes = locked.pdf_bytes
             except Exception as exc:
                 content_delta["format_lock_error"] = str(exc)
                 template_docx = None
@@ -588,8 +1043,11 @@ class ResumeWorkspaceService:
             template_docx = template_record["docx_bytes"]
             try:
                 self.template_editor.load_template(template_docx)
+                # NOTE: `resume` was previously referenced here undefined (NameError if this
+                # fallback path ever actually ran) — `before_for_diff` is the correct "prior
+                # state to diff against" value in scope.
                 template_replacements = self.template_editor.build_replacement_map(
-                    resume, tailored, template_docx
+                    before_for_diff, tailored, template_docx
                 )
             except Exception:
                 template_replacements = {}
@@ -603,9 +1061,14 @@ class ResumeWorkspaceService:
                     pass
             content_delta["template_replacements"] = template_replacements
 
-        # Skip sync Word PDF so rewrite returns for HTML first-paint.
-        # Preview endpoint builds master PDF on first request via _ensure_word_pdf.
-        content_delta["pdf_async"] = True
+        # one_page_lock already rendered the real PDF while enforcing the page
+        # budget above; reuse it instead of re-rendering on first preview.
+        content_delta["pdf_async"] = pending_pdf_bytes is None
+
+        # Render markdown from `tailored` AFTER the one-page trim above, so an
+        # entry dropped to fit the real page count doesn't linger in the
+        # exported .md while it's already gone from the PDF/DOCX.
+        markdown = ResumeTemplateEditor._render_markdown(tailored)
 
         version_id = db.create_resume_version(
             session_id=session_id,
@@ -618,6 +1081,8 @@ class ResumeWorkspaceService:
 
         if template_docx:
             self._store_version_file(version_id, "docx", template_docx)
+        if pending_pdf_bytes:
+            self._store_version_file(version_id, "pdf", pending_pdf_bytes)
 
         matches = self._keyword_matches_for_jd(jd_text)
 
@@ -632,6 +1097,8 @@ class ResumeWorkspaceService:
             "has_template": bool(template_docx),
             "has_pdf": False,
             "pdf_pending": True,
+            "gap_analysis": gap_analysis,
+            "evidence_trace": evidence_trace,
         }
 
     def _classify_intent(self, message: str) -> str:
@@ -652,7 +1119,9 @@ class ResumeWorkspaceService:
         if _REWRITE_HINTS.search(text):
             return "rewrite"
         # Ambiguous medium-length instruction → prefer rewrite for tailor workspace
-        if len(text) >= 24 and any(w in text.lower() for w in ("resume", "jd", "bullet", "page", "简历")):
+        if len(text) >= 24 and any(
+            w in text.lower() for w in ("resume", "jd", "bullet", "page", "简历")
+        ):
             return "rewrite"
         return "chat"
 
@@ -684,7 +1153,8 @@ class ResumeWorkspaceService:
             inventory["github_url"] = apply["github_url"]
 
         name = re.search(
-            r"(?:full\s+name|my\s+name|姓名)(?:\s+is|\s*[:=])\s*([A-Za-z\u4e00-\u9fff][A-Za-z\u4e00-\u9fff .'-]{1,60})",
+            r"(?:full\s+name|my\s+name|姓名)(?:\s+is|\s*[:=])\s*"
+            r"([A-Za-z\u4e00-\u9fff][A-Za-z\u4e00-\u9fff .'-]{1,60})",
             text,
             re.I,
         )
@@ -822,6 +1292,31 @@ class ResumeWorkspaceService:
             "ack": str(data.get("ack") or "").strip(),
         }
 
+    _EVIDENCE_URL_RE = re.compile(
+        r"https?://\S+|github\.com/\S+|(?:^|\s)(?:linkedin\.com|drive\.google\.com)/\S+", re.I
+    )
+
+    def _claims_have_verifiable_evidence(
+        self, message: str, chat_history: list[dict] | None
+    ) -> bool:
+        """New experience/education/project claims must come with something checkable —
+        a link, repo, or doc — not just the claim restated in the user's own words.
+
+        A.5's contract: a follow-up like "I did this too, add it" must NOT be taken on
+        the user's word alone. This is a hard, mechanical gate (a real reference must be
+        present in the message or the immediately preceding turns) rather than trusting
+        an LLM's judgment call on "does this sound credible" — a plausible-sounding
+        fabrication is exactly what a judgment call would fail to catch.
+        """
+        recent = " ".join(
+            str(item.get("content") or "")
+            for item in (chat_history or [])[-3:]
+            if str(item.get("role") or "") == "user"
+        )
+        return bool(
+            self._EVIDENCE_URL_RE.search(message or "") or self._EVIDENCE_URL_RE.search(recent)
+        )
+
     async def _handle_update_profile(
         self,
         user_id: str,
@@ -832,6 +1327,32 @@ class ResumeWorkspaceService:
 
         current_apply = library_service.get_apply_profile(user_id)
         patch = await self._llm_extract_profile_patch(message, chat_history, current_apply)
+
+        new_claims = (
+            (patch.get("append_education") or [])
+            + (patch.get("append_experiences") or [])
+            + (patch.get("append_projects") or [])
+        )
+        if new_claims and not self._claims_have_verifiable_evidence(message, chat_history):
+            what = ", ".join(
+                str(row.get("title") or row.get("company") or row.get("name") or "this")
+                for row in new_claims[:3]
+            )
+            return {
+                "agent_message": (
+                    f'I can add "{what}" to your inventory, but not just because you said so — '
+                    "per the no-fabrication rule, new experience/project/education entries need "
+                    "something "
+                    "checkable attached: a link (GitHub repo, LinkedIn, portfolio, a doc), not a "
+                    "description "
+                    "alone. Share a link and I'll add it; without one it stays out of the resume."
+                ),
+                "profile_updated": False,
+                "changed_apply": [],
+                "changed_inventory": [],
+                "pending_evidence_required": True,
+            }
+
         result = library_service.patch_library(
             user_id,
             apply_patch=patch.get("apply") or None,
@@ -895,7 +1416,8 @@ class ResumeWorkspaceService:
                     f"({MASTER_TEMPLATE_LABEL}, content-only injection), "
                     "and save personal facts the user states into their Profile library "
                     "(phone, email, LinkedIn, location, visa, new experience rows). "
-                    "Be concise and helpful. Do not claim you changed the resume unless a rewrite just ran. "
+                    "Be concise and helpful. Do not claim you changed the resume unless a rewrite "
+                    "just ran. "
                     "Never invent employers, metrics, or skills."
                 ),
             },
@@ -905,7 +1427,12 @@ class ResumeWorkspaceService:
         if context:
             messages.insert(
                 1,
-                {"role": "system", "content": f"Workspace context: {json.dumps(context, ensure_ascii=False)[:1200]}"},
+                {
+                    "role": "system",
+                    "content": (
+                        f"Workspace context: {json.dumps(context, ensure_ascii=False)[:1200]}"
+                    ),
+                },
             )
         llm = get_chat_openai(
             model=settings.DEFAULT_PARSER_MODEL or settings.DEFAULT_TAILOR_MODEL,
@@ -914,15 +1441,28 @@ class ResumeWorkspaceService:
         )
         response = await llm.ainvoke(messages)
         content = str(response.content or "").strip()
-        return content or "I can chat about this JD or update the resume preview when you give an edit instruction."
+        return content or (
+            "I can chat about this JD or update the resume preview when you give an edit "
+            "instruction."
+        )
 
-    async def _llm_rewrite_ack(self, instruction: str, version_index: int, content_delta: dict) -> str:
+    async def _llm_rewrite_ack(
+        self, instruction: str, version_index: int, content_delta: dict
+    ) -> str:
         changed = []
         if isinstance(content_delta, dict):
-            for key in ("summary", "skills_certifications", "experiences", "projects", "hidden_entries"):
+            for key in (
+                "summary",
+                "skills_certifications",
+                "experiences",
+                "projects",
+                "hidden_entries",
+            ):
                 if content_delta.get(key):
                     changed.append(key)
-        hint = ", ".join(changed) if changed else "JD-based projection on the locked master template"
+        hint = (
+            ", ".join(changed) if changed else "JD-based projection on the locked master template"
+        )
         try:
             llm = get_chat_openai(
                 model=settings.DEFAULT_PARSER_MODEL or settings.DEFAULT_TAILOR_MODEL,
@@ -937,7 +1477,8 @@ class ResumeWorkspaceService:
                             constitution_system_block()
                             + "Confirm a resume rewrite in at most 2 short sentences. "
                             "Mention checking the PDF preview on the right. "
-                            "Do NOT invent bullet text, employers, metrics, or before/after examples."
+                            "Do NOT invent bullet text, employers, metrics, or before/after "
+                            "examples."
                         ),
                     },
                     {
@@ -973,7 +1514,9 @@ class ResumeWorkspaceService:
         from app.modules.resume_workspace.agent_tools import AgentToolContext
 
         prefs = get_runtime_preference()
-        provider = prefs.get("preferred_provider") or (settings.LLM_PROVIDER or "openai").strip().lower()
+        provider = (
+            prefs.get("preferred_provider") or (settings.LLM_PROVIDER or "openai").strip().lower()
+        )
         model = settings.DEFAULT_PARSER_MODEL or settings.DEFAULT_TAILOR_MODEL
 
         def _usage() -> tuple[str | None, str | None]:
@@ -1054,7 +1597,9 @@ class ResumeWorkspaceService:
             intent = self._classify_intent(message)
             if intent == "update_profile":
                 try:
-                    profile_result = await self._handle_update_profile(user_id, message, chat_history)
+                    profile_result = await self._handle_update_profile(
+                        user_id, message, chat_history
+                    )
                 except Exception as profile_exc:
                     profile_result = {
                         "agent_message": (
@@ -1106,7 +1651,12 @@ class ResumeWorkspaceService:
 
         st = ctx.state
         # If tools didn't save but regex path did earlier, keep that ack
-        if st.profile_updated and not st.did_rewrite and "Saved" not in agent_message and "Profile" not in agent_message:
+        if (
+            st.profile_updated
+            and not st.did_rewrite
+            and "Saved" not in agent_message
+            and "Profile" not in agent_message
+        ):
             labels = st.changed_apply + st.changed_inventory
             if labels:
                 agent_message = (
@@ -1168,7 +1718,9 @@ class ResumeWorkspaceService:
             return docx_bytes
         return None
 
-    def _ensure_word_pdf(self, version_id: str, docx_bytes: bytes | None, full_resume: dict) -> bytes | None:
+    def _ensure_word_pdf(
+        self, version_id: str, docx_bytes: bytes | None, full_resume: dict
+    ) -> bytes | None:
         """Prefer Word COM PDF from master DOCX; never archive Markdown-marker PDFs."""
         pdf_bytes = self._get_version_file(version_id, "pdf")
         # Tiny Helvetica dumps (<12KB) may bake Markdown; Word PDFs are large and may
@@ -1289,10 +1841,12 @@ class ResumeWorkspaceService:
                     temperature=0.5,
                     max_tokens=512,
                 )
-                response = await llm.ainvoke([
-                    ("system", _load_prompt("suggest_project.txt")),
-                    ("human", f"Missing keyword/skill: {keyword}"),
-                ])
+                response = await llm.ainvoke(
+                    [
+                        ("system", _load_prompt("suggest_project.txt")),
+                        ("human", f"Missing keyword/skill: {keyword}"),
+                    ]
+                )
                 result = _extract_json(response.content)
                 suggestion = (result.get("suggestion") or "").strip()
                 if suggestion:
@@ -1324,19 +1878,13 @@ class ResumeWorkspaceService:
 
         # Generate on the fly
         if fmt == "text":
-            return ResumeTemplateEditor._render_markdown(
-                version["full_resume"]
-            ).encode("utf-8")
+            return ResumeTemplateEditor._render_markdown(version["full_resume"]).encode("utf-8")
 
         if fmt == "pdf":
             try:
-                return ResumeTemplateEditor.generate_pdf_from_resume(
-                    version["full_resume"]
-                )
+                return ResumeTemplateEditor.generate_pdf_from_resume(version["full_resume"])
             except Exception:
-                return ResumeTemplateEditor._render_markdown(
-                    version["full_resume"]
-                ).encode("utf-8")
+                return ResumeTemplateEditor._render_markdown(version["full_resume"]).encode("utf-8")
 
         if fmt == "docx":
             stored_docx = self._get_version_file(version_id, "docx")
@@ -1345,9 +1893,7 @@ class ResumeWorkspaceService:
             template = db.get_active_template(user_id) or ensure_user_has_master_template(user_id)
             if template and template.get("docx_bytes"):
                 return template["docx_bytes"]
-            return ResumeTemplateEditor._render_markdown(
-                version["full_resume"]
-            ).encode("utf-8")
+            return ResumeTemplateEditor._render_markdown(version["full_resume"]).encode("utf-8")
 
         return None
 

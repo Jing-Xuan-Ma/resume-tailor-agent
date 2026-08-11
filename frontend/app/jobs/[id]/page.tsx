@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import FlowStepper from "@/components/flow-stepper";
+import AppTopNav from "@/components/app-top-nav";
 import { isLivePostingUrl } from "@/lib/posting-url";
 import { getAuthUserId } from "@/lib/auth-user";
 
@@ -95,6 +96,7 @@ export default function JobDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#f4f6f4]" data-testid="job-detail-page">
+      <AppTopNav active="jobs" />
       <div className="mx-auto max-w-5xl px-6 py-8">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <button
@@ -103,7 +105,7 @@ export default function JobDetailPage() {
             onClick={() => router.push("/jobs")}
             className="text-sm font-semibold text-slate-600 hover:text-slate-950"
           >
-            ← Ranked Jobs
+            ← Jobs
           </button>
           <FlowStepper
             current="detail"
@@ -233,7 +235,7 @@ export default function JobDetailPage() {
               href={tailorHref}
               data-testid="cta-skip-to-tailor"
               className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              title="Skip JD panel (Jobright users often skip — JD is already on Jobright)"
+              title="Skip JD panel and open Tailor directly"
             >
               Skip to Tailor
             </a>

@@ -487,6 +487,60 @@ class BrowserSession:
             "sandbox": sandbox,
         }
 
+    def apply_and_autofill_resume(
+        self,
+        *,
+        ats_url: str,
+        resume_path: str | None,
+        screenshot_path: str | None = None,
+    ) -> dict:
+        """Phase 3 entry: Apply → Autofill with Resume. Shared with shopping-cart worker."""
+        from app.modules.application_engine.ats_apply_entry import apply_and_autofill_resume as _run
+
+        return _run(
+            ats_url=ats_url,
+            resume_path=resume_path,
+            screenshot_path=screenshot_path,
+        )
+
+    def create_or_sign_in(
+        self,
+        *,
+        ats_url: str,
+        resume_path: str | None = None,
+        screenshot_path: str | None = None,
+        ensure_entry: bool = True,
+    ) -> dict:
+        """Phase 4: Create Account / Sign In with ATS_DEFAULT_* credentials."""
+        from app.modules.application_engine.ats_account import create_or_sign_in as _run
+
+        return _run(
+            ats_url=ats_url,
+            resume_path=resume_path,
+            screenshot_path=screenshot_path,
+            ensure_entry=ensure_entry,
+        )
+
+    def fill_form_pause(
+        self,
+        *,
+        user_id: str,
+        ats_url: str,
+        resume_path: str | None = None,
+        screenshot_path: str | None = None,
+        snapshot_path: str | None = None,
+    ) -> dict:
+        """Phase 5: fill ATS form and pause before Submit (reviewable snapshot)."""
+        from app.modules.application_engine.ats_form_fill import fill_ats_form_pause as _run
+
+        return _run(
+            user_id=user_id,
+            ats_url=ats_url,
+            resume_path=resume_path,
+            screenshot_path=screenshot_path,
+            snapshot_path=snapshot_path,
+        )
+
     def _maybe_click_apply_entry(self, page) -> bool:
         """Greenhouse JD pages often need an Apply click before the form appears."""
         selectors = [

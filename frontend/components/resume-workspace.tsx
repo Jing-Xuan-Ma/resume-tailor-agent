@@ -13,7 +13,6 @@ import {
   exportVersion,
   getVersionPreviewUrl,
   previewVersionPdf,
-  getActiveTemplate,
 } from "@/lib/api";
 import FlowStepper from "@/components/flow-stepper";
 import JdPanel from "@/components/jd-panel";
@@ -22,10 +21,8 @@ import type { AgentSendResult } from "@/components/workspace-chat";
 interface ResumeWorkspaceProps {
   userId: string;
   initialJobId?: string;
-  /** Deeplink from Jobright extension: tailor | apply | outreach | confirm */
+  /** Deeplink step: tailor | apply | outreach | confirm | jd */
   initialStep?: string;
-  /** Jobright (or source) page to return to after opening from the extension */
-  initialReturnTo?: string;
   /** Restore a specific tailored version (e.g. back from Apply) */
   initialVersionId?: string;
   initialSessionId?: string;
@@ -63,7 +60,6 @@ export default function ResumeWorkspace({
   userId,
   initialJobId,
   initialStep,
-  initialReturnTo,
   initialVersionId,
   initialSessionId,
 }: ResumeWorkspaceProps) {
@@ -84,11 +80,10 @@ export default function ResumeWorkspace({
   const [rewriting, setRewriting] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [exporting, setExporting] = useState<"pdf" | "docx" | "text" | null>(null);
-  const [initialized, setInitialized] = useState(false);
+  const initializedRef = useRef(false);
   const [finalSavePath, setFinalSavePath] = useState<string | null>(null);
   const [jobLabel, setJobLabel] = useState<string | null>(null);
   const [bootNotice, setBootNotice] = useState<string | null>(null);
-  const [returnToUrl, setReturnToUrl] = useState<string | null>(initialReturnTo || null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [confirmedMeta, setConfirmedMeta] = useState<{
     company?: string;
@@ -97,20 +92,16 @@ export default function ResumeWorkspace({
   } | null>(null);
   const [workspacePanel, setWorkspacePanel] = useState<"jd" | "tailor">(() => {
     const step = (initialStep || "").toLowerCase().trim();
-    // Jobright already shows the JD — open Tailor (agent + PDF) directly.
-    if (initialReturnTo) return "tailor";
     if (step === "jd") return "jd";
     if (step === "tailor" || step === "confirm" || step === "apply" || step === "outreach") {
       return "tailor";
     }
-    // In-app flow: land on JD first, then jump to Tailor.
     return "jd";
   });
   /** Manual stepper focus (so Apply highlight works before version is confirmed). */
   const [focusStep, setFocusStep] = useState<"jd" | "tailor" | "apply" | "outreach" | null>(() => {
     const step = (initialStep || "").toLowerCase().trim();
     if (step === "jd" || step === "tailor" || step === "apply" || step === "outreach") return step;
-    if (initialReturnTo) return "tailor";
     return null;
   });
 
@@ -240,9 +231,8 @@ export default function ResumeWorkspace({
   );
 
   useEffect(() => {
-    if (initialized) return;
-    setInitialized(true);
-    getActiveTemplate(userId).catch(() => {});
+    if (initializedRef.current) return;
+    initializedRef.current = true;
 
     const bootstrap = async () => {
       // Restore from Apply / deep-link — do NOT wipe versions with a fresh auto-tailor.
@@ -318,19 +308,6 @@ export default function ResumeWorkspace({
         const label = [handoff.company, handoff.title].filter(Boolean).join(" · ") || null;
         setJobLabel(label);
         setSessionId(handoff.session_id);
-        if (
-          !initialReturnTo &&
-          handoff.jobright_url &&
-          /jobright\.ai/i.test(String(handoff.jobright_url))
-        ) {
-          setReturnToUrl(handoff.jobright_url);
-        } else if (
-          !initialReturnTo &&
-          handoff.source_url &&
-          /jobright\.ai/i.test(String(handoff.source_url))
-        ) {
-          setReturnToUrl(handoff.source_url);
-        }
         // Defense in depth: strip any residual HTML/CSS from provider JD bodies
         setJdText(
           String(handoff.jd_text || "")
@@ -364,9 +341,9 @@ export default function ResumeWorkspace({
     };
 
     void bootstrap();
-  }, [initialized, initSession, userId, initialJobId, initialVersionId, initialSessionId, runAutoTailor, initialReturnTo]);
+  }, [initSession, userId, initialJobId, initialVersionId, initialSessionId, runAutoTailor]);
 
-  // Extension / deeplink: open Tailor panel and scroll to Confirm under PDF.
+  // Deeplink: open Tailor panel and scroll to Confirm under PDF.
   useEffect(() => {
     const step = (initialStep || "").toLowerCase().trim();
     if (!step || step === "jd" || step === "outreach" || step === "apply") return;
@@ -453,7 +430,6 @@ export default function ResumeWorkspace({
     if (initialJobId) q.set("jobId", initialJobId);
     if (company) q.set("company", company);
     if (position) q.set("position", position);
-    if (returnToUrl) q.set("returnTo", returnToUrl);
     const finalPath = meta?.final_path || confirmedMeta?.final_path || finalSavePath;
     if (finalPath) q.set("finalPath", finalPath);
     return `/apply?${q.toString()}`;
@@ -524,7 +500,6 @@ export default function ResumeWorkspace({
     if (initialJobId) q.set("jobId", initialJobId);
     if (company) q.set("company", company);
     if (position) q.set("position", position);
-    if (returnToUrl) q.set("returnTo", returnToUrl);
     const href = `/outreach${q.toString() ? `?${q.toString()}` : ""}`;
     // Same-tab navigation so the flow stepper stays continuous.
     window.location.assign(href);
@@ -640,39 +615,12 @@ export default function ResumeWorkspace({
       {/* Slim chrome only */}
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2.5">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {returnToUrl ? (
-            <a
-              href={returnToUrl}
-              data-testid="back-to-jobright"
-              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
-              title="Return to the Jobright job page"
-              onClick={(e) => {
-                // Prefer focusing the existing Jobright tab via the extension (if installed).
-                e.preventDefault();
-                const detail = { returnTo: returnToUrl };
-                window.dispatchEvent(new CustomEvent("ra-focus-jobright", { detail }));
-                try {
-                  // Fallback: open/focus Jobright in this window after a short delay if extension does not handle it.
-                  window.setTimeout(() => {
-                    if (!document.documentElement.dataset.raJobrightFocused) {
-                      window.location.href = returnToUrl;
-                    }
-                  }, 350);
-                } catch {
-                  window.location.href = returnToUrl;
-                }
-              }}
-            >
-              ← Jobright
-            </a>
-          ) : (
-            <a
-              href="/jobs"
-              className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
-            >
-              ← Jobs
-            </a>
-          )}
+          <a
+            href="/jobs"
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+          >
+            ← Jobs
+          </a>
           <FlowStepper
             current={flowStep}
             className="hidden lg:flex"
@@ -876,7 +824,7 @@ export default function ResumeWorkspace({
         </div>
       ) : null}
 
-      {/* Flow panels: 3. JD | 4. Tailor (agent + PDF). Jobright deeplinks skip to Tailor. */}
+      {/* Flow panels: 3. JD | 4. Tailor (agent + PDF). */}
       {workspacePanel === "jd" ? (
         <div
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-gutter:stable]"
@@ -884,9 +832,7 @@ export default function ResumeWorkspace({
         >
           <div className="mb-3 flex items-center justify-between gap-2">
             <p className="text-[12px] text-slate-500">
-              {returnToUrl
-                ? "Jobright already shows the JD — you can skip to 4. Tailor."
-                : "Review JD and hard requirements, then continue to Tailor."}
+              Review JD and hard requirements, then continue to Tailor.
             </p>
             <button
               type="button"

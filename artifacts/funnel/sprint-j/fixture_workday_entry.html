@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Workday Entry Sandbox — Phase 3–4</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 560px; margin: 32px auto; color: #111; }
+    h1 { font-size: 1.35rem; }
+    button, .btn {
+      display: inline-block; margin-top: 12px; padding: 10px 16px;
+      background: #0057b8; color: #fff; border: 0; font-weight: 700; cursor: pointer; border-radius: 6px;
+    }
+    .modal {
+      display: none; margin-top: 20px; padding: 16px; border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc;
+    }
+    .modal.visible { display: block; }
+    .choice { display: block; width: 100%; text-align: left; margin-top: 8px; background: #0f172a; }
+    label { display: block; margin: 10px 0 4px; font-weight: 600; }
+    input { width: 100%; padding: 8px; box-sizing: border-box; }
+    #stage { font-size: 12px; color: #475569; margin-top: 8px; }
+    #error { color: #b91c1c; font-size: 13px; min-height: 1.2em; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 8px; }
+    .tabs button { background: #64748b; }
+    .tabs button.active { background: #0f172a; }
+  </style>
+</head>
+<body>
+  <h1 data-ats="workday">ASM Global — Sample Job (sandbox)</h1>
+  <p>Internship posting sandbox for Apply → Autofill → Create Account / Sign In.</p>
+  <button
+    type="button"
+    id="apply-btn"
+    data-automation-id="jobPostingApplyButton"
+    data-testid="apply-button"
+  >Apply</button>
+  <p id="stage">stage:job_posting</p>
+
+  <div id="start-modal" class="modal" role="dialog" aria-label="Start Your Application">
+    <h2>Start Your Application</h2>
+    <p>How would you like to apply?</p>
+    <button type="button" class="choice" id="autofill-btn" data-automation-id="applyFlowAutofillWithResume">
+      Autofill with Resume
+    </button>
+    <button type="button" class="choice" id="manual-btn">Apply Manually</button>
+  </div>
+
+  <div id="after-autofill" class="modal" data-testid="after-autofill">
+    <div class="tabs">
+      <button type="button" id="tab-create" class="active" data-testid="tab-create">Create Account</button>
+      <button type="button" id="tab-signin" data-testid="tab-signin">Sign In</button>
+    </div>
+    <h2 id="auth-title">Create Account</h2>
+    <p id="resume-status">Resume not attached</p>
+    <p id="error" data-testid="auth-error"></p>
+    <label>Email</label>
+    <input type="email" id="email" data-automation-id="email" aria-label="Email"/>
+    <label>Password</label>
+    <input type="password" id="password" data-automation-id="password" aria-label="Password"/>
+    <label>Verify New Password</label>
+    <input type="password" id="password2" data-automation-id="verifyPassword" aria-label="Verify New Password"/>
+    <label>Upload resume</label>
+    <input type="file" id="resume-file" data-automation-id="file-upload-input-ref" accept=".pdf,.doc,.docx"/>
+    <button type="button" id="create-btn" data-automation-id="createAccountSubmitButton">Create Account</button>
+    <button type="button" id="signin-btn" data-automation-id="signInSubmitButton" style="display:none">Sign In</button>
+    <button type="submit" id="final-submit" style="display:none">Submit Application</button>
+  </div>
+
+  <div id="app-form" class="modal" data-testid="application-form">
+    <h2>My Information</h2>
+    <label>First Name</label>
+    <input data-automation-id="legalNameSection_firstName" aria-label="First Name"/>
+    <label>Last Name</label>
+    <input data-automation-id="legalNameSection_lastName" aria-label="Last Name"/>
+    <label>Email</label>
+    <input type="email" data-automation-id="email" aria-label="Email Address"/>
+    <label>Phone</label>
+    <input type="tel" data-automation-id="phone" aria-label="Phone Device Number"/>
+    <label>LinkedIn</label>
+    <input data-automation-id="linkedin" aria-label="LinkedIn Profile"/>
+    <label>Resume</label>
+    <input type="file" data-automation-id="file-upload-input-ref" accept=".pdf,.doc,.docx"/>
+    <button type="button" data-automation-id="bottom-navigation-next-button">Next</button>
+    <button type="button" id="final-submit-app" data-automation-id="bottom-navigation-submit-button">Submit Application</button>
+    <p id="msg"></p>
+  </div>
+
+  <script>
+    // Emails already registered in this sandbox (simulate "account exists").
+    const EXISTING = new Set(['exists@example.com', 'taken@example.com']);
+    let mode = 'create'; // create | signin
+
+    const stage = document.getElementById('stage');
+    const modal = document.getElementById('start-modal');
+    const after = document.getElementById('after-autofill');
+    const appForm = document.getElementById('app-form');
+    const err = document.getElementById('error');
+    const createBtn = document.getElementById('create-btn');
+    const signinBtn = document.getElementById('signin-btn');
+    const title = document.getElementById('auth-title');
+
+    function setMode(next) {
+      mode = next;
+      const create = next === 'create';
+      title.textContent = create ? 'Create Account' : 'Sign In';
+      createBtn.style.display = create ? '' : 'none';
+      signinBtn.style.display = create ? 'none' : '';
+      document.getElementById('password2').style.display = create ? '' : 'none';
+      document.getElementById('tab-create').classList.toggle('active', create);
+      document.getElementById('tab-signin').classList.toggle('active', !create);
+      err.textContent = '';
+    }
+
+    function goRegistered() {
+      after.classList.remove('visible');
+      appForm.classList.add('visible');
+      stage.textContent = 'stage:registered';
+      err.textContent = '';
+    }
+
+    document.getElementById('final-submit-app').addEventListener('click', () => {
+      document.getElementById('msg').textContent = 'SUBMITTED';
+      stage.textContent = 'stage:submitted';
+    });
+
+    document.getElementById('apply-btn').addEventListener('click', () => {
+      modal.classList.add('visible');
+      stage.textContent = 'stage:start_application';
+    });
+    document.getElementById('autofill-btn').addEventListener('click', () => {
+      modal.classList.remove('visible');
+      after.classList.add('visible');
+      setMode('create');
+      stage.textContent = 'stage:create_account';
+    });
+    document.getElementById('resume-file').addEventListener('change', (e) => {
+      const name = (e.target.files && e.target.files[0] && e.target.files[0].name) || '';
+      document.getElementById('resume-status').textContent = name
+        ? ('Resume attached: ' + name)
+        : 'Resume not attached';
+      if (name && stage.textContent.indexOf('registered') < 0) {
+        stage.textContent = 'stage:resume_attached';
+      }
+    });
+    document.getElementById('tab-create').addEventListener('click', () => setMode('create'));
+    document.getElementById('tab-signin').addEventListener('click', () => setMode('signin'));
+
+    createBtn.addEventListener('click', () => {
+      const email = (document.getElementById('email').value || '').trim().toLowerCase();
+      const password = document.getElementById('password').value || '';
+      const password2 = document.getElementById('password2').value || '';
+      if (!email || !password) {
+        err.textContent = 'Email and password are required.';
+        stage.textContent = 'stage:validation_error';
+        return;
+      }
+      if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password)
+          || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+        err.textContent = 'Password does not meet complexity requirements.';
+        stage.textContent = 'stage:validation_error';
+        return;
+      }
+      if (password !== password2) {
+        err.textContent = 'Passwords do not match.';
+        stage.textContent = 'stage:validation_error';
+        return;
+      }
+      if (EXISTING.has(email)) {
+        stage.textContent = 'stage:email_exists';
+        setMode('signin');
+        err.textContent = 'An account with this email already exists. Please Sign In.';
+        return;
+      }
+      goRegistered();
+    });
+
+    signinBtn.addEventListener('click', () => {
+      const email = (document.getElementById('email').value || '').trim().toLowerCase();
+      const password = document.getElementById('password').value || '';
+      if (!email || !password) {
+        err.textContent = 'Email and password are required.';
+        stage.textContent = 'stage:validation_error';
+        return;
+      }
+      // Sandbox accepts any non-empty password for existing or any email on Sign In.
+      goRegistered();
+    });
+  </script>
+</body>
+</html>

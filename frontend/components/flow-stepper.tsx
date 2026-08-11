@@ -3,7 +3,7 @@
 export type FlowStepId = "jobs" | "detail" | "jd" | "tailor" | "apply" | "outreach";
 
 const STEPS: { id: FlowStepId; label: string; hint: string }[] = [
-  { id: "jobs", label: "1. Archive", hint: "Local inventory / history (Jobright plugin is primary discovery)" },
+  { id: "jobs", label: "1. Jobs", hint: "Browse ranked jobs and local inventory" },
   { id: "detail", label: "2. Match", hint: "Score & keywords" },
   { id: "jd", label: "3. JD", hint: "Job description & hard requirements" },
   { id: "tailor", label: "4. Tailor", hint: "Agent + resume PDF" },

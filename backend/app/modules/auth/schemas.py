@@ -8,7 +8,7 @@ class RegisterRequest(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def valid_email(cls, value: str) -> str:
+    def valid_email(_cls, value: str) -> str:
         if "@" not in value or "." not in value.split("@")[-1]:
             raise ValueError("Invalid email")
         return value.lower()
@@ -20,7 +20,7 @@ class LoginRequest(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def valid_email(cls, value: str) -> str:
+    def valid_email(_cls, value: str) -> str:
         if "@" not in value or "." not in value.split("@")[-1]:
             raise ValueError("Invalid email")
         return value.lower()

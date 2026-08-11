@@ -3,6 +3,7 @@
 import { Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import AuthGate from "@/components/auth-gate";
+import AppTopNav from "@/components/app-top-nav";
 import FlowStepper from "@/components/flow-stepper";
 import OutreachStepPanel from "@/components/outreach-step-panel";
 
@@ -15,41 +16,30 @@ function OutreachBody({
   const jobId = searchParams.get("jobId") || undefined;
   const company = searchParams.get("company") || undefined;
   const position = searchParams.get("position") || undefined;
-  const returnTo = searchParams.get("returnTo") || undefined;
 
   const tailorHref = useMemo(() => {
     if (!jobId) return "/?view=resume&step=tailor";
     const q = new URLSearchParams({ view: "resume", jobId, step: "tailor" });
-    if (returnTo) q.set("returnTo", returnTo);
     return `/?${q.toString()}`;
-  }, [jobId, returnTo]);
+  }, [jobId]);
 
   const jdHref = useMemo(() => {
     if (!jobId) return "/?view=resume&step=jd";
     const q = new URLSearchParams({ view: "resume", jobId, step: "jd" });
-    if (returnTo) q.set("returnTo", returnTo);
     return `/?${q.toString()}`;
-  }, [jobId, returnTo]);
+  }, [jobId]);
 
   const applyHref = useMemo(() => {
     if (!jobId) return "/?view=resume&step=apply";
     const q = new URLSearchParams({ view: "resume", jobId, step: "apply" });
-    if (returnTo) q.set("returnTo", returnTo);
     return `/?${q.toString()}`;
-  }, [jobId, returnTo]);
+  }, [jobId]);
 
   return (
     <main className="min-h-screen bg-[#f4f6f4] text-slate-950" data-testid="outreach-page">
-      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+      <AppTopNav active="tailor" />
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white/95 px-4 py-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {returnTo ? (
-            <a
-              href={returnTo}
-              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
-            >
-              ← Jobright
-            </a>
-          ) : null}
           <a
             href={tailorHref}
             className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"

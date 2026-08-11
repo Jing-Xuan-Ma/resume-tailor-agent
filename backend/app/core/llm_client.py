@@ -109,7 +109,7 @@ class ProviderInfo:
 
 # OpenAI-compatible providers (use ChatOpenAI with base_url override)
 OPENAI_COMPAT_PROVIDERS: list[ProviderInfo] = [
-    ProviderInfo(id="openai",         name="OpenAI",              api_type="openai",   env_var="OPENAI_API_KEY",                      default_model="gpt-4o-mini",
+    ProviderInfo(id="openai",         name="OpenAI",              api_type="openai",   env_var="OPENAI_API_KEY",                      default_model="gemini-3.5-flash",
                   base_url_env="OPENAI_BASE_URL"),
     ProviderInfo(id="zhipu",          name="Zhipu (BigModel)",    api_type="openai",   env_var="BIGMODEL_API_KEY", base_url="https://open.bigmodel.cn/api/paas/v4", default_model="glm-4-flash"),
     ProviderInfo(id="bigmodel",       name="BigModel",            api_type="openai",   env_var="BIGMODEL_API_KEY", base_url="https://open.bigmodel.cn/api/paas/v4", default_model="glm-4-flash"),
@@ -137,6 +137,7 @@ OPENAI_COMPAT_PROVIDERS: list[ProviderInfo] = [
     ProviderInfo(id="kimi-coding",    name="Kimi For Coding",     api_type="openai",   env_var="KIMI_API_KEY",        base_url="https://api.moonshot.cn/v1",                   default_model="kimi-coding"),
     ProviderInfo(id="qwen-token",     name="Qwen Token Plan",     api_type="openai",   env_var="QWEN_TOKEN_PLAN_API_KEY", base_url="https://dashscope.aliyuncs.com/compatible-mode/v1", default_model="qwen-plus"),
     ProviderInfo(id="radius",         name="Radius",              api_type="openai",   env_var="RADIUS_API_KEY",      base_url="https://api.radius.ai/v1",                     default_model="radius-default"),
+    ProviderInfo(id="yiling-glm",     name="GLM-5.2 (yiling)",    api_type="openai",   env_var="YILING_GLM_API_KEY",  base_url="https://router.c.yiling.top/v1",               default_model="glm-5.2"),
 ]
 
 # Non-OpenAI-compatible providers (use native SDKs via langchain)
@@ -540,7 +541,7 @@ class FailoverChatModel:
         detail = "; ".join(f"{pid}: {err}" for pid, err in errors)
         raise RuntimeError(f"All LLM providers failed. {detail}") from errors[-1][1]
 
-    def bind_tools(self, tools: Any, **kwargs: Any) -> "_ToolsBoundFailover":
+    def bind_tools(self, tools: Any, **kwargs: Any) -> _ToolsBoundFailover:
         """Bind tools onto each failover candidate (OpenAI-compatible function calling)."""
         return _ToolsBoundFailover(self, tools, **kwargs)
 
@@ -723,8 +724,14 @@ def _build_openai_compat(
     }
     if effective_base_url:
         params["base_url"] = effective_base_url
-    # MiMo defaults to "thinking" tokens that can empty `content` at low max_tokens.
-    if isinstance(info_or_key, ProviderInfo) and info_or_key.id in {"xiaomi", "mimo"}:
+    # Gateways (MiMo / Gemini flash / GLM) often bill "thinking" into completion
+    # tokens and truncate `content` when max_tokens is modest. Disable by default.
+    model_l = (model or "").lower()
+    provider_id = info_or_key.id if isinstance(info_or_key, ProviderInfo) else ""
+    needs_no_think = provider_id in {"xiaomi", "mimo", "yiling-glm", "openai"} or any(
+        model_l.startswith(p) for p in ("gemini", "glm", "mimo")
+    )
+    if needs_no_think:
         extra = dict(params.get("extra_body") or {})
         extra.setdefault("thinking", {"type": "disabled"})
         params["extra_body"] = extra

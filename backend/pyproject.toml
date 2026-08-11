@@ -42,6 +42,7 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.4",
     "structlog>=24.1.0",
+    "playwright>=1.45.0",
 ]
 
 [project.optional-dependencies]
@@ -53,6 +54,8 @@ dev = [
     "mypy>=1.10.0",
     "pre-commit>=3.7.0",
     "watchdog>=4.0.0",
+    "vulture>=2.11",
+    "deptry>=0.16",
 ]
 jobspy = [
     "python-jobspy>=1.1.76",
@@ -98,6 +101,14 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 
+[tool.deptry]
+optional_dependencies_dev_groups = ["dev"]
+# Baseline ignores: optional providers + sibling intern-list viewer import path.
+ignore = ["DEP001", "DEP002", "DEP003"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "network: hits a real external network/LLM endpoint; needs live credentials, excluded from the fast local gate",
+]

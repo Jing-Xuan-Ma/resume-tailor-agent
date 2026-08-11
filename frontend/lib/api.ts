@@ -19,28 +19,6 @@ export interface ChatResponse {
   suggested_actions: string[];
 }
 
-export interface TailorRequest {
-  user_id: string;
-  resume_id: string;
-  jd_text: string;
-  job_id?: string;
-  preferences?: Record<string, unknown>;
-}
-
-export interface TailorResponse {
-  success: boolean;
-  tailored_resume: unknown;
-  message: string;
-  clarification_needed: boolean;
-  clarification_question?: string;
-  ats_score_estimate?: number;
-  tailored_resume_id?: string;
-  draft_id?: string;
-  revision_id?: string;
-  markdown?: string;
-  key_map?: KeyMapItem[];
-}
-
 export interface AuthResponse {
   access_token: string;
   token_type: string;
@@ -76,7 +54,7 @@ export interface ApplicationSubmitResponse {
 
 export interface JobPrepareApplicationResponse {
   job: JobRecord;
-  tailored: TailorResponse;
+  tailored: Record<string, unknown>;
   cover_letter?: Record<string, unknown>;
   application_plan?: ApplicationPlanResponse & Record<string, unknown>;
 }
@@ -152,52 +130,12 @@ export interface OutreachJdIngestResult {
   fetch_status: string;
 }
 
-export interface GrowthPlan {
-  id: string;
-  user_id: string;
-  job_id?: string;
-  target_role: string;
-  gaps: Record<string, unknown>[];
-  recommendations: Record<string, unknown>[];
-  roadmap: Record<string, unknown>[];
-  created_at: string;
-}
-
 export interface KeyMapItem {
   jd_key: string;
   resume_phrase: string;
   status: "matched" | "partial" | "missing" | string;
   highlight_terms: string[];
   note: string;
-}
-
-export interface ModifyDraftResponse {
-  success: boolean;
-  draft_id: string;
-  revision_id?: string;
-  tailored_resume?: unknown;
-  markdown?: string;
-  key_map?: KeyMapItem[];
-  message: string;
-}
-
-export interface UploadResumeResponse {
-  success: boolean;
-  resume_id?: string;
-  embedded_count: number;
-  message: string;
-}
-
-export interface SourceResumeRecord {
-  id: string;
-  user_id: string;
-  source_type: string;
-  filename?: string;
-  raw_text?: string;
-  parsed: Record<string, unknown>;
-  embedded_count: number;
-  created_at: string;
-  updated_at: string;
 }
 
 async function post<T>(path: string, body: unknown, init?: { signal?: AbortSignal }): Promise<T> {
@@ -237,95 +175,6 @@ export async function getCurrentUser(token: string): Promise<{ user: Record<stri
     throw new Error(`API error ${res.status}: ${text}`);
   }
   return res.json() as Promise<{ user: Record<string, unknown> }>;
-}
-
-export async function tailorResume(req: TailorRequest): Promise<TailorResponse> {
-  return post<TailorResponse>("/api/v1/resume-tailor/tailor", req);
-}
-
-export async function exportText(tailoredResume: unknown): Promise<{ text: string }> {
-  return post<{ text: string }>("/api/v1/resume-tailor/export-text", {
-    tailored_resume: tailoredResume,
-  });
-}
-
-export async function modifyDraft(
-  user_id: string,
-  draft_id: string,
-  instruction: string
-): Promise<ModifyDraftResponse> {
-  return post<ModifyDraftResponse>("/api/v1/resume-tailor/drafts/modify", {
-    user_id,
-    draft_id,
-    instruction,
-  });
-}
-
-export async function getTailoredResume(
-  tailored_resume_id: string,
-  user_id?: string
-): Promise<Record<string, unknown>> {
-  const params = user_id ? `?${new URLSearchParams({ user_id })}` : "";
-  const res = await fetch(`${API_BASE}/api/v1/resume-tailor/tailored/${tailored_resume_id}${params}`);
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<Record<string, unknown>>;
-}
-
-export async function exportDraft(
-  user_id: string,
-  draft_id: string,
-  format: "pdf" | "docx"
-): Promise<Blob> {
-  const params = new URLSearchParams({ user_id, format });
-  const res = await fetch(`${API_BASE}/api/v1/resume-tailor/drafts/${draft_id}/export?${params}`);
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.blob();
-}
-
-export async function uploadResumeText(
-  user_id: string,
-  resume_text: string
-): Promise<UploadResumeResponse> {
-  return post<UploadResumeResponse>("/api/v1/resume-tailor/upload-resume", {
-    user_id,
-    resume_text,
-  });
-}
-
-export async function uploadResumeFile(
-  user_id: string,
-  file: File
-): Promise<UploadResumeResponse> {
-  const formData = new FormData();
-  formData.append("user_id", user_id);
-  formData.append("file", file);
-
-  const res = await fetch(`${API_BASE}/api/v1/resume-tailor/upload-resume-file`, {
-    method: "POST",
-    body: formData,
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<UploadResumeResponse>;
-}
-
-export async function getLatestResume(user_id: string): Promise<SourceResumeRecord | undefined> {
-  const params = new URLSearchParams({ user_id });
-  const res = await fetch(`${API_BASE}/api/v1/resume-tailor/resumes/latest?${params}`);
-  if (res.status === 404) return undefined;
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<SourceResumeRecord>;
 }
 
 export async function checkHealth(): Promise<{
@@ -807,7 +656,6 @@ export interface JobWorkspaceHandoff {
   jd_text: string;
   title?: string;
   company?: string;
-  jobright_url?: string;
   source_url?: string;
 }
 
@@ -835,7 +683,6 @@ export async function openJobInResumeWorkspace(
     jd_text,
     title: data.title ? String(data.title) : undefined,
     company: data.company ? String(data.company) : undefined,
-    jobright_url: data.jobright_url ? String(data.jobright_url) : undefined,
     source_url: data.source_url ? String(data.source_url) : undefined,
   };
 }
@@ -1077,10 +924,38 @@ export async function exportVersion(
 
 const API_BASE_PREVIEW = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
+export type TemplateVersionItem = {
+  id: string;
+  filename: string;
+  is_active: boolean;
+  resume_structure?: {
+    sections?: Array<{ type?: string; entries?: Array<{ bullets?: unknown[] }> }>;
+  };
+  unmapped_sections: Array<{ raw_title: string }>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ActiveTemplate = {
+  template_id: string;
+  filename: string;
+  block_count: number;
+  resume_structure?: { sections?: Array<{ type?: string; title?: string }> };
+  unmapped_sections?: Array<{ raw_title: string }>;
+  created_at: string;
+};
+
 export async function uploadTemplate(
   user_id: string,
   file: File
-): Promise<{ template_id: string; block_count: number; filename: string }> {
+): Promise<{
+  template_id: string;
+  block_count: number;
+  filename: string;
+  resume_structure?: Record<string, unknown>;
+  unmapped_sections?: Array<{ raw_title: string }>;
+  is_active?: boolean;
+}> {
   const formData = new FormData();
   formData.append("user_id", user_id);
   formData.append("file", file);
@@ -1096,12 +971,36 @@ export async function uploadTemplate(
   return res.json();
 }
 
-export async function getActiveTemplate(
-  user_id: string
-): Promise<{ template_id: string; filename: string; block_count: number; created_at: string } | null> {
+export async function getActiveTemplate(user_id: string): Promise<ActiveTemplate | null> {
   const params = new URLSearchParams({ user_id });
   const res = await fetch(`${API_BASE}/api/v1/resume-workspace/template/active?${params}`);
   if (res.status === 404) return null;
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+export async function listTemplates(user_id: string): Promise<{ templates: TemplateVersionItem[] }> {
+  const params = new URLSearchParams({ user_id });
+  const res = await fetch(`${API_BASE}/api/v1/resume-workspace/templates?${params}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<{ templates: TemplateVersionItem[] }>;
+}
+
+export async function activateTemplate(
+  template_id: string,
+  user_id: string
+): Promise<{ ok: boolean; template_id: string; resume_structure?: Record<string, unknown> }> {
+  const params = new URLSearchParams({ user_id });
+  const res = await fetch(
+    `${API_BASE}/api/v1/resume-workspace/template/${encodeURIComponent(template_id)}/activate?${params}`,
+    { method: "POST" }
+  );
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`API error ${res.status}: ${text}`);
@@ -1127,24 +1026,6 @@ export async function previewVersionPdf(
     throw new Error(`API error ${res.status}: ${text}`);
   }
   return res.blob();
-}
-
-export async function analyzeGrowth(req: {
-  user_id: string;
-  job_id?: string;
-  target_role?: string;
-}): Promise<GrowthPlan> {
-  return post<GrowthPlan>("/api/v1/growth/analyze", req);
-}
-
-export async function listGrowthPlans(user_id: string, limit = 20): Promise<{ plans: GrowthPlan[] }> {
-  const params = new URLSearchParams({ user_id, limit: String(limit) });
-  const res = await fetch(`${API_BASE}/api/v1/growth?${params}`);
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<{ plans: GrowthPlan[] }>;
 }
 
 export async function translateJdSegments(
@@ -1212,6 +1093,304 @@ export async function confirmQueueItem(
 
 export async function skipQueueItem(item_id: string, user_id: string): Promise<QueueItem> {
   return post(`/api/v1/queue/${encodeURIComponent(item_id)}/skip`, { user_id });
+}
+
+export type CartApplyState = {
+  status?: string;
+  error?: string | null;
+  jobright_url?: string | null;
+  ats_url?: string | null;
+  form_url?: string | null;
+  storage_state_path?: string | null;
+  ats_type?: string | null;
+  nav_method?: string | null;
+  apply_clicked?: boolean;
+  autofill_clicked?: boolean;
+  resume_attached?: boolean;
+  phase3_done?: boolean;
+  phase4_done?: boolean;
+  phase5_done?: boolean;
+  email_masked?: string | null;
+  auth_mode?: string | null;
+  next_screen?: string | null;
+  resume_path?: string | null;
+  fill_snapshot_path?: string | null;
+  screenshot_path?: string | null;
+  filled_fields?: Array<{
+    field?: string;
+    value?: string;
+    tier?: string;
+    status?: string;
+    note?: string;
+  }>;
+  profile_checklist?: Array<{ field?: string; value?: string; tier?: string; note?: string }>;
+  fill_plan?: Array<Record<string, unknown>>;
+  dry_run?: boolean;
+  paused_before_submit?: boolean;
+  updated_at?: string;
+  note?: string;
+  timeline?: Array<{ status?: string; at?: string; error?: string | null }>;
+};
+
+export type CartFillReview = {
+  cart_id: string;
+  item_id: string;
+  company?: string;
+  position?: string;
+  apply_status?: string;
+  steps?: Array<{ id: string; label: string; hint?: string }>;
+  review?: {
+    filled_fields?: CartApplyState["filled_fields"];
+    profile_checklist?: CartApplyState["profile_checklist"];
+    fill_plan?: CartApplyState["fill_plan"];
+    screenshot_path?: string | null;
+    ats_url?: string | null;
+    form_url?: string | null;
+    storage_state_path?: string | null;
+    ats_type?: string | null;
+    paused_before_submit?: boolean;
+    submitted?: boolean;
+    method?: string;
+    dry_run?: boolean;
+    message?: string;
+  };
+};
+
+export type ShoppingCartItem = {
+  item_id?: string;
+  intern_job_id?: string;
+  listing_id?: string;
+  company?: string;
+  position?: string;
+  location?: string;
+  source_url?: string;
+  status?: string;
+  ok?: boolean;
+  error?: string;
+  session_id?: string;
+  version_id?: string;
+  folder?: string;
+  resume_md?: string;
+  cover_letter_md?: string;
+  has_resume_pdf?: boolean;
+  has_cover_letter_pdf?: boolean;
+  has_detail?: boolean;
+  elapsed_ms?: number;
+  rewrite_ms?: number;
+  cover_letter_ms?: number;
+  apply?: CartApplyState;
+};
+
+export type ShoppingCartPreview = {
+  requested: number;
+  status?: string;
+  items: ShoppingCartItem[];
+};
+
+export type ShoppingCartResponse = {
+  cart_id: string;
+  status?: string;
+  requested?: number;
+  ok_count?: number;
+  failed_count?: number;
+  generating_count?: number;
+  concurrency?: number;
+  elapsed_ms?: number;
+  max_item_ms?: number;
+  soft_timeout_s?: number;
+  apply_summary?: {
+    counts?: Record<string, number>;
+    ready_to_submit?: number;
+    queued?: number;
+    navigating?: number;
+    on_ats?: number;
+    applying?: number;
+    registered?: number;
+    filled?: number;
+    failed?: number;
+    submitted?: number;
+  };
+  items: ShoppingCartItem[];
+};
+
+export async function previewShoppingCart(
+  intern_job_ids: string[]
+): Promise<ShoppingCartPreview> {
+  return post("/api/v1/shopping-cart/preview", { intern_job_ids });
+}
+
+export async function generateShoppingCart(
+  user_id: string,
+  intern_job_ids: string[],
+  concurrency?: number
+): Promise<ShoppingCartResponse> {
+  return post("/api/v1/shopping-cart/batch-generate", {
+    user_id,
+    intern_job_ids,
+    ...(concurrency != null ? { concurrency } : {}),
+    wait: false,
+  });
+}
+
+export async function getShoppingCart(
+  cart_id: string,
+  user_id: string
+): Promise<ShoppingCartResponse> {
+  const params = new URLSearchParams({ user_id });
+  const res = await fetch(
+    `${API_BASE}/api/v1/shopping-cart/${encodeURIComponent(cart_id)}?${params}`
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<ShoppingCartResponse>;
+}
+
+export async function confirmShoppingCartItem(
+  cart_id: string,
+  item_id: string,
+  user_id: string
+): Promise<{
+  cart_id: string;
+  item_id: string;
+  status: string;
+  folder?: string;
+  resume_pdf_path?: string;
+  cover_letter_pdf_path?: string;
+}> {
+  return post(
+    `/api/v1/shopping-cart/${encodeURIComponent(cart_id)}/items/${encodeURIComponent(item_id)}/confirm`,
+    { user_id }
+  );
+}
+
+/** Ephemeral PDF preview (not written to folder until confirm). */
+export function getShoppingCartItemPreviewUrl(
+  cart_id: string,
+  item_id: string,
+  user_id: string,
+  kind: "resume" | "cover" = "resume"
+): string {
+  const params = new URLSearchParams({ user_id, kind });
+  return `${API_BASE}/api/v1/shopping-cart/${encodeURIComponent(cart_id)}/items/${encodeURIComponent(item_id)}/preview.pdf?${params}`;
+}
+
+export async function getShoppingCartFillReview(
+  cart_id: string,
+  item_id: string,
+  user_id: string
+): Promise<CartFillReview> {
+  const params = new URLSearchParams({ user_id });
+  const res = await fetch(
+    `${API_BASE}/api/v1/shopping-cart/${encodeURIComponent(cart_id)}/items/${encodeURIComponent(item_id)}/fill-review?${params}`
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<CartFillReview>;
+}
+
+export function getShoppingCartFillScreenshotUrl(
+  cart_id: string,
+  item_id: string,
+  user_id: string
+): string {
+  const params = new URLSearchParams({ user_id });
+  return `${API_BASE}/api/v1/shopping-cart/${encodeURIComponent(cart_id)}/items/${encodeURIComponent(item_id)}/fill-screenshot?${params}`;
+}
+
+export async function openShoppingCartFilledForm(
+  cart_id: string,
+  item_id: string,
+  user_id: string,
+  keep_open_ms = 1_800_000
+): Promise<{
+  ok: boolean;
+  opened?: boolean;
+  form_url?: string;
+  session_restored?: boolean;
+  refilled?: boolean;
+  official_ats?: boolean;
+  method?: string;
+  message?: string;
+  error?: string;
+}> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/shopping-cart/${encodeURIComponent(cart_id)}/items/${encodeURIComponent(item_id)}/open-form`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id, keep_open_ms }),
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+export async function startShoppingCartApply(
+  cart_id: string,
+  user_id: string,
+  item_ids?: string[],
+  process_now = true
+): Promise<{
+  cart_id: string;
+  queued_count: number;
+  processed_count?: number;
+  ok_count?: number;
+  failed_count?: number;
+  skipped: Array<{ item_id?: string; reason?: string }>;
+  queued: Array<{ item_id?: string; intern_job_id?: string; apply?: CartApplyState }>;
+  apply_summary?: ShoppingCartResponse["apply_summary"];
+  phase?: number;
+  message?: string;
+}> {
+  return post(`/api/v1/shopping-cart/${encodeURIComponent(cart_id)}/apply/start`, {
+    user_id,
+    item_ids: item_ids || [],
+    process_now,
+  });
+}
+
+export async function processShoppingCartApply(
+  cart_id: string,
+  user_id: string,
+  limit = 20
+): Promise<{
+  cart_id: string;
+  processed_count?: number;
+  ok_count?: number;
+  failed_count?: number;
+  apply_summary?: ShoppingCartResponse["apply_summary"];
+  phase?: number;
+}> {
+  return post(`/api/v1/shopping-cart/${encodeURIComponent(cart_id)}/apply/process`, {
+    user_id,
+    limit,
+  });
+}
+
+export async function getShoppingCartApplyStatus(
+  cart_id: string,
+  user_id: string
+): Promise<{
+  cart_id: string;
+  apply_summary?: ShoppingCartResponse["apply_summary"];
+  items: ShoppingCartItem[];
+}> {
+  const params = new URLSearchParams({ user_id });
+  const res = await fetch(
+    `${API_BASE}/api/v1/shopping-cart/${encodeURIComponent(cart_id)}/apply/status?${params}`
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json();
 }
 
 

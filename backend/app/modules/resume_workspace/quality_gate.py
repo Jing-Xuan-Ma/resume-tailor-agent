@@ -14,9 +14,26 @@ SECTION_ORDER = [
 ]
 
 ACTION_VERBS = (
-    "built", "designed", "engineered", "led", "delivered", "applied", "conducted",
-    "optimized", "prepared", "used", "faced", "given", "to ", "analyzed", "extended",
-    "collected", "created", "developed", "implemented", "reduced",
+    "built",
+    "designed",
+    "engineered",
+    "led",
+    "delivered",
+    "applied",
+    "conducted",
+    "optimized",
+    "prepared",
+    "used",
+    "faced",
+    "given",
+    "to ",
+    "analyzed",
+    "extended",
+    "collected",
+    "created",
+    "developed",
+    "implemented",
+    "reduced",
 )
 
 
@@ -30,19 +47,46 @@ def _bullets(entry: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
-def project_for_jd(master: dict[str, Any], jd_text: str) -> dict[str, Any]:
-    """Show/hide experiences & projects by JD keyword overlap; reorder skills.
-
-    When the Yiling AI-agent internship is in inventory, always surface it (JD-tuned bullets)
-    and hide one overlapping project so vertical space stays ≈ one page.
-    """
-    from app.modules.resume_workspace.yiling_experience import (
-        YILING_COMPANY,
-        swap_project_for_yiling,
-        yiling_entry_for_jd,
+def _entry_blob(entry: dict[str, Any]) -> str:
+    return " ".join(
+        [
+            str(entry.get("title") or ""),
+            str(entry.get("company") or ""),
+            str(entry.get("name") or ""),
+            " ".join(str(t) for t in (entry.get("tools") or [])),
+            " ".join(str(t) for t in (entry.get("tags") or [])),
+            " ".join(str(b.get("text") or "") for b in _bullets(entry)),
+        ]
     )
 
+
+def _entry_id(kind: str, index: int, entry: dict[str, Any]) -> str:
+    label = entry.get("company") or entry.get("name") or entry.get("title") or str(index)
+    return f"{kind}:{index}:{label}"
+
+
+def _heuristic_scores(jd_text: str, entries: list[dict[str, Any]]) -> dict[str, float]:
+    """Fallback relevance scoring with no LLM call — token-overlap only, no per-entry
+    special-casing. Used only if the LLM decision engine call fails outright, so a
+    missing/rate-limited model never blocks generation entirely.
+    """
     jd = (jd_text or "").lower()
+    tokens = set(re.findall(r"[a-zA-Z+]{3,}", jd))
+    scores: dict[str, float] = {}
+    for e in entries:
+        blob = _entry_blob(e).lower()
+        hits = sum(1 for t in tokens if t in blob) if tokens else 0
+        scores[id(e).__repr__()] = hits / max(len(tokens), 1)
+    return scores
+
+
+def _project_from_scored(
+    master: dict[str, Any],
+    jd_text: str,
+    *,
+    all_entries: list[tuple[str, str, int, dict[str, Any]]],
+    by_id: dict[str, Any],
+) -> dict[str, Any]:
     projected = {
         "candidate_name": master.get("candidate_name"),
         "contact_line": master.get("contact_line"),
@@ -50,105 +94,43 @@ def project_for_jd(master: dict[str, Any], jd_text: str) -> dict[str, Any]:
         "education": list(master.get("education") or []),
         "experiences": [],
         "projects": [],
-        "competitions": list(master.get("competitions") or []),
+        "competitions": [],
         "skills_certifications": master.get("skills_certifications"),
         "hidden_entries": [],
     }
 
-    def score_entry(entry: dict[str, Any]) -> float:
-        blob = " ".join(
-            [
-                str(entry.get("title") or ""),
-                str(entry.get("company") or ""),
-                str(entry.get("name") or ""),
-                " ".join(str(t) for t in (entry.get("tools") or [])),
-                " ".join(str(t) for t in (entry.get("tags") or [])),
-                " ".join(str(b.get("text") or "") for b in _bullets(entry)),
-            ]
-        ).lower()
-        tokens = set(re.findall(r"[a-zA-Z+]{3,}", jd))
-        if not tokens:
-            return 0.0
-        hits = sum(1 for t in tokens if t in blob)
-        bonus = 0.15 if "yiling" in str(entry.get("company") or "").lower() else 0.0
-        return hits / max(len(tokens), 1) + bonus
+    heuristic = _heuristic_scores(jd_text, [e for _, _, _, e in all_entries])
+    scored: list[tuple[str, str, int, dict[str, Any], float, bool, str]] = []
+    for item_id, kind, idx, entry in all_entries:
+        d = by_id.get(item_id)
+        if d is not None:
+            score = d.relevance_score
+            keep = d.decision == "keep"
+            reason = d.reason
+        else:
+            score = heuristic.get(id(entry).__repr__(), 0.0)
+            keep = True
+            reason = "decision engine unavailable; kept by default (heuristic score only)"
+        scored.append((item_id, kind, idx, entry, score, keep, reason))
 
-    experiences = list(master.get("experiences") or [])
-    yiling_in_master = any(YILING_COMPANY.lower() in str(e.get("company") or "").lower() for e in experiences)
+    def emit(kind: str, section: str) -> None:
+        rows = [r for r in scored if r[1] == kind]
+        rows.sort(key=lambda r: r[4], reverse=True)
+        for item_id, _k, _idx, entry, score, keep, reason in rows:
+            if keep:
+                out = dict(entry)
+                out["_relevance_score"] = score
+                projected[section].append(out)
+            else:
+                projected["hidden_entries"].append(
+                    {"kind": kind, "key": item_id, "score": score, "reason": reason}
+                )
 
-    # Refresh Yiling bullets for this JD when present
-    if yiling_in_master:
-        experiences = [
-            yiling_entry_for_jd(jd_text)
-            if YILING_COMPANY.lower() in str(e.get("company") or "").lower()
-            else e
-            for e in experiences
-        ]
+    emit("experience", "experiences")
+    emit("project", "projects")
+    emit("competition", "competitions")
 
-    scored_exp = sorted(
-        ((score_entry(e), e) for e in experiences),
-        key=lambda x: x[0],
-        reverse=True,
-    )
-
-    # Budget with Yiling: show Yiling + both prior internships (3 exp),
-    # hide exactly one project (swap) so height ≈ master (2e+3p → 3e+2p).
-    chosen_exp: list[dict[str, Any]] = []
-    if yiling_in_master:
-        yiling = next(
-            e for _, e in scored_exp if YILING_COMPANY.lower() in str(e.get("company") or "").lower()
-        )
-        chosen_exp.append(yiling)
-        for sc, e in scored_exp:
-            if YILING_COMPANY.lower() in str(e.get("company") or "").lower():
-                continue
-            chosen_exp.append(e)
-    else:
-        for sc, e in scored_exp[:2]:
-            chosen_exp.append(e)
-        for sc, e in scored_exp[2:]:
-            projected["hidden_entries"].append(
-                {"kind": "experience", "key": f"{e.get('company')}|{e.get('title')}", "score": sc}
-            )
-    projected["experiences"] = chosen_exp
-
-    # Projects: when Yiling shown, swap out one project (≈ same height as new intern block)
-    projects = list(master.get("projects") or [])
-    swap_name = swap_project_for_yiling(jd_text) if yiling_in_master else None
-    remaining_proj = []
-    for e in projects:
-        name = str(e.get("name") or "")
-        if swap_name and name == swap_name:
-            projected["hidden_entries"].append({"kind": "project", "key": name, "score": -1.0})
-            continue
-        remaining_proj.append(e)
-
-    scored_proj = sorted(
-        ((score_entry(e), e) for e in remaining_proj),
-        key=lambda x: x[0],
-        reverse=True,
-    )
-    # After Yiling swap keep remaining projects (typically 2). Without Yiling, top 2 of 3.
-    limit = len(remaining_proj) if yiling_in_master else 2
-    for sc, e in scored_proj[:limit]:
-        projected["projects"].append(e)
-    for sc, e in scored_proj[limit:]:
-        projected["hidden_entries"].append(
-            {"kind": "project", "key": str(e.get("name")), "score": sc}
-        )
-
-    # Hide competitions only when space is still tight AND Yiling is absent
-    # (with Yiling+project-swap the page should stay full including competitions)
-    if projected["competitions"] and not yiling_in_master and (
-        "analyst" in jd or "sql" in jd or "tableau" in jd
-    ):
-        for c in projected["competitions"]:
-            projected["hidden_entries"].append(
-                {"kind": "competition", "key": str(c.get("name") or c), "score": 0.0}
-            )
-        projected["competitions"] = []
-
-    # Skills reorder only — never lengthen the skills string beyond master
+    jd = (jd_text or "").lower()
     skills_raw = str(master.get("skills_certifications") or "")
     parts = [p.strip() for p in skills_raw.replace(";", ",").split(",") if p.strip()]
     hit, rest = [], []
@@ -159,8 +141,102 @@ def project_for_jd(master: dict[str, Any], jd_text: str) -> dict[str, Any]:
             rest.append(p)
     projected["skills_certifications"] = ", ".join(hit + rest) if (hit or rest) else skills_raw
     projected["summary"] = master.get("summary")
-
     return projected
+
+
+def _collect_entries(
+    master: dict[str, Any],
+) -> tuple[dict[str, Any], list[tuple[str, str, int, dict[str, Any]]]]:
+    experiences = list(master.get("experiences") or [])
+    projects = list(master.get("projects") or [])
+    competitions = list(master.get("competitions") or [])
+
+    empty = {
+        "candidate_name": master.get("candidate_name"),
+        "contact_line": master.get("contact_line"),
+        "summary": master.get("summary"),
+        "education": list(master.get("education") or []),
+        "experiences": [],
+        "projects": [],
+        "competitions": [],
+        "skills_certifications": master.get("skills_certifications"),
+        "hidden_entries": [],
+    }
+
+    all_entries: list[tuple[str, str, int, dict[str, Any]]] = []
+    for i, e in enumerate(experiences):
+        all_entries.append((_entry_id("experience", i, e), "experience", i, e))
+    for i, e in enumerate(projects):
+        all_entries.append((_entry_id("project", i, e), "project", i, e))
+    for i, e in enumerate(competitions):
+        all_entries.append((_entry_id("competition", i, e), "competition", i, e))
+    return empty, all_entries
+
+
+def project_for_jd(
+    master: dict[str, Any],
+    jd_text: str,
+    *,
+    jd_title: str = "",
+    jd_required_skills: list[str] | None = None,
+    jd_keywords: list[str] | None = None,
+) -> dict[str, Any]:
+    """Show/hide experiences & projects by real JD relevance — sync LLM path."""
+    from app.modules.resume_workspace.decision_engine import ExperienceItem, score_experience_items
+
+    empty, all_entries = _collect_entries(master)
+    if not all_entries:
+        return empty
+
+    items = [
+        ExperienceItem(id=item_id, text=_entry_blob(entry), source=kind)
+        for item_id, kind, _idx, entry in all_entries
+    ]
+    try:
+        decisions = score_experience_items(
+            jd_title=jd_title,
+            jd_required_skills=jd_required_skills or [],
+            jd_keywords=jd_keywords or [],
+            items=items,
+        )
+        by_id = {d.item_id: d for d in decisions}
+    except Exception:
+        by_id = {}
+
+    return _project_from_scored(master, jd_text, all_entries=all_entries, by_id=by_id)
+
+
+async def project_for_jd_async(
+    master: dict[str, Any],
+    jd_text: str,
+    *,
+    jd_title: str = "",
+    jd_required_skills: list[str] | None = None,
+    jd_keywords: list[str] | None = None,
+) -> dict[str, Any]:
+    """Async Phase 2a — safe to run concurrently across shopping-cart jobs."""
+    from app.modules.resume_workspace.decision_engine import ExperienceItem, ascore_experience_items
+
+    empty, all_entries = _collect_entries(master)
+    if not all_entries:
+        return empty
+
+    items = [
+        ExperienceItem(id=item_id, text=_entry_blob(entry), source=kind)
+        for item_id, kind, _idx, entry in all_entries
+    ]
+    try:
+        decisions = await ascore_experience_items(
+            jd_title=jd_title,
+            jd_required_skills=jd_required_skills or [],
+            jd_keywords=jd_keywords or [],
+            items=items,
+        )
+        by_id = {d.item_id: d for d in decisions}
+    except Exception:
+        by_id = {}
+
+    return _project_from_scored(master, jd_text, all_entries=all_entries, by_id=by_id)
 
 
 def run_quality_gate(resume: dict[str, Any], jd_text: str = "") -> dict[str, Any]:

@@ -1,12 +1,23 @@
 from app.modules.ats_connectors.ashby import AshbyConnector
+from app.modules.ats_connectors.bamboohr import BambooHRConnector
 from app.modules.ats_connectors.generic_browser import BaseATSConnector
 from app.modules.ats_connectors.greenhouse import GreenhouseConnector
 from app.modules.ats_connectors.icims import ICIMSConnector
 from app.modules.ats_connectors.lever import LeverConnector
+from app.modules.ats_connectors.smartrecruiters import SmartRecruitersConnector
+from app.modules.ats_connectors.workable import WorkableConnector
 from app.modules.ats_connectors.workday import WorkdayConnector
 
-
-CONNECTORS = [GreenhouseConnector(), LeverConnector(), AshbyConnector(), WorkdayConnector(), ICIMSConnector()]
+CONNECTORS = [
+    GreenhouseConnector(),
+    LeverConnector(),
+    AshbyConnector(),
+    WorkdayConnector(),
+    ICIMSConnector(),
+    SmartRecruitersConnector(),
+    WorkableConnector(),
+    BambooHRConnector(),
+]
 
 
 def connector_for(url: str | None) -> BaseATSConnector:

@@ -2,6 +2,7 @@
 
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -33,6 +34,7 @@ def _confirmed_version(user: str) -> tuple[str, dict]:
     return version_id, conf.json()
 
 
+@pytest.mark.network
 def test_auto_apply_pauses_before_submit() -> None:
     user = str(uuid4())
     version_id, conf = _confirmed_version(user)
@@ -57,6 +59,7 @@ def test_auto_apply_pauses_before_submit() -> None:
     assert fields["submit_button"]["value"] == "NOT_CLICKED"
 
 
+@pytest.mark.network
 def test_manual_apply_does_not_claim_submit() -> None:
     user = str(uuid4())
     version_id, _ = _confirmed_version(user)
@@ -71,6 +74,7 @@ def test_manual_apply_does_not_claim_submit() -> None:
     assert body["submitted"] is False
 
 
+@pytest.mark.network
 def test_confirm_submit_after_pause() -> None:
     user = str(uuid4())
     version_id, conf = _confirmed_version(user)

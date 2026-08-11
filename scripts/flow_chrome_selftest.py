@@ -157,8 +157,8 @@ def main() -> int:
         "location": "Remote",
         "raw_text": JD_TEXT,
         "source_url": "https://boards.greenhouse.io/northwind/jobs/ui-selftest",
-        "jobright_url": f"{FE}/fixtures/jobright-mock.html",
-        "source_platform": "jobright_extension",
+        "jobright_url": f"{FE}/",
+        "source_platform": "flow_chrome_selftest",
         "force": True,
     }
     res = httpx.post(
@@ -269,9 +269,9 @@ def main() -> int:
             check("outreach_says_step_6", "Step 6" in ot, ot)
             check("outreach_not_step_7", "7. Outreach" not in page.locator("[data-testid=flow-stepper]").inner_text(), ot)
 
-        # Jobright-style deeplink should land on Tailor (skip JD)
+        # Deeplink should land on Tailor (skip JD)
         page.goto(
-            f"{FE}/?view=resume&jobId={job_id}&step=tailor&returnTo={FE}/fixtures/jobright-mock.html",
+            f"{FE}/?view=resume&jobId={job_id}&step=tailor&returnTo={FE}/",
             wait_until="domcontentloaded",
             timeout=90000,
         )

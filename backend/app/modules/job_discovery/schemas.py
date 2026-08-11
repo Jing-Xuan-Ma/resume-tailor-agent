@@ -33,34 +33,6 @@ class JobIndexIngestRequest(BaseModel):
     sites: list[str] = Field(default_factory=list)
 
 
-class JobIndexLeadRequest(BaseModel):
-    """Single lead upsert for Jobright extension / manual import bridge."""
-
-    title: str = Field(min_length=1)
-    company: str = Field(min_length=1)
-    raw_text: str = Field(min_length=1)
-    location: Optional[str] = None
-    source_url: Optional[str] = None
-    source_platform: str = "jobright_extension"
-    category: Optional[str] = None
-    work_model: Optional[str] = None
-    jobright_url: Optional[str] = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    # When True, skip quality gate (thin JD still stored; tailor quality may suffer).
-    force: bool = False
-
-
-class JobIndexLeadResponse(BaseModel):
-    id: str
-    created: bool
-    source_platform: str
-    quality_ok: bool
-    quality_reason: str
-    workspace_url: str
-    apply_step_url: str
-    outreach_step_url: str
-
-
 class JobIndexStatsResponse(BaseModel):
     active_total: int
     enabled: bool
@@ -130,7 +102,7 @@ class JobBookmarkResponse(BaseModel):
 
 class JobPrepareApplicationRequest(BaseModel):
     user_id: UUID
-    resume_id: UUID
+    resume_id: Optional[UUID] = None
     include_cover_letter: bool = True
     include_application_plan: bool = True
     auto_submit: bool = False

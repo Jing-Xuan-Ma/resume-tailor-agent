@@ -17,14 +17,13 @@ class Settings(BaseSettings):
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8000
     CORS_ORIGINS: str = "http://localhost:3000"
-    # Allow Chrome/Edge extension origins (Side Panel → localhost API).
-    CORS_ORIGIN_REGEX: str = r"^chrome-extension://.*"
+    CORS_ORIGIN_REGEX: str = ""
     FRONTEND_BASE_URL: str = "http://localhost:3000"
-    # Shared secret for extension → API writes (empty = allow in development only).
-    EXTENSION_BRIDGE_TOKEN: str = "dev-extension-token"
 
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://resume_agent:resume_agent_dev@localhost:5432/resume_agent"
+    DATABASE_URL: str = (
+        "postgresql+asyncpg://resume_agent:resume_agent_dev@localhost:5432/resume_agent"
+    )
     # Local MVP uses SQLite (`data/app.db`). Set `postgres` for cloud / compose.
     STORAGE_BACKEND: str = "sqlite"
 
@@ -74,6 +73,8 @@ class Settings(BaseSettings):
     KIMI_API_KEY: str = ""
     QWEN_TOKEN_PLAN_API_KEY: str = ""
     RADIUS_API_KEY: str = ""
+    # yiling gateway (router.c.yiling.top) — separate key scoped to glm-5.2 only
+    YILING_GLM_API_KEY: str = ""
     # Zhipu / BigModel (智谱) — OpenAI-compatible paas/v4
     BIGMODEL_API_KEY: str = ""
     ZHIPU_API_KEY: str = ""
@@ -93,6 +94,20 @@ class Settings(BaseSettings):
     DEFAULT_TAILOR_MODEL: str = "gpt-5.5"
     DEFAULT_PARSER_MODEL: str = "gpt-5.5"
     DEFAULT_EMBEDDING_MODEL: str = "text-embedding-3-large"
+    # Phase 2 evidence / anti-fabrication LLM pass (expensive). Off = skip for speed.
+    ENABLE_EVIDENCE_GUARD: bool = True
+    # Shopping cart batch: hybrid fast path (light LLM + strong content rewrite).
+    SHOPPING_CART_FAST_PATH: bool = True
+    # Cover letter uses light LLM by default (company + JD grounded).
+    SHOPPING_CART_COVER_LLM: bool = True
+    FAST_TAILOR_MODEL: str = "gemini-3.5-flash"
+    CONTENT_TAILOR_MODEL: str = "glm-5.2"
+    # Content rewrite: one LLM batch per resume module, run in parallel.
+    CONTENT_REWRITE_PARALLEL_MODULES: bool = True
+    # Soft timeout per cart item: mark stalled (keep generating) so UI can proceed.
+    SHOPPING_CART_ITEM_SOFT_TIMEOUT_S: int = 180
+    # Max concurrent jobs in one shopping-cart batch (also caps GLM fan-out).
+    SHOPPING_CART_BATCH_CONCURRENCY: int = 2
 
     # Security
     SECRET_KEY: str = "change-me"
@@ -164,6 +179,24 @@ class Settings(BaseSettings):
     BROWSER_TIMEOUT_MS: int = 30000
     # Auto-apply field mapping: rules-first is fast; LLM only when explicitly enabled.
     APPLY_FIELD_MAP_PREFER_LLM: bool = False
+
+    # ATS account (Create Account / Sign In on company boards). Never commit real values.
+    ATS_DEFAULT_EMAIL: str = ""
+    ATS_DEFAULT_PASSWORD: str = ""
+    ATS_PASSWORD_MIN_LENGTH: int = 8
+    ATS_PASSWORD_REQUIRE_UPPER: bool = True
+    ATS_PASSWORD_REQUIRE_LOWER: bool = True
+    ATS_PASSWORD_REQUIRE_DIGIT: bool = True
+    ATS_PASSWORD_REQUIRE_SPECIAL: bool = True
+    # Jobright job detail template for cart apply navigation (Phase 2+).
+    JOBRIGHT_JOB_URL_TEMPLATE: str = "https://jobright.ai/jobs/info/{intern_job_id}"
+    # Phase 2: prefer live Playwright Jobright → Original Job Post click.
+    # When false, use scraped company apply URL first; optionally fall back to live nav.
+    CART_APPLY_LIVE_NAV: bool = False
+    CART_APPLY_LIVE_NAV_FALLBACK: bool = True
+    # Phase 3: live Playwright Apply → Autofill with Resume on company ATS.
+    # Local file:// / sandbox fixtures always allowed; production ATS needs this or ALLOW_LIVE_BROWSER_FILL.
+    CART_APPLY_LIVE_ENTRY: bool = False
 
     @property
     def CORS_ORIGINS_LIST(self) -> list[str]:

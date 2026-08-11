@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -13,6 +14,7 @@ from app.main import app
 client = TestClient(app)
 
 
+@pytest.mark.network
 def test_iter3_tailor_loop_confirm_and_version_cap() -> None:
     user = str(uuid4())
     session = client.post(
@@ -125,8 +127,15 @@ def test_confirm_blocked_when_evidence_fails(monkeypatch) -> None:
     async def _fail(_original, _tailored):
         return {"passed": False, "issues": ["fabricated metric 99%"], "confidence": 0.1}
 
+    # This test exercises the evidence-guard block path regardless of the
+    # dev-speed ENABLE_EVIDENCE_GUARD=false convenience flag some local
+    # .env files set (see backend/.env) — that flag short-circuits rewrite()
+    # to a hardcoded "passed: True" before evidence_guard.verify is ever
+    # called, which would make this test meaningless without the override.
+    from app.modules.resume_workspace import service as service_mod
     from app.modules.resume_workspace.router import workspace_service
 
+    monkeypatch.setattr(service_mod.settings, "ENABLE_EVIDENCE_GUARD", True)
     monkeypatch.setattr(workspace_service.evidence_guard, "verify", _fail)
 
     rw = client.post(

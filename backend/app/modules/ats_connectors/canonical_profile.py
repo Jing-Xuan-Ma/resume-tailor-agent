@@ -5,25 +5,36 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-
 CANONICAL_KEYS = (
     "first_name",
     "last_name",
     "full_name",
+    "preferred_name",
     "email",
     "phone",
     "location",
     "linkedin",
     "github",
     "portfolio",
+    "twitter",
+    "source",
     "work_authorized",
     "needs_sponsorship",
     "visa_status",
     "earliest_start",
     "salary_expectation",
+    "gender",
+    "race_ethnicity",
+    "veteran_status",
+    "disability_status",
     "resume_path",
     "cover_letter_path",
 )
+
+# Voluntary EEO self-identification keys — always require human review before
+# submit, even at high match confidence (RESUME_CONSTITUTION: no silent
+# submission of protected-class answers).
+EEO_KEYS = frozenset({"gender", "race_ethnicity", "veteran_status", "disability_status"})
 
 
 def _split_name(full: str) -> tuple[str, str]:
@@ -81,6 +92,7 @@ def canonical_apply_profile(
         "first_name": first,
         "last_name": last,
         "full_name": full,
+        "preferred_name": str(raw.get("preferred_name") or "").strip(),
         "email": email,
         "phone": phone,
         "location": str(raw.get("location") or "").strip(),
@@ -89,12 +101,25 @@ def canonical_apply_profile(
             raw.get("github_url") or raw.get("resume_tailor_github") or raw.get("github") or ""
         ).strip(),
         "portfolio": str(raw.get("portfolio_url") or raw.get("portfolio") or "").strip(),
+        "twitter": str(raw.get("twitter_url") or raw.get("twitter") or "").strip(),
+        "source": str(raw.get("source") or raw.get("how_heard") or "").strip(),
         "work_authorized": "Yes" if raw.get("work_authorized", True) else "No",
         "needs_sponsorship": "Yes" if raw.get("needs_sponsorship", True) else "No",
         "visa_status": str(raw.get("visa_status") or "").strip(),
         "earliest_start": str(raw.get("earliest_start") or "").strip(),
         "salary_expectation": str(raw.get("salary_expectation") or "").strip(),
+        "gender": str(raw.get("gender") or "").strip(),
+        "race_ethnicity": str(raw.get("race_ethnicity") or "").strip(),
+        "veteran_status": str(raw.get("veteran_status") or "").strip(),
+        "disability_status": str(raw.get("disability_status") or "").strip(),
         "resume_path": resume_path or "",
         "cover_letter_path": "",
     }
-    return {k: profile.get(k, "") for k in CANONICAL_KEYS}
+    result = {k: profile.get(k, "") for k in CANONICAL_KEYS}
+    # Non-canonical extras carried through for the field mapper's custom-answer
+    # fallback (job-specific essay questions, ad-hoc ATS questions saved via chat).
+    custom_fields = raw.get("custom_fields")
+    answers = raw.get("answers")
+    result["_custom_fields"] = dict(custom_fields) if isinstance(custom_fields, dict) else {}
+    result["_answers"] = dict(answers) if isinstance(answers, dict) else {}
+    return result

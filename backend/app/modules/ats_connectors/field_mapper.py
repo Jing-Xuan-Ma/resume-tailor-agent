@@ -7,7 +7,7 @@ import logging
 import re
 from typing import Any
 
-from app.modules.ats_connectors.canonical_profile import CANONICAL_KEYS
+from app.modules.ats_connectors.canonical_profile import CANONICAL_KEYS, EEO_KEYS
 
 log = logging.getLogger(__name__)
 
@@ -46,15 +46,22 @@ def _rules_map_one(field: dict[str, Any], profile: dict[str, Any]) -> dict[str, 
                     "action": "leave_empty",
                     "reason": f"matched {key} but profile empty",
                 }
-            action = "upload" if key in {"resume_path", "cover_letter_path"} or ftype == "file" else "fill"
+            action = (
+                "upload"
+                if key in {"resume_path", "cover_letter_path"} or ftype == "file"
+                else "fill"
+            )
             if key in {"resume_path", "cover_letter_path"}:
                 action = "upload"
+            # EEO self-identification answers always pause for human review,
+            # regardless of match confidence — never auto-submit protected-class data.
+            needs_review = conf < CONF_AUTO or key in EEO_KEYS
             return {
                 "field_id": fid,
                 "profile_key": key,
                 "value": val,
                 "confidence": conf,
-                "needs_review": conf < CONF_AUTO,
+                "needs_review": needs_review,
                 "action": action if val else "leave_empty",
                 "reason": f"rules:{needles[0]}",
             }
@@ -72,10 +79,23 @@ def _rules_map_one(field: dict[str, Any], profile: dict[str, Any]) -> dict[str, 
         ("phone", 0.92, ("phone", "mobile", "tel")),
         ("linkedin", 0.9, ("linkedin",)),
         ("github", 0.88, ("github",)),
+        ("twitter", 0.85, ("twitter", "x profile", "x.com", "x (twitter)")),
         ("portfolio", 0.85, ("portfolio", "website", "personal site")),
-        ("location", 0.85, ("location", "city", "current location")),
-        ("work_authorized", 0.75, ("authorized to work", "work authorization", "legally authorized")),
+        (
+            "work_authorized",
+            0.75,
+            ("authorized to work", "work authorization", "legally authorized"),
+        ),
         ("needs_sponsorship", 0.75, ("sponsor", "sponsorship", "visa sponsorship")),
+        ("source", 0.75, ("how did you hear", "hear about us", "how you heard", "referred by")),
+        ("gender", 0.75, ("gender", "sex")),
+        # Checked before "location" — "ethnicity" contains the substring "city",
+        # which would otherwise false-match the location needle below.
+        ("race_ethnicity", 0.75, ("race", "ethnicity")),
+        ("veteran_status", 0.75, ("veteran", "protected veteran")),
+        ("disability_status", 0.75, ("disability",)),
+        ("location", 0.85, ("location", "city", "current location")),
+        ("preferred_name", 0.8, ("preferred name", "nickname", "goes by", "chosen name")),
         ("full_name", 0.9, ("full name", "your name", "candidate name")),
         ("full_name", 0.7, (" name",)),  # weaker: bare "name"
     ]
@@ -143,10 +163,13 @@ def map_fields_rules(fields: list[dict[str, Any]], profile: dict[str, Any]) -> l
     return mappings
 
 
-async def map_fields_llm(fields: list[dict[str, Any]], profile: dict[str, Any]) -> list[dict[str, Any]] | None:
+async def map_fields_llm(
+    fields: list[dict[str, Any]], profile: dict[str, Any]
+) -> list[dict[str, Any]] | None:
     try:
-        from app.core.llm_client import get_chat_openai
         from langchain_core.messages import HumanMessage, SystemMessage
+
+        from app.core.llm_client import get_chat_openai
     except Exception as exc:
         log.debug("llm unavailable: %s", exc)
         return None
@@ -222,7 +245,11 @@ async def map_fields_llm(fields: list[dict[str, Any]], profile: dict[str, Any]) 
         ftype = str(field.get("type") or "")
         action = "leave_empty"
         if pk and val and conf >= CONF_REVIEW:
-            action = "upload" if pk in {"resume_path", "cover_letter_path"} or ftype == "file" else "fill"
+            action = (
+                "upload"
+                if pk in {"resume_path", "cover_letter_path"} or ftype == "file"
+                else "fill"
+            )
         elif pk and not val:
             action = "leave_empty"
             conf = min(conf, 0.45)
@@ -232,7 +259,9 @@ async def map_fields_llm(fields: list[dict[str, Any]], profile: dict[str, Any]) 
                 "profile_key": pk,
                 "value": val if action != "leave_empty" else "",
                 "confidence": conf,
-                "needs_review": bool(item.get("needs_review")) or conf < CONF_AUTO,
+                "needs_review": bool(item.get("needs_review"))
+                or conf < CONF_AUTO
+                or pk in EEO_KEYS,
                 "action": action,
                 "reason": str(item.get("reason") or "llm"),
                 "label": field.get("label") or field.get("name") or field.get("id"),
@@ -265,6 +294,72 @@ async def map_fields_llm(fields: list[dict[str, Any]], profile: dict[str, Any]) 
     return out
 
 
+_ANSWER_ALIASES: list[tuple[str, tuple[str, ...]]] = [
+    (
+        "why_this_role",
+        (
+            "why do you want to work",
+            "why are you interested",
+            "why this role",
+            "why do you want to join",
+        ),
+    ),
+    (
+        "additional_info",
+        ("anything else", "additional information", "additional comments", "is there anything"),
+    ),
+]
+
+
+def _normalize_key(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(text or "").lower()).strip()
+
+
+def _match_extras(field: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any] | None:
+    """Fallback for fields no canonical key covers: chat-saved custom Q&A answers.
+
+    Runs only for fields the rules/LLM pass left fully unmapped, so it never
+    overrides a confident canonical-key match.
+    """
+    blob = _blob(field)
+    fid = str(field.get("field_id") or "")
+    answers = profile.get("_answers") if isinstance(profile.get("_answers"), dict) else {}
+    for key, needles in _ANSWER_ALIASES:
+        if any(n in blob for n in needles):
+            val = str(answers.get(key) or "").strip()
+            if val:
+                return {
+                    "field_id": fid,
+                    "profile_key": f"answers.{key}",
+                    "value": val,
+                    "confidence": 0.6,
+                    "needs_review": True,
+                    "action": "fill",
+                    "reason": f"answers:{key}",
+                }
+    custom_fields = (
+        profile.get("_custom_fields") if isinstance(profile.get("_custom_fields"), dict) else {}
+    )
+    blob_norm = _normalize_key(blob)
+    if blob_norm:
+        for key, value in custom_fields.items():
+            val = str(value or "").strip()
+            if not val:
+                continue
+            key_words = [w for w in _normalize_key(key).split() if len(w) > 2]
+            if key_words and all(w in blob_norm for w in key_words):
+                return {
+                    "field_id": fid,
+                    "profile_key": f"custom_fields.{key}",
+                    "value": val,
+                    "confidence": 0.55,
+                    "needs_review": True,
+                    "action": "fill",
+                    "reason": f"custom_fields:{key}",
+                }
+    return None
+
+
 async def map_fields(
     fields: list[dict[str, Any]],
     profile: dict[str, Any],
@@ -280,6 +375,17 @@ async def map_fields(
     if mappings is None:
         mappings = map_fields_rules(fields, profile)
         provider = "rules"
+    # Fall back to chat-saved custom answers for anything still unmapped
+    by_id = {str(f.get("field_id")): f for f in fields}
+    for m in mappings:
+        if m.get("profile_key"):
+            continue
+        original = by_id.get(str(m.get("field_id")))
+        if not original:
+            continue
+        extra = _match_extras(original, profile)
+        if extra:
+            m.update(extra)
     # Tier buckets for UI
     for m in mappings:
         conf = float(m.get("confidence") or 0)

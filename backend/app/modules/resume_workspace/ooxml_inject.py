@@ -76,7 +76,10 @@ def _retarget_ids(block_xml: str) -> str:
 
 
 def _set_plain_paragraph_text(p_xml: str, new_text: str) -> str:
-    """Keep pPr + first run rPr; put all text in first w:t; drop extra plain runs. Skip if hyperlinks."""
+    """Keep pPr + first run rPr; put all text in first w:t; drop extra plain runs.
+
+    Skip if hyperlinks.
+    """
     if _has_hyperlink(p_xml):
         return p_xml
     runs = list(_RUN_RE.finditer(p_xml))
@@ -85,9 +88,13 @@ def _set_plain_paragraph_text(p_xml: str, new_text: str) -> str:
     first = runs[0].group(0)
     rpr_m = _RPR_RE.search(first)
     rpr = rpr_m.group(0) if rpr_m else ""
-    space_attr = ' xml:space="preserve"' if (new_text[:1].isspace() or new_text[-1:].isspace()) else ""
-    new_run = f"<w:r>{rpr}<w:t{space_attr}>{escape(new_text)}</w:t></w:r>" if rpr else (
-        f"<w:r><w:t{space_attr}>{escape(new_text)}</w:t></w:r>"
+    space_attr = (
+        ' xml:space="preserve"' if (new_text[:1].isspace() or new_text[-1:].isspace()) else ""
+    )
+    new_run = (
+        f"<w:r>{rpr}<w:t{space_attr}>{escape(new_text)}</w:t></w:r>"
+        if rpr
+        else (f"<w:r><w:t{space_attr}>{escape(new_text)}</w:t></w:r>")
     )
     # Replace from first run start to last run end with single run
     start = runs[0].start()
@@ -115,7 +122,7 @@ def _build_bullet_map(tailored: dict[str, Any], inventory: dict[str, Any]) -> di
             if not isinstance(e, dict):
                 continue
             if section == "experiences":
-                key = f"{e.get('company','')}|{e.get('title','')}"
+                key = f"{e.get('company', '')}|{e.get('title', '')}"
             else:
                 key = str(e.get("name") or "")
             inv_by_key[_norm(key)] = e
@@ -123,7 +130,7 @@ def _build_bullet_map(tailored: dict[str, Any], inventory: dict[str, Any]) -> di
             if not isinstance(e, dict):
                 continue
             if section == "experiences":
-                key = f"{e.get('company','')}|{e.get('title','')}"
+                key = f"{e.get('company', '')}|{e.get('title', '')}"
             else:
                 key = str(e.get("name") or "")
             inv = inv_by_key.get(_norm(key))
@@ -181,7 +188,10 @@ def join_paragraphs(prefix: str, paragraphs: list[str], suffix: str) -> str:
 
 
 def delete_hidden_entries(paragraphs: list[str], tailored: dict[str, Any]) -> list[str]:
-    """Delete whole entry blocks listed in hidden_entries; optionally drop empty COMPETITIONS section."""
+    """Delete whole entry blocks listed in hidden_entries.
+
+    Optionally drops an empty COMPETITIONS section.
+    """
     hidden = [h for h in (tailored.get("hidden_entries") or []) if isinstance(h, dict)]
     hide_keys = _hide_keys(hidden)
     hide_competitions = (tailored.get("competitions") == []) and any(
@@ -242,7 +252,9 @@ def delete_hidden_entries(paragraphs: list[str], tailored: dict[str, Any]) -> li
     return cleaned
 
 
-def apply_text_replacements(paragraphs: list[str], tailored: dict[str, Any], inventory: dict[str, Any]) -> list[str]:
+def apply_text_replacements(
+    paragraphs: list[str], tailored: dict[str, Any], inventory: dict[str, Any]
+) -> list[str]:
     bullet_map = _build_bullet_map(tailored, inventory)
     new_summary = str(tailored.get("summary") or "").strip()
     old_summary = str(inventory.get("summary") or "").strip()
@@ -329,7 +341,9 @@ def carve_experience_block(paragraphs: list[str], donor_heading_substr: str) -> 
         end = start + 1
         while end < len(paragraphs):
             t = _para_text(paragraphs[end]).strip()
-            if t.upper() in SECTION_HEADINGS or (t and _is_entry_heading(t, "PROFESSIONAL EXPERIENCE")):
+            if t.upper() in SECTION_HEADINGS or (
+                t and _is_entry_heading(t, "PROFESSIONAL EXPERIENCE")
+            ):
                 break
             end += 1
         return [_retarget_ids(x) for x in paragraphs[start:end]]
@@ -344,7 +358,11 @@ def _run_rpr_flags(run_xml: str) -> tuple[str, bool]:
 
 
 def _make_run_with_rpr(rpr: str, text: str) -> str:
-    space_attr = ' xml:space="preserve"' if (text[:1].isspace() or text[-1:].isspace() or "  " in text) else ""
+    space_attr = (
+        ' xml:space="preserve"'
+        if (text[:1].isspace() or text[-1:].isspace() or "  " in text)
+        else ""
+    )
     body = escape(text)
     if rpr:
         return f"<w:r>{rpr}<w:t{space_attr}>{body}</w:t></w:r>"
@@ -356,6 +374,10 @@ def _set_experience_heading(p_xml: str, left: str, right: str) -> str:
 
     Root cause of prior bug: collapsing the whole line into the first (bold) run made
     location/dates bold. Donor Shenwan uses separate runs — bold left, non-bold right.
+
+    Avoid huge space-padding (target ~118): when left+right is already wide, Word wraps
+    mid-padding and the right fragment visually collides with the next entry's title,
+    which looks like duplicated/merged headers in the PDF.
     """
     runs = list(_RUN_RE.finditer(p_xml))
     if not runs:
@@ -375,13 +397,14 @@ def _set_experience_heading(p_xml: str, left: str, right: str) -> str:
         # Strip bold tags from bold_rpr to synthesize plain
         plain_rpr = re.sub(r"<w:b\s*/>|<w:bCs\s*/>|<w:b[^/]*/>|<w:bCs[^/]*/>", "", bold_rpr)
 
-    # Match donor visual width: left + spaces + right (spaces may be bold; glyphs identical)
-    target = max(118, len(_para_text(p_xml)))
-    gap = max(4, target - len(left) - len(right))
+    left = left.rstrip()
+    right = right.strip()
+    # Keep a modest gap only — never pad out to 118+ chars (causes wrap/overlap in PDF).
+    room = 96 - len(left) - len(right)
+    gap = max(2, min(room, 8))
     new_runs = (
         _make_run_with_rpr(bold_rpr, left)
-        + _make_run_with_rpr(plain_rpr, " ")
-        + _make_run_with_rpr(bold_rpr, " " * gap)  # donor pads with bold spaces
+        + _make_run_with_rpr(plain_rpr, " " * gap)
         + _make_run_with_rpr(plain_rpr, right)
     )
     start = runs[0].start()
@@ -459,6 +482,110 @@ def _sanitize_resume_text(text: str) -> str:
     return out
 
 
+def apply_experience_headings(paragraphs: list[str], tailored: dict[str, Any]) -> list[str]:
+    """Rewrite experience headings from tailored entries (modest gap, no 118-char pad)."""
+    entries = [e for e in (tailored.get("experiences") or []) if isinstance(e, dict)]
+    if not entries:
+        return paragraphs
+
+    # Match master headings even when legal name word order differs slightly.
+    matchers: list[tuple[str, dict[str, Any]]] = []
+    for e in entries:
+        company = str(e.get("company") or "").strip()
+        if not company:
+            continue
+        matchers.append((_norm(company), e))
+        token = company.split(",")[0].strip()
+        if token:
+            matchers.append((_norm(token), e))
+        for word in company.replace(",", " ").replace(".", " ").split():
+            w = word.strip()
+            if len(w) >= 5 and w.lower() not in {
+                "beijing",
+                "shanghai",
+                "network",
+                "technology",
+                "technologies",
+                "limited",
+                "management",
+                "company",
+            }:
+                matchers.append((_norm(w), e))
+
+    current_section = ""
+    out: list[str] = []
+    for p in paragraphs:
+        text = _para_text(p).strip()
+        if text.upper() in SECTION_HEADINGS:
+            current_section = text.upper()
+            out.append(p)
+            continue
+        if (
+            current_section == "PROFESSIONAL EXPERIENCE"
+            and text
+            and _is_entry_heading(text, current_section)
+            and not _has_hyperlink(p)
+        ):
+            matched = None
+            n = _norm(text)
+            for key, entry in matchers:
+                if key and key in n:
+                    matched = entry
+                    break
+            if matched:
+                title = str(matched.get("title") or "").strip()
+                company = str(matched.get("company") or "").strip()
+                location = str(matched.get("location") or "").strip()
+                dates = str(matched.get("date_range") or "").strip()
+                left = f"{title} | {company}" if title and company else (title or company)
+                right = f"{location} | {dates}" if location and dates else (dates or location)
+                out.append(_set_experience_heading(p, left, right))
+                continue
+        out.append(p)
+    return out
+
+
+def _company_already_in_body(company: str, body_text: str) -> bool:
+    """True if this employer already has an experience block in the DOCX.
+
+    Exact / prefix match first; then a distinctive token (e.g. Yiling) so a
+    slightly different legal name in the master does not trigger a duplicate
+    carve/insert of the same role.
+    """
+    company = (company or "").strip()
+    if not company:
+        return False
+    if company in body_text:
+        return True
+    token = company.split(",")[0].strip()
+    if token and token in body_text:
+        return True
+    skip = {
+        "beijing",
+        "shanghai",
+        "network",
+        "technology",
+        "technologies",
+        "limited",
+        "management",
+        "company",
+        "co.",
+        "ltd.",
+        "inc.",
+        "corp.",
+        "group",
+        "fund",
+        "securities",
+    }
+    for word in company.replace(",", " ").replace(".", " ").split():
+        w = word.strip()
+        if len(w) < 5 or w.lower() in skip:
+            continue
+        if w in body_text:
+            return True
+    return False
+
+
 def insert_missing_experiences(paragraphs: list[str], tailored: dict[str, Any]) -> list[str]:
     """Carve donor experience XML for inventory entries not present in the DOCX."""
     from app.modules.resume_workspace.yiling_experience import YILING_COMPANY, YILING_DONOR
@@ -471,9 +598,7 @@ def insert_missing_experiences(paragraphs: list[str], tailored: dict[str, Any]) 
         company = str(entry.get("company") or "")
         if not company:
             continue
-        # Already in document?
-        token = company.split(",")[0].strip()
-        if token and token in body_text:
+        if _company_already_in_body(company, body_text):
             continue
         if "Yiling" in company or company == YILING_COMPANY:
             donor = carve_experience_block(paragraphs, YILING_DONOR)
@@ -497,24 +622,16 @@ def insert_missing_experiences(paragraphs: list[str], tailored: dict[str, Any]) 
 
 
 def inject_ooxml(master_docx: bytes, tailored: dict[str, Any], inventory: dict[str, Any]) -> bytes:
-    from app.modules.resume_workspace.yiling_experience import (
-        YILING_COMPANY,
-        swap_project_for_yiling,
-    )
-
+    # NOTE: this used to force-hide one project whenever Yiling was present,
+    # hardcoded to that one company, independent of whatever project_for_jd
+    # (Phase 2a) actually decided about relevance. That's now redundant AND
+    # can silently override a real JD-relevance decision (e.g. force-hiding a
+    # project project_for_jd legitimately kept, because "Yiling needs room" —
+    # not because the project wasn't relevant to this JD). project_for_jd's
+    # hidden_entries is the single source of truth for what's hidden; this
+    # layer only injects/deletes paragraphs according to it, it doesn't make
+    # its own hide decisions anymore.
     tailored = dict(tailored or {})
-    # One-page swap: carving Yiling in requires hiding one project if not already listed
-    has_yiling = any(
-        YILING_COMPANY.lower() in str(e.get("company") or "").lower()
-        for e in (tailored.get("experiences") or [])
-        if isinstance(e, dict)
-    )
-    if has_yiling:
-        hidden = list(tailored.get("hidden_entries") or [])
-        # Only auto-swap if projection did not already hide a project
-        if not any(isinstance(h, dict) and h.get("kind") == "project" for h in hidden):
-            hidden.append({"kind": "project", "key": swap_project_for_yiling(""), "score": -1.0})
-        tailored["hidden_entries"] = hidden
 
     xml = read_document_xml(master_docx)
     xml = merge_runs_in_document(xml)
@@ -525,13 +642,16 @@ def inject_ooxml(master_docx: bytes, tailored: dict[str, Any], inventory: dict[s
     paragraphs = delete_hidden_entries(paragraphs, tailored)
     # 3) content-only text replacements on remaining paras
     paragraphs = apply_text_replacements(paragraphs, tailored, inventory)
+    # 4) rewrite experience headings with safe spacing (avoids PDF wrap/overlap)
+    paragraphs = apply_experience_headings(paragraphs, tailored)
     new_xml = join_paragraphs(prefix, paragraphs, suffix)
     return write_document_xml(master_docx, new_xml)
 
+
 def validate_ooxml(master_docx: bytes, gen_docx: bytes) -> dict[str, Any]:
     import re as _re
-    from zipfile import ZipFile
     from io import BytesIO
+    from zipfile import ZipFile
 
     def counts(data: bytes) -> dict[str, Any]:
         with ZipFile(BytesIO(data)) as z:

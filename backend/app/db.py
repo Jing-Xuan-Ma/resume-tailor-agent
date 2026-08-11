@@ -11,14 +11,14 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 from uuid import uuid4
 
 from app.config import settings
-
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DB_PATH = _PROJECT_ROOT / "data" / "app.db"
@@ -34,6 +34,7 @@ def utcnow() -> str:
 # ---------------------------------------------------------------------------
 # PostgreSQL detection & connection helpers
 # ---------------------------------------------------------------------------
+
 
 def _is_pg() -> bool:
     url = (settings.DATABASE_URL or "").strip()
@@ -71,6 +72,7 @@ def _get_pg_conn() -> Any:
     try:
         import psycopg2
         import psycopg2.extras
+
         conn = psycopg2.connect(**_PG_CONN_PARAMS)
         conn.autocommit = False
         return conn
@@ -270,15 +272,39 @@ CREATE TABLE IF NOT EXISTS resume_templates (
     filename TEXT NOT NULL,
     docx_bytes BYTEA,
     parsed_blocks_json TEXT NOT NULL DEFAULT '[]',
+    parsed_structure_json TEXT NOT NULL DEFAULT '{}',
+    unmapped_sections_json TEXT NOT NULL DEFAULT '[]',
     is_active INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS section_title_mappings (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    raw_title TEXT NOT NULL,
+    section_type TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(user_id, raw_title)
+);
+CREATE TABLE IF NOT EXISTS tech_evidence (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    source_repo TEXT NOT NULL,
+    skill TEXT NOT NULL,
+    evidence_file TEXT NOT NULL,
+    evidence_description TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    reject_reason TEXT,
+    created_at TEXT NOT NULL,
+    confirmed_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_growth_user ON growth_plans(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_job_history_user_job ON job_history(user_id, job_id);
 CREATE INDEX IF NOT EXISTS idx_jd_sessions_user ON jd_sessions(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_resume_versions_session ON resume_versions(session_id, version_index);
 CREATE INDEX IF NOT EXISTS idx_resume_templates_user ON resume_templates(user_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_tech_evidence_user_status ON tech_evidence(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_section_title_mappings_user ON section_title_mappings(user_id);
 
 CREATE TABLE IF NOT EXISTS candidate_libraries (
     user_id TEXT PRIMARY KEY,
@@ -330,6 +356,7 @@ CREATE INDEX IF NOT EXISTS idx_application_queue_user ON application_queue(user_
 # Schema initialisation
 # ---------------------------------------------------------------------------
 
+
 def _init_pg_schema() -> None:
     global _INITIALIZED, _db_connection
     if _INITIALIZED:
@@ -361,18 +388,21 @@ def init_db() -> None:
 
     conn = sqlite3.connect(str(_DB_PATH))
     try:
-        conn.executescript(
-            PG_SCHEMA_SQL
-            .replace("BYTEA", "BLOB")
-        )
+        conn.executescript(PG_SCHEMA_SQL.replace("BYTEA", "BLOB"))
         columns = {row[1] for row in conn.execute("PRAGMA table_info(application_runs)").fetchall()}
         if "submit_mode" not in columns:
-            conn.execute("ALTER TABLE application_runs ADD COLUMN submit_mode TEXT NOT NULL DEFAULT 'manual_review'")
+            conn.execute(
+                "ALTER TABLE application_runs ADD COLUMN submit_mode TEXT NOT NULL DEFAULT 'manual_review'"
+            )
         if "submission_result_json" not in columns:
-            conn.execute("ALTER TABLE application_runs ADD COLUMN submission_result_json TEXT NOT NULL DEFAULT '{}'")
+            conn.execute(
+                "ALTER TABLE application_runs ADD COLUMN submission_result_json TEXT NOT NULL DEFAULT '{}'"
+            )
         if "submitted_at" not in columns:
             conn.execute("ALTER TABLE application_runs ADD COLUMN submitted_at TEXT")
-        listing_cols = {row[1] for row in conn.execute("PRAGMA table_info(job_listings)").fetchall()}
+        listing_cols = {
+            row[1] for row in conn.execute("PRAGMA table_info(job_listings)").fetchall()
+        }
         if listing_cols and "work_model" not in listing_cols:
             conn.execute(
                 "ALTER TABLE job_listings ADD COLUMN work_model TEXT NOT NULL DEFAULT 'unknown'"
@@ -381,7 +411,20 @@ def init_db() -> None:
             conn.execute(
                 "ALTER TABLE job_listings ADD COLUMN category TEXT NOT NULL DEFAULT 'other'"
             )
-        outreach_cols = {row[1] for row in conn.execute("PRAGMA table_info(outreach_messages)").fetchall()}
+        template_cols = {
+            row[1] for row in conn.execute("PRAGMA table_info(resume_templates)").fetchall()
+        }
+        if template_cols and "parsed_structure_json" not in template_cols:
+            conn.execute(
+                "ALTER TABLE resume_templates ADD COLUMN parsed_structure_json TEXT NOT NULL DEFAULT '{}'"
+            )
+        if template_cols and "unmapped_sections_json" not in template_cols:
+            conn.execute(
+                "ALTER TABLE resume_templates ADD COLUMN unmapped_sections_json TEXT NOT NULL DEFAULT '[]'"
+            )
+        outreach_cols = {
+            row[1] for row in conn.execute("PRAGMA table_info(outreach_messages)").fetchall()
+        }
         if outreach_cols:
             if "unsubscribe_token" not in outreach_cols:
                 conn.execute("ALTER TABLE outreach_messages ADD COLUMN unsubscribe_token TEXT")
@@ -442,6 +485,7 @@ def connect() -> Iterator[Any]:
         conn = _get_pg_conn()
         try:
             from psycopg2.extras import RealDictCursor
+
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             yield cursor
             conn.commit()
@@ -467,6 +511,7 @@ def connect() -> Iterator[Any]:
 # JSON helpers
 # ---------------------------------------------------------------------------
 
+
 def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, default=str)
 
@@ -481,6 +526,7 @@ def _loads(value: str | None, default: Any) -> Any:
 # User CRUD
 # ---------------------------------------------------------------------------
 
+
 def create_user(email: str, full_name: str, password_hash: str) -> dict[str, Any]:
     now = utcnow()
     user_id = str(uuid4())
@@ -489,7 +535,13 @@ def create_user(email: str, full_name: str, password_hash: str) -> dict[str, Any
             "INSERT INTO users (id, email, full_name, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
             (user_id, email.lower(), full_name, password_hash, now, now),
         )
-    return {"id": user_id, "email": email.lower(), "full_name": full_name, "created_at": now, "updated_at": now}
+    return {
+        "id": user_id,
+        "email": email.lower(),
+        "full_name": full_name,
+        "created_at": now,
+        "updated_at": now,
+    }
 
 
 def get_user_by_email(email: str) -> dict[str, Any] | None:
@@ -508,6 +560,7 @@ def get_user(user_id: str) -> dict[str, Any] | None:
 # Resume CRUD
 # ---------------------------------------------------------------------------
 
+
 def save_resume(
     *,
     user_id: str,
@@ -522,7 +575,17 @@ def save_resume(
     with connect() as conn:
         conn.execute(
             "INSERT INTO resumes (id, user_id, source_type, filename, raw_text, parsed_json, embedded_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (resume_id, user_id, source_type, filename, raw_text, _json(parsed or {}), embedded_count, now, now),
+            (
+                resume_id,
+                user_id,
+                source_type,
+                filename,
+                raw_text,
+                _json(parsed or {}),
+                embedded_count,
+                now,
+                now,
+            ),
         )
     return resume_id
 
@@ -559,6 +622,7 @@ def get_latest_resume(user_id: str) -> dict[str, Any] | None:
 # Tailored Resume CRUD
 # ---------------------------------------------------------------------------
 
+
 def save_tailored_resume(
     *,
     user_id: str,
@@ -572,11 +636,26 @@ def save_tailored_resume(
 ) -> str:
     now = utcnow()
     tailored_id = str(uuid4())
-    ats_score = tailored_resume.get("ats_score_estimate") if isinstance(tailored_resume, dict) else None
+    ats_score = (
+        tailored_resume.get("ats_score_estimate") if isinstance(tailored_resume, dict) else None
+    )
     with connect() as conn:
         conn.execute(
             "INSERT INTO tailored_resumes (id, user_id, resume_id, job_id, jd_text, jd_parsed_json, tailored_resume_json, markdown, key_map_json, ats_score_estimate, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (tailored_id, user_id, resume_id, job_id, jd_text, _json(jd_parsed), _json(tailored_resume), markdown, _json(key_map), ats_score, now, now),
+            (
+                tailored_id,
+                user_id,
+                resume_id,
+                job_id,
+                jd_text,
+                _json(jd_parsed),
+                _json(tailored_resume),
+                markdown,
+                _json(key_map),
+                ats_score,
+                now,
+                now,
+            ),
         )
     return tailored_id
 
@@ -602,12 +681,21 @@ def get_tailored_resume(tailored_id: str, user_id: str | None = None) -> dict[st
 # Draft CRUD
 # ---------------------------------------------------------------------------
 
+
 def save_draft(draft: dict[str, Any], tailored_resume_id: str | None = None) -> None:
     now = utcnow()
     with connect() as conn:
         conn.execute(
             "INSERT INTO drafts (id, user_id, resume_id, tailored_resume_id, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload_json = excluded.payload_json, updated_at = excluded.updated_at, tailored_resume_id = COALESCE(excluded.tailored_resume_id, drafts.tailored_resume_id)",
-            (draft["draft_id"], draft["user_id"], draft["resume_id"], tailored_resume_id, _json(draft), draft.get("created_at", now), now),
+            (
+                draft["draft_id"],
+                draft["user_id"],
+                draft["resume_id"],
+                tailored_resume_id,
+                _json(draft),
+                draft.get("created_at", now),
+                now,
+            ),
         )
 
 
@@ -626,6 +714,7 @@ def get_draft(draft_id: str, user_id: str | None = None) -> dict[str, Any] | Non
 # Conversation CRUD
 # ---------------------------------------------------------------------------
 
+
 def save_conversation_turn(user_id: str, session_id: str, role: str, content: str) -> None:
     with connect() as conn:
         conn.execute(
@@ -638,6 +727,7 @@ def save_conversation_turn(user_id: str, session_id: str, role: str, content: st
 # User Profile CRUD
 # ---------------------------------------------------------------------------
 
+
 def save_profile(user_id: str, profile: dict[str, Any]) -> None:
     now = utcnow()
     with connect() as conn:
@@ -649,7 +739,9 @@ def save_profile(user_id: str, profile: dict[str, Any]) -> None:
 
 def get_profile(user_id: str) -> dict[str, Any] | None:
     with connect() as conn:
-        row = conn.execute("SELECT profile_json FROM user_profiles WHERE user_id = ?", (user_id,)).fetchone()
+        row = conn.execute(
+            "SELECT profile_json FROM user_profiles WHERE user_id = ?", (user_id,)
+        ).fetchone()
     return _loads(row["profile_json"], None) if row else None
 
 
@@ -669,7 +761,9 @@ def get_candidate_library(user_id: str) -> dict[str, Any] | None:
     }
 
 
-def save_candidate_library(user_id: str, inventory: dict[str, Any], apply_profile: dict[str, Any]) -> dict[str, Any]:
+def save_candidate_library(
+    user_id: str, inventory: dict[str, Any], apply_profile: dict[str, Any]
+) -> dict[str, Any]:
     now = utcnow()
     with connect() as conn:
         conn.execute(
@@ -690,9 +784,11 @@ def save_candidate_library(user_id: str, inventory: dict[str, Any], apply_profil
         "updated_at": now,
     }
 
+
 # ---------------------------------------------------------------------------
 # Event / Audit Log
 # ---------------------------------------------------------------------------
+
 
 def save_event(event_type: str, payload: dict[str, Any]) -> None:
     with connect() as conn:
@@ -702,7 +798,9 @@ def save_event(event_type: str, payload: dict[str, Any]) -> None:
         )
 
 
-def save_application_audit(user_id: str, application_run_id: str | None, action: str, payload: dict[str, Any]) -> None:
+def save_application_audit(
+    user_id: str, application_run_id: str | None, action: str, payload: dict[str, Any]
+) -> None:
     with connect() as conn:
         conn.execute(
             "INSERT INTO application_audit_logs (id, user_id, application_run_id, action, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -714,13 +812,36 @@ def save_application_audit(user_id: str, application_run_id: str | None, action:
 # Job CRUD
 # ---------------------------------------------------------------------------
 
-def save_job(*, user_id: str, title: str, company: str | None, location: str | None, source_url: str | None,
-             source_platform: str, raw_text: str, parsed: dict, match_score: float | None) -> str:
+
+def save_job(
+    *,
+    user_id: str,
+    title: str,
+    company: str | None,
+    location: str | None,
+    source_url: str | None,
+    source_platform: str,
+    raw_text: str,
+    parsed: dict,
+    match_score: float | None,
+) -> str:
     job_id = str(uuid4())
     with connect() as conn:
         conn.execute(
             "INSERT INTO jobs (id, user_id, title, company, location, source_url, source_platform, raw_text, parsed_json, match_score, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (job_id, user_id, title, company, location, source_url, source_platform, raw_text, _json(parsed), match_score, utcnow()),
+            (
+                job_id,
+                user_id,
+                title,
+                company,
+                location,
+                source_url,
+                source_platform,
+                raw_text,
+                _json(parsed),
+                match_score,
+                utcnow(),
+            ),
         )
     return job_id
 
@@ -852,6 +973,15 @@ def get_job_listing(listing_id: str) -> dict[str, Any] | None:
     return _row_to_listing(row) if row else None
 
 
+def get_job_listing_by_fingerprint(fingerprint: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM job_listings WHERE fingerprint = ?",
+            (fingerprint,),
+        ).fetchone()
+    return _row_to_listing(row) if row else None
+
+
 def count_job_listings(status: str = "active") -> int:
     with connect() as conn:
         row = conn.execute(
@@ -955,8 +1085,7 @@ def search_job_listings(
         params.append(cutoff)
 
     sql = (
-        f"SELECT * FROM job_listings WHERE {' AND '.join(clauses)} "
-        "ORDER BY scraped_at DESC LIMIT ?"
+        f"SELECT * FROM job_listings WHERE {' AND '.join(clauses)} ORDER BY scraped_at DESC LIMIT ?"
     )
     params.append(limit)
 
@@ -1012,9 +1141,11 @@ def backfill_listing_categories(classify_fn) -> int:
         updated += 1
     return updated
 
+
 # ---------------------------------------------------------------------------
 # Job Bookmark CRUD
 # ---------------------------------------------------------------------------
+
 
 def bookmark_job(user_id: str, job_id: str, notes: str | None = None) -> dict[str, Any]:
     bookmark_id = str(uuid4())
@@ -1049,19 +1180,44 @@ def list_bookmarked_jobs(user_id: str, limit: int = 50) -> list[dict[str, Any]]:
 # Application Run CRUD
 # ---------------------------------------------------------------------------
 
-def save_application_run(*, user_id: str, job_id: str, tailored_resume_id: str | None, status: str,
-                         ats_type: str, plan: dict, answers: list[dict], submit_mode: str = "manual_review") -> str:
+
+def save_application_run(
+    *,
+    user_id: str,
+    job_id: str,
+    tailored_resume_id: str | None,
+    status: str,
+    ats_type: str,
+    plan: dict,
+    answers: list[dict],
+    submit_mode: str = "manual_review",
+) -> str:
     run_id = str(uuid4())
     now = utcnow()
     with connect() as conn:
         conn.execute(
             "INSERT INTO application_runs (id, user_id, job_id, tailored_resume_id, status, ats_type, submit_mode, plan_json, answers_json, submission_result_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (run_id, user_id, job_id, tailored_resume_id, status, ats_type, submit_mode, _json(plan), _json(answers), _json({}), now, now),
+            (
+                run_id,
+                user_id,
+                job_id,
+                tailored_resume_id,
+                status,
+                ats_type,
+                submit_mode,
+                _json(plan),
+                _json(answers),
+                _json({}),
+                now,
+                now,
+            ),
         )
     return run_id
 
 
-def update_application_run_status(*, run_id: str, user_id: str, status: str, submission_result: dict[str, Any] | None = None) -> dict[str, Any] | None:
+def update_application_run_status(
+    *, run_id: str, user_id: str, status: str, submission_result: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
     now = utcnow()
     submitted_at = now if status in {"submitted_by_user", "auto_submitted"} else None
     with connect() as conn:
@@ -1109,7 +1265,15 @@ def list_application_runs(user_id: str, limit: int = 50) -> list[dict[str, Any]]
 # Cover Letter CRUD
 # ---------------------------------------------------------------------------
 
-def save_cover_letter(*, user_id: str, job_id: str, tailored_resume_id: str | None, text: str, metadata: dict[str, Any]) -> str:
+
+def save_cover_letter(
+    *,
+    user_id: str,
+    job_id: str,
+    tailored_resume_id: str | None,
+    text: str,
+    metadata: dict[str, Any],
+) -> str:
     cover_letter_id = str(uuid4())
     with connect() as conn:
         conn.execute(
@@ -1138,6 +1302,7 @@ def get_cover_letter(cover_letter_id: str, user_id: str | None = None) -> dict[s
 # Outreach Message CRUD
 # ---------------------------------------------------------------------------
 
+
 def save_outreach_message(
     *,
     message_id: str | None = None,
@@ -1158,12 +1323,29 @@ def save_outreach_message(
     with connect() as conn:
         conn.execute(
             "INSERT INTO outreach_messages (id, user_id, job_id, contact_name, contact_role, company, channel, subject, body, status, metadata_json, unsubscribe_token, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (message_id, user_id, job_id, contact_name, contact_role, company, channel, subject, body, status, _json(metadata or {}), unsubscribe_token, now, now),
+            (
+                message_id,
+                user_id,
+                job_id,
+                contact_name,
+                contact_role,
+                company,
+                channel,
+                subject,
+                body,
+                status,
+                _json(metadata or {}),
+                unsubscribe_token,
+                now,
+                now,
+            ),
         )
     return message_id
 
 
-def update_outreach_send_status(message_id: str, user_id: str, delivery_status: str, delivery_error: str | None = None) -> dict[str, Any] | None:
+def update_outreach_send_status(
+    message_id: str, user_id: str, delivery_status: str, delivery_error: str | None = None
+) -> dict[str, Any] | None:
     now = utcnow()
     with connect() as conn:
         conn.execute(
@@ -1238,6 +1420,7 @@ def list_outreach_messages(user_id: str, limit: int = 50) -> list[dict[str, Any]
 # Growth Plan CRUD
 # ---------------------------------------------------------------------------
 
+
 def save_growth_plan(
     *,
     user_id: str,
@@ -1251,7 +1434,16 @@ def save_growth_plan(
     with connect() as conn:
         conn.execute(
             "INSERT INTO growth_plans (id, user_id, job_id, target_role, gaps_json, recommendations_json, roadmap_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (plan_id, user_id, job_id, target_role, _json(gaps), _json(recommendations), _json(roadmap), utcnow()),
+            (
+                plan_id,
+                user_id,
+                job_id,
+                target_role,
+                _json(gaps),
+                _json(recommendations),
+                _json(roadmap),
+                utcnow(),
+            ),
         )
     return plan_id
 
@@ -1276,6 +1468,7 @@ def list_growth_plans(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
 # Job History / Actions
 # ---------------------------------------------------------------------------
 
+
 def record_job_action(user_id: str, job_id: str, action: str, metadata: dict | None = None) -> str:
     record_id = str(uuid4())
     with connect() as conn:
@@ -1288,7 +1481,9 @@ def record_job_action(user_id: str, job_id: str, action: str, metadata: dict | N
 
 def get_job_actions(user_id: str, job_id: str | None = None) -> list[dict[str, Any]]:
     if job_id:
-        query = "SELECT * FROM job_history WHERE user_id = ? AND job_id = ? ORDER BY created_at DESC"
+        query = (
+            "SELECT * FROM job_history WHERE user_id = ? AND job_id = ? ORDER BY created_at DESC"
+        )
         params: tuple = (user_id, job_id)
     else:
         query = "SELECT * FROM job_history WHERE user_id = ? ORDER BY created_at DESC"
@@ -1320,6 +1515,7 @@ def list_job_history_with_details(user_id: str, limit: int = 50) -> list[dict[st
 # JD Session CRUD
 # ---------------------------------------------------------------------------
 
+
 def create_jd_session(*, user_id: str, job_id: str | None = None, jd_text: str) -> dict[str, Any]:
     session_id = str(uuid4())
     now = utcnow()
@@ -1328,7 +1524,15 @@ def create_jd_session(*, user_id: str, job_id: str | None = None, jd_text: str) 
             "INSERT INTO jd_sessions (id, user_id, job_id, jd_text, keyword_matches_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (session_id, user_id, job_id, jd_text, _json([]), now, now),
         )
-    return {"id": session_id, "user_id": user_id, "job_id": job_id, "jd_text": jd_text, "keyword_matches": [], "created_at": now, "updated_at": now}
+    return {
+        "id": session_id,
+        "user_id": user_id,
+        "job_id": job_id,
+        "jd_text": jd_text,
+        "keyword_matches": [],
+        "created_at": now,
+        "updated_at": now,
+    }
 
 
 def get_jd_session(session_id: str, user_id: str | None = None) -> dict[str, Any] | None:
@@ -1373,12 +1577,30 @@ def update_jd_session_keywords(session_id: str, keyword_matches: list[dict]) -> 
 # Resume Version CRUD
 # ---------------------------------------------------------------------------
 
-def create_resume_version(*, session_id: str, user_id: str, version_index: int, content_delta: dict, full_resume: dict, markdown: str = "") -> str:
+
+def create_resume_version(
+    *,
+    session_id: str,
+    user_id: str,
+    version_index: int,
+    content_delta: dict,
+    full_resume: dict,
+    markdown: str = "",
+) -> str:
     version_id = str(uuid4())
     with connect() as conn:
         conn.execute(
             "INSERT INTO resume_versions (id, session_id, user_id, version_index, content_delta_json, full_resume_json, markdown, is_confirmed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
-            (version_id, session_id, user_id, version_index, _json(content_delta), _json(full_resume), markdown, utcnow()),
+            (
+                version_id,
+                session_id,
+                user_id,
+                version_index,
+                _json(content_delta),
+                _json(full_resume),
+                markdown,
+                utcnow(),
+            ),
         )
     return version_id
 
@@ -1445,16 +1667,45 @@ def delete_oldest_version(session_id: str, user_id: str) -> None:
 # Resume Template CRUD
 # ---------------------------------------------------------------------------
 
-def save_template(*, user_id: str, filename: str, docx_bytes: bytes, parsed_blocks: list[dict]) -> str:
+
+def save_template(
+    *,
+    user_id: str,
+    filename: str,
+    docx_bytes: bytes,
+    parsed_blocks: list[dict],
+    parsed_structure: dict | None = None,
+    unmapped_sections: list[dict] | None = None,
+) -> str:
     template_id = str(uuid4())
     now = utcnow()
     with connect() as conn:
         conn.execute("UPDATE resume_templates SET is_active = 0 WHERE user_id = ?", (user_id,))
         conn.execute(
-            "INSERT INTO resume_templates (id, user_id, filename, docx_bytes, parsed_blocks_json, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)",
-            (template_id, user_id, filename, docx_bytes, _json(parsed_blocks), now, now),
+            "INSERT INTO resume_templates (id, user_id, filename, docx_bytes, parsed_blocks_json, "
+            "parsed_structure_json, unmapped_sections_json, is_active, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+            (
+                template_id,
+                user_id,
+                filename,
+                docx_bytes,
+                _json(parsed_blocks),
+                _json(parsed_structure or {}),
+                _json(unmapped_sections or []),
+                now,
+                now,
+            ),
         )
     return template_id
+
+
+def _template_from_row(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+    item = dict(row)
+    item["parsed_blocks"] = _loads(item.pop("parsed_blocks_json"), [])
+    item["parsed_structure"] = _loads(item.pop("parsed_structure_json", None), {})
+    item["unmapped_sections"] = _loads(item.pop("unmapped_sections_json", None), [])
+    return item
 
 
 def get_active_template(user_id: str) -> dict[str, Any] | None:
@@ -1465,9 +1716,7 @@ def get_active_template(user_id: str) -> dict[str, Any] | None:
         ).fetchone()
     if not row:
         return None
-    item = dict(row)
-    item["parsed_blocks"] = _loads(item.pop("parsed_blocks_json"), [])
-    return item
+    return _template_from_row(row)
 
 
 def get_template(template_id: str) -> dict[str, Any] | None:
@@ -1478,9 +1727,80 @@ def get_template(template_id: str) -> dict[str, Any] | None:
         ).fetchone()
     if not row:
         return None
-    item = dict(row)
-    item["parsed_blocks"] = _loads(item.pop("parsed_blocks_json"), [])
-    return item
+    return _template_from_row(row)
+
+
+def list_templates(user_id: str) -> list[dict[str, Any]]:
+    """All uploaded resume versions for a user, newest first. Does not include docx_bytes."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT id, user_id, filename, parsed_structure_json, unmapped_sections_json, "
+            "is_active, created_at, updated_at FROM resume_templates "
+            "WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,),
+        ).fetchall()
+    items = []
+    for row in rows:
+        item = dict(row)
+        item["parsed_structure"] = _loads(item.pop("parsed_structure_json", None), {})
+        item["unmapped_sections"] = _loads(item.pop("unmapped_sections_json", None), [])
+        items.append(item)
+    return items
+
+
+def set_active_template(template_id: str, user_id: str) -> bool:
+    """Switch which uploaded version is current (rollback / re-activate)."""
+    with connect() as conn:
+        exists = conn.execute(
+            "SELECT id FROM resume_templates WHERE id = ? AND user_id = ?",
+            (template_id, user_id),
+        ).fetchone()
+        if not exists:
+            return False
+        conn.execute("UPDATE resume_templates SET is_active = 0 WHERE user_id = ?", (user_id,))
+        conn.execute(
+            "UPDATE resume_templates SET is_active = 1, updated_at = ? WHERE id = ? AND user_id = ?",
+            (utcnow(), template_id, user_id),
+        )
+    return True
+
+
+def update_template_structure(
+    template_id: str, parsed_structure: dict, unmapped_sections: list[dict]
+) -> None:
+    with connect() as conn:
+        conn.execute(
+            "UPDATE resume_templates SET parsed_structure_json = ?, unmapped_sections_json = ?, "
+            "updated_at = ? WHERE id = ?",
+            (_json(parsed_structure), _json(unmapped_sections), utcnow(), template_id),
+        )
+
+
+def save_section_title_mapping(user_id: str, raw_title: str, section_type: str) -> None:
+    """Persist a user's manual section-title -> canonical-type decision for reuse on future uploads."""
+    key = raw_title.strip().lower()
+    with connect() as conn:
+        if _is_pg():
+            conn.execute(
+                "INSERT INTO section_title_mappings (id, user_id, raw_title, section_type, created_at) "
+                "VALUES (?, ?, ?, ?, ?) ON CONFLICT (user_id, raw_title) DO UPDATE SET section_type = EXCLUDED.section_type",
+                (str(uuid4()), user_id, key, section_type, utcnow()),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO section_title_mappings (id, user_id, raw_title, section_type, created_at) "
+                "VALUES (?, ?, ?, ?, ?) ON CONFLICT (user_id, raw_title) DO UPDATE SET section_type = excluded.section_type",
+                (str(uuid4()), user_id, key, section_type, utcnow()),
+            )
+
+
+def get_section_title_mappings(user_id: str) -> dict[str, str]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT raw_title, section_type FROM section_title_mappings WHERE user_id = ?",
+            (user_id,),
+        ).fetchall()
+    return {row["raw_title"]: row["section_type"] for row in rows}
 
 
 def _queue_from_row(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
@@ -1561,3 +1881,90 @@ def list_application_queue(user_id: str, limit: int = 100) -> list[dict[str, Any
             (user_id, limit),
         ).fetchall()
     return [_queue_from_row(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Tech Evidence (Phase 2-pre) — extracted candidates stay 'pending' until the
+# user confirms them; only 'confirmed' rows are part of the evidence base
+# Phase 2a is allowed to read from.
+# ---------------------------------------------------------------------------
+
+
+def save_tech_evidence_batch(
+    *,
+    user_id: str,
+    source_repo: str,
+    entries: list[dict[str, Any]],
+) -> list[str]:
+    """Insert extracted (verified or rejected) entries as 'pending'/'auto_rejected'."""
+    ids: list[str] = []
+    now = utcnow()
+    with connect() as conn:
+        for e in entries:
+            row_id = str(uuid4())
+            status = "pending" if e.get("verified") else "auto_rejected"
+            conn.execute(
+                "INSERT INTO tech_evidence "
+                "(id, user_id, source_repo, skill, evidence_file, evidence_description, "
+                "status, reject_reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    row_id,
+                    user_id,
+                    source_repo,
+                    e["skill"],
+                    e["evidence_file"],
+                    e["evidence_description"],
+                    status,
+                    e.get("reject_reason"),
+                    now,
+                ),
+            )
+            ids.append(row_id)
+    return ids
+
+
+def list_tech_evidence(
+    user_id: str, status: str | None = None, limit: int = 200
+) -> list[dict[str, Any]]:
+    with connect() as conn:
+        if status:
+            rows = conn.execute(
+                "SELECT * FROM tech_evidence WHERE user_id = ? AND status = ? "
+                "ORDER BY created_at DESC LIMIT ?",
+                (user_id, status, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM tech_evidence WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def set_tech_evidence_status(
+    *,
+    evidence_id: str,
+    user_id: str,
+    status: str,
+    skill: str | None = None,
+    evidence_description: str | None = None,
+) -> bool:
+    """Confirm/reject a pending entry, optionally applying the user's edits (删改)."""
+    fields = ["status = ?"]
+    params: list[Any] = [status]
+    if status == "confirmed":
+        fields.append("confirmed_at = ?")
+        params.append(utcnow())
+    if skill is not None:
+        fields.append("skill = ?")
+        params.append(skill)
+    if evidence_description is not None:
+        fields.append("evidence_description = ?")
+        params.append(evidence_description)
+    params.extend([evidence_id, user_id])
+    with connect() as conn:
+        cur = conn.execute(
+            f"UPDATE tech_evidence SET {', '.join(fields)} WHERE id = ? AND user_id = ?",
+            params,
+        )
+        return (cur.rowcount or 0) > 0

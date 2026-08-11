@@ -13,7 +13,6 @@ from uuid import UUID
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
-from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
 from app.config import settings
 

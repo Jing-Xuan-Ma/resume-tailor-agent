@@ -25,12 +25,18 @@ def _default_apply_from_inventory(inventory: dict[str, Any]) -> dict[str, Any]:
         "portfolio_url": "",
         "github_url": github,
         "resume_tailor_github": RESUME_TAILOR_GITHUB,
+        "twitter_url": "",
+        "source": "LinkedIn",
         "work_authorized": True,
         "needs_sponsorship": True,
         "visa_status": "",
         "willing_to_relocate": True,
         "earliest_start": "",
         "salary_expectation": "",
+        "gender": "",
+        "race_ethnicity": "",
+        "veteran_status": "",
+        "disability_status": "",
         "custom_fields": {},
         "answers": {
             "why_this_role": "",
@@ -44,7 +50,9 @@ def _ensure_evidence_links(inventory: dict[str, Any]) -> dict[str, Any]:
     inv = deepcopy(inventory)
     inv["github_url"] = inv.get("github_url") or RESUME_TAILOR_GITHUB
     links = list(inv.get("evidence_links") or [])
-    if not any(str(x.get("url") or "") == RESUME_TAILOR_GITHUB for x in links if isinstance(x, dict)):
+    if not any(
+        str(x.get("url") or "") == RESUME_TAILOR_GITHUB for x in links if isinstance(x, dict)
+    ):
         links.insert(
             0,
             {
@@ -149,7 +157,9 @@ def evidence_context_for_jd(user_id: str, jd_text: str = "") -> dict[str, Any]:
                 }
             )
     return {
-        "github_url": apply_profile.get("github_url") or inv.get("github_url") or RESUME_TAILOR_GITHUB,
+        "github_url": apply_profile.get("github_url")
+        or inv.get("github_url")
+        or RESUME_TAILOR_GITHUB,
         "resume_tailor_github": RESUME_TAILOR_GITHUB,
         "evidence_links": matched or links[:3],
     }
@@ -171,10 +181,15 @@ def update_library(
     next_inventory = _ensure_evidence_links(next_inventory)
     if not next_apply.get("github_url"):
         next_apply = {**next_apply, "github_url": RESUME_TAILOR_GITHUB}
-    next_apply = {**next_apply, "resume_tailor_github": next_apply.get("resume_tailor_github") or RESUME_TAILOR_GITHUB}
+    next_apply = {
+        **next_apply,
+        "resume_tailor_github": next_apply.get("resume_tailor_github") or RESUME_TAILOR_GITHUB,
+    }
     # Keep contact_line / name in sync when apply fields change
     if apply_profile is not None:
-        name = str(next_apply.get("full_name") or next_inventory.get("candidate_name") or "").strip()
+        name = str(
+            next_apply.get("full_name") or next_inventory.get("candidate_name") or ""
+        ).strip()
         phone = str(next_apply.get("phone") or "").strip()
         email = str(next_apply.get("email") or "").strip()
         linked = "LinkedIn" if next_apply.get("linkedin_url") else ""
@@ -197,12 +212,18 @@ _APPLY_SCALAR_KEYS = {
     "portfolio_url",
     "github_url",
     "resume_tailor_github",
+    "twitter_url",
+    "source",
     "visa_status",
     "earliest_start",
     "salary_expectation",
     "work_authorized",
     "needs_sponsorship",
     "willing_to_relocate",
+    "gender",
+    "race_ethnicity",
+    "veteran_status",
+    "disability_status",
 }
 
 _INVENTORY_SCALAR_KEYS = {

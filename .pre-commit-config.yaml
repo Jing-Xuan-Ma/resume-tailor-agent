@@ -1,0 +1,23 @@
+repos:
+  - repo: local
+    hooks:
+      - id: vulture
+        name: vulture (dead code)
+        entry: backend/.venv/bin/vulture backend/app --min-confidence 80
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: deptry
+        name: deptry (dependency issues)
+        entry: bash -c 'cd backend && .venv/bin/deptry .'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: jscpd
+        name: jscpd (duplicate code)
+        entry: frontend/node_modules/.bin/jscpd --config .jscpd.json
+        language: system
+        pass_filenames: false
+        always_run: true
