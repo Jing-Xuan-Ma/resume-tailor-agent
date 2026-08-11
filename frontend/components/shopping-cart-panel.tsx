@@ -203,12 +203,12 @@ export default function ShoppingCartPanel({ userId, internJobIds }: ShoppingCart
       const res = await pending;
       setCart(res);
       setSelectedApplyIds({});
+      // Don't expand in-progress items — ok=false would look like a failure.
       const firstReady = (res.items || []).find(
         (i) => i.ok && i.item_id && (i.status === "ready_md" || i.status === "confirmed")
       );
-      const firstAny = (res.items || []).find((i) => i.item_id);
       if (firstReady?.item_id) setExpandedId(firstReady.item_id);
-      else if (firstAny?.item_id) setExpandedId(firstAny.item_id);
+      else setExpandedId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Batch refine failed");
     } finally {
@@ -782,9 +782,18 @@ export default function ShoppingCartPanel({ userId, internJobIds }: ShoppingCart
                 </div>
               ) : null}
 
-              {open && !item.ok && hasResult ? (
+              {open && item.status === "failed" && hasResult ? (
                 <div className="border-t border-slate-100 px-4 py-3 text-xs text-rose-700">
                   生成失败：{item.error || "unknown"}
+                </div>
+              ) : null}
+              {open &&
+              (item.status === "generating" || item.status === "stalled") &&
+              hasResult ? (
+                <div className="border-t border-slate-100 px-4 py-3 text-xs text-amber-800">
+                  {item.status === "stalled"
+                    ? item.error || "生成较慢，仍在后台进行；可先处理其它已完成职位。"
+                    : "正在生成简历与 Cover Letter，完成后可预览/投递。"}
                 </div>
               ) : null}
             </div>

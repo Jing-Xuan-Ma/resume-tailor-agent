@@ -1,0 +1,43 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/stop_verify.py",
+            "statusMessage": "Verifying changed files (ruff/pytest/lint/DEVLOG)"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/stop_verify.py",
+            "statusMessage": "Verifying changed files (ruff/pytest/lint/DEVLOG)"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(python3 -c \"import sys,json; print(json.load(sys.stdin).get('tool_input',{}).get('file_path',''))\"); case \"$f\" in */backend/*.py) root=\"${CLAUDE_PROJECT_DIR:-$(pwd)}\"; \"$root/backend/.venv/bin/ruff\" check --fix \"$f\"; \"$root/backend/.venv/bin/ruff\" format \"$f\" ;; esac; true",
+            "statusMessage": "Running ruff check --fix + format on edited Python file"
+          },
+          {
+            "type": "command",
+            "command": "f=$(python3 -c \"import sys,json; print(json.load(sys.stdin).get('tool_input',{}).get('file_path',''))\"); case \"$f\" in */frontend/*.ts|*/frontend/*.tsx) root=\"${CLAUDE_PROJECT_DIR:-$(pwd)}\"; \"$root/frontend/node_modules/.bin/eslint\" --fix \"$f\" ;; esac; true",
+            "statusMessage": "Running eslint --fix on edited TS/TSX file"
+          }
+        ]
+      }
+    ]
+  }
+}
