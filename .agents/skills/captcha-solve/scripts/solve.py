@@ -39,13 +39,15 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 SKILL_DIR = SCRIPT_DIR.parent
 
 load_dotenv(SKILL_DIR / ".env")
-_cwd_skill = Path.cwd() / ".cursor" / "skills" / SKILL_DIR.name
-if _cwd_skill != SKILL_DIR and (_cwd_skill / ".env").exists():
-    load_dotenv(_cwd_skill / ".env", override=True)
-# 兼容从仓库根或 skill 目录调用时的另一常见相对路径
-_alt = Path.cwd() / "skills" / SKILL_DIR.name
-if _alt != SKILL_DIR and (_alt / ".env").exists():
-    load_dotenv(_alt / ".env", override=True)
+_skill_env = SKILL_DIR / ".env"
+for rel in (
+    Path(".agents") / "skills" / SKILL_DIR.name,
+    Path(".cursor") / "skills" / SKILL_DIR.name,
+    Path("skills") / SKILL_DIR.name,
+):
+    p = Path.cwd() / rel / ".env"
+    if p.exists() and p.resolve() != _skill_env.resolve():
+        load_dotenv(p, override=True)
 
 CAPTCHA_PROMPT = """你是验证码视觉解题助手。根据截图给出「可执行操作方案」，供自动化程序点击/拖拽/输入。
 你只输出方案，不要声称已经点击。

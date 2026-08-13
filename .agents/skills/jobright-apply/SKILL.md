@@ -8,7 +8,15 @@ description: >-
 
 # Jobright 投递（停在 Submit 前）
 
-用 **ghost-driver-mcp** 走投递：Jobright 详情 → **Original Job Post**（新标签）→ 雇主申请表 → 填表 → **禁止点 Submit**。Chrome 须前台可见。
+用本仓库 **ghost-driver-mcp**（`mcp/happy-ghost-driver/`）走投递：Jobright 详情 → **Original Job Post**（新标签）→ 雇主申请表 → 填表 → **禁止点 Submit**。Chrome 须前台可见。要走已跑通的 Submit 闭环，用 `jobright-original-apply`。
+
+## 铁律（与 original-apply 相同，提交除外）
+
+1. **投递时关掉 pacing。** `.cursor/mcp.json` 里 `PACING_ENABLED` 必须是 `"0"` / `"false"`，否则改完后重连 MCP 再填表。
+2. **物理动作严禁并行。** 等上一个 MCP 调用返回再发下一个。
+3. **type 若报 timeout / -32001：立刻停。** 先 `list_tabs` + 截图。
+4. **点表单前避开顶栏。** 字段滚到视口中部再点；点完核对 URL。
+5. 简历只用 `data/final_resumes/` 或购物车 Confirm 后的 `resume.pdf` 绝对路径。
 
 ## 能力分工
 
@@ -40,6 +48,7 @@ GET http://127.0.0.1:8000/api/v1/profile/{user_id}/library
 ## 标准流程
 
 ```
+- [ ] 0. 确认 PACING_ENABLED=0，否则先改 .cursor/mcp.json 并重连 MCP
 - [ ] 1. 打开 Jobright 职位页
 - [ ] 2. 点 Original Job Post，切到雇主新标签
 - [ ] 3. 关掉 Cookie / 登录墙

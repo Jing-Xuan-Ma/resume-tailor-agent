@@ -138,7 +138,7 @@ resume-tailor-agent/
 ├── backend/                  # FastAPI: scrape, profile, tailor APIs
 ├── frontend/                 # Next.js workspace
 ├── mcp/happy-ghost-driver/   # Browser MCP
-├── .agents/skills/           # resume-tailor, jobright-apply, screen-locate, …
+├── .agents/skills/           # resume-tailor, job-search, jobright-apply, jobright-original-apply, …
 ├── config/                   # intern-list scrape schedule
 ├── scripts/                  # dev-up / scheduled scrape
 └── archive/                  # old iteration dumps (not on the hot path)

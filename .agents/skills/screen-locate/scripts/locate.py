@@ -14,12 +14,12 @@
 输出：归一化坐标 / 图片像素坐标 / 屏幕物理坐标（可选）
 
 用法:
-  uv run skills/screen-locate/scripts/locate.py \
+  uv run .agents/skills/screen-locate/scripts/locate.py \
       --image /path/to/screenshot.png \
       --instruction "点击搜索按钮"
 
   # 传入物理屏幕尺寸，同时输出 screen 坐标（用于 adb tap 等）
-  uv run skills/screen-locate/scripts/locate.py \
+  uv run .agents/skills/screen-locate/scripts/locate.py \
       --image screenshot.png \
       --instruction "点击设置图标" \
       --screen-width 1080 --screen-height 2400
@@ -44,9 +44,15 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 SKILL_DIR = SCRIPT_DIR.parent
 
 load_dotenv(SKILL_DIR / ".env")
-_cwd_skill = Path.cwd() / "skills" / SKILL_DIR.name
-if _cwd_skill != SKILL_DIR and (_cwd_skill / ".env").exists():
-    load_dotenv(_cwd_skill / ".env", override=True)
+_skill_env = SKILL_DIR / ".env"
+for rel in (
+    Path(".agents") / "skills" / SKILL_DIR.name,
+    Path(".cursor") / "skills" / SKILL_DIR.name,
+    Path("skills") / SKILL_DIR.name,
+):
+    p = Path.cwd() / rel / ".env"
+    if p.exists() and p.resolve() != _skill_env.resolve():
+        load_dotenv(p, override=True)
 
 MOBILE_USE_PROMPT = """You are a GUI agent. You are given a task and your action history, with screenshots. You need to perform the next action to complete the task.
 
