@@ -208,6 +208,7 @@ _APPLY_SCALAR_KEYS = {
     "email",
     "phone",
     "location",
+    "country",
     "linkedin_url",
     "portfolio_url",
     "github_url",
