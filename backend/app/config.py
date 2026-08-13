@@ -198,8 +198,7 @@ class Settings(BaseSettings):
     # Empty = auto-detect data/jobright_storage_state.json / data/jobright_cookies.json.
     JOBRIGHT_STORAGE_STATE_PATH: str = ""
     JOBRIGHT_COOKIES_PATH: str = ""
-    # Phase 2: prefer live Playwright Jobright → Original Job Post click.
-    # When false, use scraped company apply URL first; optionally fall back to live nav.
+    # Phase 2: scraped/resolver first; live Jobright click last (needs session cookies).
     CART_APPLY_LIVE_NAV: bool = False
     CART_APPLY_LIVE_NAV_FALLBACK: bool = True
     # Phase 3: live Playwright Apply → Autofill with Resume on company ATS.

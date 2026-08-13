@@ -5,7 +5,11 @@ from __future__ import annotations
 from app.modules.shopping_cart import service, store
 from app.modules.shopping_cart.apply_pipeline import start_apply_batch, summarize_apply
 from app.modules.shopping_cart.apply_worker import process_cart_queue, process_queued_item
-from app.modules.shopping_cart.jobright_nav import detect_ats_type, resolve_ats_url_for_item
+from app.modules.shopping_cart.jobright_nav import (
+    classify_jobright_nav_error,
+    detect_ats_type,
+    resolve_ats_url_for_item,
+)
 
 
 def _seed_cart(tmp_path, monkeypatch, *, source_url: str | None = None):
@@ -112,8 +116,129 @@ def test_process_queued_item_marks_failed(tmp_path, monkeypatch) -> None:
     )
     result = process_queued_item(cart_id=cart_id, item_id=item_id)
     assert result["ok"] is False
+    assert result["phase"] == 2
     assert result["apply"]["status"] == "failed"
     assert "original_job_post" in (result["apply"].get("error") or "")
+
+
+def test_classify_jobright_goto_timeout() -> None:
+    raw = (
+        "Page.goto: Timeout 30000ms exceeded.\n"
+        "Call log:\n"
+        '  - navigating to "https://jobright.ai/jobs/info/6a7d169ca346cb6c8d5f1a2c"'
+        ', waiting until "domcontentloaded"\n'
+    )
+    assert classify_jobright_nav_error(raw) == "jobright_page_timeout"
+    assert classify_jobright_nav_error("no_official_ats_url") == "no_official_ats_url"
+
+
+def test_resolve_scraped_before_live_when_live_on(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.modules.shopping_cart.jobright_nav.settings.CART_APPLY_LIVE_NAV",
+        True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.modules.shopping_cart.jobright_nav.resolve_ats_from_scraped",
+        lambda **kwargs: {
+            "ok": True,
+            "ats_url": "https://boards.greenhouse.io/pokee/jobs/1",
+            "ats_type": "greenhouse",
+            "method": "scraped_apply_url",
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.shopping_cart.jobright_nav.navigate_jobright_to_ats",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("live nav should not run")),
+    )
+    out = resolve_ats_url_for_item(
+        intern_job_id="6a7d169ca346cb6c8d5f1a2c",
+        jobright_url="https://jobright.ai/jobs/info/6a7d169ca346cb6c8d5f1a2c",
+        source_url="https://jobright.ai/jobs/info/6a7d169ca346cb6c8d5f1a2c",
+    )
+    assert out["ok"] is True
+    assert out["method"] == "scraped_apply_url"
+
+
+def test_resolve_live_timeout_classified(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.modules.shopping_cart.jobright_nav.settings.CART_APPLY_LIVE_NAV",
+        True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.modules.shopping_cart.jobright_nav.settings.CART_APPLY_LIVE_NAV_FALLBACK",
+        True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.modules.shopping_cart.jobright_nav.resolve_ats_from_scraped",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.shopping_cart.jobright_nav.resolve_ats_from_company_resolver",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.shopping_cart.jobright_nav.navigate_jobright_to_ats",
+        lambda **kwargs: {
+            "ok": False,
+            "error": (
+                "Page.goto: Timeout 30000ms exceeded.\n"
+                "Call log:\n"
+                '  - navigating to "https://jobright.ai/jobs/info/x"'
+            ),
+            "method": "jobright_original_post_click",
+        },
+    )
+    out = resolve_ats_url_for_item(
+        intern_job_id="6a7d169ca346cb6c8d5f1a2c",
+        jobright_url="https://jobright.ai/jobs/info/6a7d169ca346cb6c8d5f1a2c",
+        source_url="https://jobright.ai/jobs/info/6a7d169ca346cb6c8d5f1a2c",
+    )
+    assert out["ok"] is False
+    assert out["error"] == "jobright_page_timeout"
+
+
+def test_resolve_no_official_ats_not_playwright_dump(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.modules.shopping_cart.jobright_nav.settings.CART_APPLY_LIVE_NAV",
+        True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.modules.shopping_cart.jobright_nav.resolve_ats_from_scraped",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.shopping_cart.jobright_nav.resolve_ats_from_company_resolver",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.shopping_cart.jobright_nav.navigate_jobright_to_ats",
+        lambda **kwargs: {
+            "ok": False,
+            "error": "original_job_post_not_found",
+            "method": "jobright_original_post_click",
+        },
+    )
+    out = resolve_ats_url_for_item(
+        intern_job_id="x",
+        jobright_url="https://jobright.ai/jobs/info/x",
+    )
+    assert out["error"] == "no_official_ats_url"
+
+
+def test_start_apply_phase2_fail_message_not_phase5(tmp_path, monkeypatch) -> None:
+    cart_id, _item_id = _seed_cart(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        "app.modules.shopping_cart.apply_worker.resolve_ats_url_for_item",
+        lambda **kwargs: {"ok": False, "error": "jobright_page_timeout", "method": "none"},
+    )
+    out = service.start_apply(cart_id=cart_id, user_id="user-1", process_now=True)
+    assert out["failed_count"] == 1
+    assert "Phase 5" not in (out.get("message") or "")
+    assert "Phase 2" in (out.get("message") or "")
 
 
 def test_start_apply_processes_phase2(tmp_path, monkeypatch) -> None:

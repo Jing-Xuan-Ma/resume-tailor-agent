@@ -21,15 +21,27 @@ APPLY_SELECTORS = [
     "[data-automation-id='jobPostingApplyButton']",
     "button[data-testid='apply-button']",
     "a[data-testid='apply-button']",
+    "a.button--primary:has-text('Apply')",
+    "a.button:has-text('Apply')",
     "button:has-text('Apply Now')",
     "a:has-text('Apply Now')",
     "button:has-text('Apply for this Job')",
     "a:has-text('Apply for this Job')",
     "button:has-text('Start Application')",
     "a:has-text('Start Application')",
+    "button:has-text(\"I'm Interested\")",
+    "a:has-text(\"I'm Interested\")",
     "button:has-text('Apply')",
     "a:has-text('Apply')",
     "[role=button]:has-text('Apply')",
+]
+
+COOKIE_SELECTORS = [
+    "#onetrust-accept-btn-handler",
+    "button:has-text('Accept All')",
+    "button:has-text('Accept all')",
+    "button:has-text('I Accept')",
+    "button:has-text('Agree')",
 ]
 
 # Prefer Autofill / resume path; never match final Submit Application.
@@ -103,25 +115,53 @@ def _click_first(
         try:
             for frame in _frames():
                 matches = frame.locator(selector)
-                if matches.count() == 0:
-                    continue
-                loc = matches.first
-                if not loc.is_visible():
-                    continue
+                n = 0
                 try:
-                    text = (loc.inner_text(timeout=800) or "").strip()
+                    n = matches.count()
                 except Exception:
-                    text = ""
-                if _is_submit_ish(text):
-                    continue
-                if "manually" in text.lower():
-                    continue
-                loc.click(timeout=timeout_ms)
-                page.wait_for_timeout(700)
-                return {"ok": True, "selector": selector, "text": text}
+                    n = 0
+                for i in range(n):
+                    loc = matches.nth(i)
+                    try:
+                        if not loc.is_visible():
+                            continue
+                    except Exception:
+                        continue
+                    try:
+                        text = (loc.inner_text(timeout=800) or "").strip()
+                    except Exception:
+                        text = ""
+                    if _is_submit_ish(text):
+                        continue
+                    if "manually" in text.lower():
+                        continue
+                    loc.click(timeout=timeout_ms)
+                    page.wait_for_timeout(700)
+                    return {"ok": True, "selector": selector, "text": text}
         except Exception:
             continue
     return {"ok": False}
+
+
+def _dismiss_cookies(page) -> None:
+    for selector in COOKIE_SELECTORS:
+        try:
+            loc = page.locator(selector).first
+            if loc.count() and loc.is_visible():
+                loc.click(timeout=1500)
+                page.wait_for_timeout(400)
+                return
+        except Exception:
+            continue
+
+
+def _wait_for_apply(page, timeout_ms: int = 15000) -> None:
+    try:
+        page.get_by_role("link", name="Apply").or_(
+            page.get_by_role("button", name="Apply")
+        ).first.wait_for(state="visible", timeout=timeout_ms)
+    except Exception:
+        pass
 
 
 def _visible(page, selector: str) -> bool:
@@ -297,8 +337,14 @@ def apply_and_autofill_resume(
             except Exception:
                 browser = playwright.chromium.launch(headless=headless)
             page = browser.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-            page.wait_for_timeout(1000)
+            page.goto(url, wait_until="commit", timeout=max(timeout_ms, 60000))
+            try:
+                page.wait_for_load_state("domcontentloaded", timeout=min(20000, max(timeout_ms, 15000)))
+            except Exception:
+                pass
+            page.wait_for_timeout(1500)
+            _dismiss_cookies(page)
+            _wait_for_apply(page, timeout_ms=15000)
             result = run_apply_autofill_on_page(page, resume_path=resume_path, click_apply=True)
             if screenshot_path:
                 Path(screenshot_path).parent.mkdir(parents=True, exist_ok=True)

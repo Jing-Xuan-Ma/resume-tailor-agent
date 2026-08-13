@@ -91,12 +91,25 @@ function formatApplyError(error?: string | null): string {
   const e = (error || "").trim();
   if (!e) return "";
   if (e === "no_official_ats_url") {
-    return "Jobright 未找到官方投递链接（无法自动打开 ATS）";
+    return "未找到官方投递链接（无法自动打开 ATS）";
+  }
+  if (e === "jobright_page_timeout") {
+    return "打开 Jobright 详情页超时（未到达公司 ATS）";
+  }
+  if (e === "jobright_nav_failed") {
+    return "打开 Jobright 失败（未到达公司 ATS）";
   }
   if (e === "captcha_required") {
     return "验证码无法自动完成，需自行注册公司账户";
   }
   return e;
+}
+
+function isApplySelected(
+  selectedApplyIds: Record<string, boolean>,
+  itemId?: string | null
+): boolean {
+  return Boolean(itemId && selectedApplyIds[itemId] === true);
 }
 
 function needsManualRegister(item: ShoppingCartItem): boolean {
@@ -272,8 +285,13 @@ export default function ShoppingCartPanel({
       const next = await getShoppingCart(cart.cart_id, userId);
       setCart(next);
       if (next.cart_id) rememberCartId(userId, idsKey, next.cart_id);
-      // Auto-select newly ready items for apply (keep prior unchecks).
+      // Auto-select newly ready items while generating — not after apply has started.
       setSelectedApplyIds((prev) => {
+        const applyTouched = (next.items || []).some((i) => {
+          const st = i.apply?.status;
+          return Boolean(st && st !== "idle");
+        });
+        if (applyTouched) return prev;
         const nextMap = { ...prev };
         for (const item of next.items || []) {
           if (
@@ -339,7 +357,7 @@ export default function ShoppingCartPanel({
       const res = await pending;
       setCart(res);
       if (res.cart_id) rememberCartId(userId, idsKey, res.cart_id);
-      setSelectedApplyIds({});
+      setSelectedApplyIds(selectReadyDefaults(res.items || []));
       // Don't expand in-progress items — ok=false would look like a failure.
       const firstReady = (res.items || []).find(
         (i) => i.ok && i.item_id && (i.status === "ready_md" || i.status === "confirmed")
@@ -484,7 +502,7 @@ export default function ShoppingCartPanel({
     if (!cart?.cart_id || applying) return;
     const selected = readyItems
       .map((i) => i.item_id!)
-      .filter((id) => selectedApplyIds[id] !== false);
+      .filter((id) => isApplySelected(selectedApplyIds, id));
     if (!selected.length) {
       setError("请先勾选已生成完成的职位再投递");
       return;
@@ -494,11 +512,15 @@ export default function ShoppingCartPanel({
     setApplyMessage(null);
     try {
       const res = await startShoppingCartApply(cart.cart_id, userId, selected);
+      const skippedN = (res.skipped || []).length;
       setApplyMessage(
-        res.message ||
+        (res.message ||
           `已处理投递：排队 ${res.queued_count}` +
             (res.ok_count != null ? ` · 到达 ATS ${res.ok_count}` : "") +
-            (res.failed_count ? ` · 失败 ${res.failed_count}` : "")
+            (res.failed_count ? ` · 失败 ${res.failed_count}` : "")) +
+          (cartGenerating || skippedN
+            ? "（仅已生成完成且已勾选的职位；生成中的不会投递）"
+            : "")
       );
       await refreshCart();
     } catch (err) {
@@ -528,8 +550,8 @@ export default function ShoppingCartPanel({
   const pendingCount = previewItems.filter((i) => i.ok !== false || i.status === "pending").length;
   const canRefine =
     !refining && !hasResult && previewItems.some((i) => i.ok !== false && i.status !== "unresolved");
-  const selectedReadyCount = readyItems.filter(
-    (i) => i.item_id && selectedApplyIds[i.item_id] !== false
+  const selectedReadyCount = readyItems.filter((i) =>
+    isApplySelected(selectedApplyIds, i.item_id)
   ).length;
   const canStartApply = Boolean(cart?.cart_id) && selectedReadyCount > 0 && !applying;
 
@@ -705,7 +727,7 @@ export default function ShoppingCartPanel({
                       type="checkbox"
                       className="h-4 w-4 rounded border-slate-300"
                       disabled={!isReady}
-                      checked={isReady && selectedApplyIds[item.item_id] !== false}
+                      checked={isApplySelected(selectedApplyIds, item.item_id)}
                       data-testid={`cart-item-select-${item.item_id}`}
                       onChange={(e) => {
                         const id = item.item_id!;

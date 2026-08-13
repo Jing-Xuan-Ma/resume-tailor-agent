@@ -38,6 +38,34 @@ _ORIGINAL_POST_SELECTORS = [
 
 _APPLY_NOW_RE = re.compile(r"APPLY\s*NOW", re.I)
 _SIGNUP_WALL_RE = re.compile(r"Sign\s*Up\s*to\s*Apply", re.I)
+_NO_ATS_CODES = frozenset(
+    {
+        "original_job_post_not_found",
+        "jobright_login_required_for_employer_site",
+        "jobright_login_required_missing_session",
+        "jobright_url_not_official_ats",
+        "missing_jobright_url",
+    }
+)
+
+
+def classify_jobright_nav_error(exc: BaseException | str | None) -> str:
+    """Map Playwright dumps to stable apply.error codes (never leak Call log)."""
+    text = str(exc or "").strip()
+    if not text:
+        return "jobright_nav_failed"
+    if "\n" not in text and " " not in text and len(text) < 80:
+        return text
+    lower = text.lower()
+    if "timeout" in lower and (
+        "goto" in lower or "navigating to" in lower or "page.goto" in lower
+    ):
+        return "jobright_page_timeout"
+    if "timeout" in lower:
+        return "jobright_page_timeout"
+    if "call log:" in lower:
+        return "jobright_nav_failed"
+    return text.split("\n", 1)[0][:180]
 
 
 def detect_ats_type(url: str | None) -> str:
@@ -278,7 +306,12 @@ def navigate_jobright_to_ats(
                     log.warning("jobright add_cookies failed: %s", exc)
 
             page = context.new_page()
-            page.goto(jr, wait_until="domcontentloaded", timeout=timeout_ms)
+            # commit: Jobright/Cloudflare often never fires DCL in headless.
+            page.goto(jr, wait_until="commit", timeout=timeout_ms)
+            try:
+                page.wait_for_load_state("domcontentloaded", timeout=min(15000, timeout_ms))
+            except Exception:
+                pass
             page.wait_for_timeout(1500)
             _dismiss_jobright_overlays(page)
 
@@ -370,7 +403,7 @@ def navigate_jobright_to_ats(
         log.warning("jobright navigate failed url=%s err=%s", jr, exc)
         return {
             "ok": False,
-            "error": str(exc),
+            "error": classify_jobright_nav_error(exc),
             "method": "jobright_original_post_click",
             "jobright_url": jr,
             "auth_source": auth.get("source"),
@@ -471,10 +504,9 @@ def resolve_ats_url_for_item(
     source_url: str | None = None,
     force_live: bool | None = None,
 ) -> dict[str, Any]:
-    """Phase 2 resolver: scraped / company resolver / live Jobright Original Job Post.
+    """Phase 2 resolver: scraped → company resolver → live Jobright click.
 
-    - CART_APPLY_LIVE_NAV=true → try live Jobright click first (uses saved login session).
-    - else scraped → company resolver → live once if CART_APPLY_LIVE_NAV_FALLBACK.
+    Live Playwright is last (CART_APPLY_LIVE_NAV or CART_APPLY_LIVE_NAV_FALLBACK).
     """
     prefer_live = (
         bool(force_live)
@@ -498,27 +530,12 @@ def resolve_ats_url_for_item(
             }
         return {
             "ok": False,
-            "error": nav.get("error") or "no_official_ats_url",
+            "error": classify_jobright_nav_error(nav.get("error") or "no_official_ats_url"),
             "method": nav.get("method") or "none",
             "jobright_url": jobright_url,
             "employer_site_mode": nav.get("employer_site_mode"),
             "auth_source": nav.get("auth_source"),
         }
-
-    if prefer_live:
-        live_out = _run_live()
-        if live_out.get("ok"):
-            return live_out
-        scraped = resolve_ats_from_scraped(intern_job_id=intern_job_id, source_url=source_url)
-        if scraped:
-            scraped = {**scraped, "live_error": live_out.get("error")}
-            return scraped
-        resolved = resolve_ats_from_company_resolver(
-            intern_job_id=intern_job_id, source_url=source_url
-        )
-        if resolved and resolved.get("ok"):
-            return {**resolved, "live_error": live_out.get("error")}
-        return live_out
 
     scraped = resolve_ats_from_scraped(intern_job_id=intern_job_id, source_url=source_url)
     if scraped:
@@ -530,12 +547,17 @@ def resolve_ats_url_for_item(
     if resolved and resolved.get("ok"):
         return resolved
 
-    if allow_fallback or force_live:
+    if prefer_live or allow_fallback or force_live:
         live_out = _run_live()
         if live_out.get("ok"):
             return live_out
+        err = classify_jobright_nav_error(live_out.get("error"))
+        if err in _NO_ATS_CODES:
+            err = "no_official_ats_url"
         return {
             **live_out,
+            "error": err,
+            "live_error": live_out.get("error"),
             "resolver_message": (resolved or {}).get("resolver_message") if resolved else None,
         }
 

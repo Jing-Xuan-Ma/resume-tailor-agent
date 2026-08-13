@@ -680,28 +680,43 @@ def start_apply(
     from app.modules.shopping_cart.apply_worker import process_cart_queue
 
     queued = start_apply_batch(cart_id=cart_id, user_id=user_id, item_ids=item_ids)
+    skipped_n = len(queued.get("skipped") or [])
     if not process_now or not queued.get("queued_count"):
+        bits = [f"Queued {queued.get('queued_count', 0)}"]
+        if skipped_n:
+            bits.append(f"skipped {skipped_n}")
         return {
             **queued,
-            "phase": 5,
+            "phase": 1,
             "processed_count": 0,
             "message": queued.get("message")
-            or "Apply tasks queued. Call apply/process to run Phase 2–5.",
+            if not skipped_n
+            else f"{'; '.join(bits)} (not yet ready or already in progress).",
         }
 
     processed = process_cart_queue(cart_id=cart_id, user_id=user_id)
+    rows = processed.get("processed") or []
+    fail_phases = sorted(
+        {int(p["phase"]) for p in rows if p.get("ok") is False and p.get("phase")}
+    )
+    bits = [
+        f"Queued {queued.get('queued_count', 0)}",
+        f"ok {processed.get('ok_count', 0)}",
+        f"failed {processed.get('failed_count', 0)}",
+    ]
+    if skipped_n:
+        bits.append(f"skipped {skipped_n}")
+    if fail_phases:
+        bits.append(f"failed at Phase {fail_phases[0]}")
+    elif processed.get("ok_count"):
+        bits.append(f"through Phase {processed.get('phase') or 5}")
     return {
         **queued,
         **processed,
         "phase": processed.get("phase") or 5,
         "queued_count": queued.get("queued_count"),
         "apply_summary": processed.get("apply_summary") or queued.get("apply_summary"),
-        "message": (
-            f"Queued {queued.get('queued_count', 0)}; "
-            f"ok {processed.get('ok_count', 0)}, "
-            f"failed {processed.get('failed_count', 0)} "
-            f"(through Phase {processed.get('phase') or 5}: form fill → ready_to_submit)."
-        ),
+        "message": f"{'; '.join(bits)}.",
     }
 
 

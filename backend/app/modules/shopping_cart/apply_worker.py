@@ -152,7 +152,13 @@ def process_queued_item(*, cart_id: str, item_id: str) -> dict[str, Any]:
                 "note": "Phase 2 failed to reach company ATS",
             },
         )
-        return {"item_id": item_id, "ok": False, "apply": updated.get("apply"), "result": result}
+        return {
+            "item_id": item_id,
+            "ok": False,
+            "apply": updated.get("apply"),
+            "result": result,
+            "phase": 2,
+        }
 
     updated = set_apply_status(
         cart_id=cart_id,
@@ -214,7 +220,7 @@ def process_on_ats_item(*, cart_id: str, item_id: str) -> dict[str, Any]:
             error="missing_ats_url",
             extra={"note": "Phase 3 needs ats_url from Phase 2"},
         )
-        return {"item_id": item_id, "ok": False, "apply": updated.get("apply")}
+        return {"item_id": item_id, "ok": False, "apply": updated.get("apply"), "phase": 3}
 
     resume_path = resolve_confirmed_resume_pdf(cart_id=cart_id, item=item)
     if not resume_path:
@@ -228,7 +234,7 @@ def process_on_ats_item(*, cart_id: str, item_id: str) -> dict[str, Any]:
                 "note": "Confirm PDF in shopping cart before Apply / Autofill",
             },
         )
-        return {"item_id": item_id, "ok": False, "apply": updated.get("apply")}
+        return {"item_id": item_id, "ok": False, "apply": updated.get("apply"), "phase": 3}
 
     set_apply_status(
         cart_id=cart_id,

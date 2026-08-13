@@ -25,10 +25,13 @@ idle → queued → navigating → on_ats → applying → registered → filled
 | **5** | `registered` → `filled` → `ready_to_submit` | Fill company ATS form (Profile + resume); **hard-stop before Submit**; persist reviewable snapshot |
 | **6+** | `submitted` | One-click Submit display page (later) |
 
-Phase 2 resolver order (configurable):
+Phase 2 resolver order:
 
-1. If `CART_APPLY_LIVE_NAV=true` → Playwright click Original Job Post; on failure fall back to scraped company URL
-2. Else → scraped `apply_url` / `source_url` first; if missing and `CART_APPLY_LIVE_NAV_FALLBACK=true` → live nav once
+1. Scraped company `apply_url` / `source_url` (skip Jobright aggregators)
+2. Company ATS resolver (Greenhouse/Workday/…)
+3. If still missing and `CART_APPLY_LIVE_NAV` or `CART_APPLY_LIVE_NAV_FALLBACK`: Playwright Jobright Original Job Post (`commit`, then DCL best-effort)
+
+Live nav timeouts become `jobright_page_timeout`; no official ATS → `no_official_ats_url` (never raw Playwright Call log).
 
 APIs: `POST …/apply/start` (through Phase 5 by default; **runs in a worker thread** so Playwright Sync API is safe under FastAPI asyncio), `POST …/apply/process`, `GET …/apply/status`,  
 `GET …/items/{item_id}/fill-review` (flip-through), `GET …/items/{item_id}/fill-screenshot`,  
