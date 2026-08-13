@@ -2,8 +2,6 @@
 
 from urllib.parse import urlparse
 
-from app.modules.application_engine.browser_session import BrowserSession
-
 
 class BaseATSConnector:
     ats_type = "generic"
@@ -62,15 +60,16 @@ class BaseATSConnector:
             }
         if not run.get("job_id"):
             return {"submitted": False, "status": "invalid_run", "message": "Missing job_id."}
-        result = BrowserSession().submit(
-            url=(plan.get("browser_session") or {}).get("url"),
-            answers=run.get("answers") or [],
-            should_submit=True,
-            field_selectors=self.field_selectors(),
-            submit_selectors=self.submit_selectors(),
-            apply_selectors=self.apply_selectors(),
-        )
-        return {"ats_type": self.ats_type, **result}
+        return {
+            "ats_type": self.ats_type,
+            "submitted": False,
+            "status": "moved_to_agent_mcp",
+            "paused_before_submit": True,
+            "message": (
+                "Browser apply moved to Agent chat "
+                "(.agents/skills/jobright-apply + ghost-driver-mcp)."
+            ),
+        }
 
 
 def host(url: str | None) -> str:

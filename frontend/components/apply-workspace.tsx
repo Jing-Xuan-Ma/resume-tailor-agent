@@ -618,7 +618,7 @@ export default function ApplyWorkspace({
             <strong>never clicks Submit</strong>。
           </p>
           <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
-            Safety: Auto-apply never clicks Submit
+            Safety: Agent fills forms in chat; never clicks Submit
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <button
@@ -639,16 +639,13 @@ export default function ApplyWorkspace({
             <button
               type="button"
               data-testid="apply-auto"
-              disabled={!confirmed || busy}
-              aria-busy={busyMode === "auto"}
-              onClick={() => void handleStart("auto")}
-              className="rounded-2xl bg-emerald-600 px-5 py-4 text-left text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled
+              title="Auto apply 已迁到 Agent 对话：jobright-apply + ghost-driver-mcp"
+              className="rounded-2xl bg-slate-200 px-5 py-4 text-left text-slate-500"
             >
-              <div className="text-sm font-bold">
-                {busyMode === "auto" ? "正在扫描 ATS / 进入中…" : "进入 Auto apply (safe)"}
-              </div>
-              <div className="mt-1 text-xs text-emerald-50/90">
-                Prefill checklist · pause before Submit · you review
+              <div className="text-sm font-bold">Auto apply 已迁出 Web</div>
+              <div className="mt-1 text-xs">
+                在 Agent 对话里用 jobright-apply skill 填表，停在 Submit 前
               </div>
             </button>
           </div>

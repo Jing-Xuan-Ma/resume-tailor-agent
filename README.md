@@ -126,42 +126,22 @@ By default, browser automation is disabled. With `ENABLE_BROWSER_AUTOMATION=fals
 | Optional Cache/Rate Limit | Redis |
 | Job Discovery | JobSpy provider + local fallback |
 | Resume Parsing | python-docx + pdfplumber + plain text |
-| Browser Automation | Optional Playwright boundary |
+| Browser | ghost-driver MCP + skills（对话里填表，停在 Submit 前） |
 
 ## Project Structure
 
 ```text
-resume-agent/
-├── AGENT_CONTEXT.md
-├── backend/
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── config.py
-│   │   ├── db.py
-│   │   ├── core/
-│   │   │   ├── events.py
-│   │   │   ├── llm_client.py          # Unified LLM client (OpenAI/Gemini/GLM)
-│   │   │   ├── models.py
-│   │   │   ├── rate_limit.py
-│   │   │   └── security.py
-│   │   ├── memory/
-│   │   └── modules/
-│   │       ├── auth/
-│   │       ├── chat/
-│   │       ├── profile/
-│   │       ├── resume_tailor/
-│   │       ├── resume_workspace/       # Resume Workspace (JD panel, versions, template editor)
-│   │       ├── job_discovery/          # Job list + scoring + discovery
-│   │       ├── application_engine/
-│   │       ├── ats_connectors/
-│   │       ├── cold_outreach/
-│   │       ├── growth_advisor/
-│   │       └── safety/
-│   └── pyproject.toml
-└── frontend/
-    ├── app/
-    ├── components/
-    └── lib/api.ts
+resume-tailor-agent/
+├── AGENTS.md                 # Agent entry (Cursor / Claude Code)
+├── CLAUDE.md
+├── RESUME_CONSTITUTION.md
+├── backend/                  # FastAPI: scrape, profile, tailor APIs
+├── frontend/                 # Next.js workspace
+├── mcp/happy-ghost-driver/   # Browser MCP
+├── .agents/skills/           # resume-tailor, jobright-apply, screen-locate, …
+├── config/                   # intern-list scrape schedule
+├── scripts/                  # dev-up / scheduled scrape
+└── archive/                  # old iteration dumps (not on the hot path)
 ```
 
 ## Quick Start Windows

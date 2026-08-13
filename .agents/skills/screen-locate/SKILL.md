@@ -10,14 +10,14 @@ disable-model-invocation: true
 ## 配置（首次）
 
 ```bash
-cp skills/screen-locate/.env.example skills/screen-locate/.env
+cp .agents/skills/screen-locate/.env.example .agents/skills/screen-locate/.env
 # 填入 LOCATE_API_KEY，其余有默认值，详见 .env.example
 ```
 
 ## 调用
 
 ```bash
-uv run skills/screen-locate/scripts/locate.py \
+uv run .agents/skills/screen-locate/scripts/locate.py \
   --image screenshot.png --instruction "点击搜索按钮"
 ```
 
@@ -73,7 +73,7 @@ Exit code：`0` 成功 / `1` 未解析到坐标 / `2` 配置或 API 错误。
 3. 用存下的文件调用本 skill（与上文「调用」相同）：
 
    ```bash
-   uv run skills/screen-locate/scripts/locate.py \
+   uv run .agents/skills/screen-locate/scripts/locate.py \
      --image .debug/shots/step.png --instruction "点击搜索输入框"
    ```
 

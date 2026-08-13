@@ -21,6 +21,7 @@ from app.modules.llm.router import router as llm_router
 from app.modules.profile.router import router as profile_router
 from app.modules.resume_workspace.router import router as resume_workspace_router
 from app.modules.shopping_cart.router import router as shopping_cart_router
+from app.modules.intern_list_scraper.router import router as intern_list_router
 from app.modules.intern_list_viewer.mount import mount_intern_list_viewer
 
 logger = structlog.get_logger()
@@ -79,6 +80,7 @@ app.include_router(cold_outreach_router, prefix="/api/v1/outreach", tags=["Cold 
 app.include_router(commercial_router, prefix="/api/v1/commercial", tags=["Commercial"])
 app.include_router(resume_workspace_router, prefix="/api/v1/resume-workspace", tags=["Resume Workspace"])
 app.include_router(llm_router, prefix="/api/v1/llm", tags=["LLM"])
+app.include_router(intern_list_router, prefix="/api/v1/intern-list", tags=["Intern List"])
 
 # Embed former :8101 intern-list acceptance UI (no separate process required).
 mount_intern_list_viewer(app)

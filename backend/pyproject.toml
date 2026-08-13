@@ -84,6 +84,9 @@ all = [
     "google-auth-oauthlib>=1.0.0",
 ]
 
+[project.scripts]
+intern-list-scrape = "app.modules.intern_list_scraper.scrape:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["app*"]
@@ -103,7 +106,7 @@ disallow_untyped_defs = true
 
 [tool.deptry]
 optional_dependencies_dev_groups = ["dev"]
-# Baseline ignores: optional providers + sibling intern-list viewer import path.
+# Baseline ignores: optional providers.
 ignore = ["DEP001", "DEP002", "DEP003"]
 
 [tool.pytest.ini_options]

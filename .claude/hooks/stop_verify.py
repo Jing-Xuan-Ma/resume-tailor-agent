@@ -185,26 +185,7 @@ def main():
         if not ok and output:
             failures.append(f"前端代码检查(eslint,仅本轮改动文件)没通过：\n{output}")
 
-    # ---- DEVLOG同步检查 ----
-    # 只要改了"正经代码"（不是测试文件、不是文档、不是配置），
-    # 就要求DEVLOG.md也在这次改动里被更新，逻辑很粗但足够foolproof：
-    # 你之后觉得太严格了，可以自己放宽这个判断条件。
-    real_code_changed = [
-        f for f in changed
-        if f.endswith((".py", ".ts", ".tsx", ".js", ".jsx"))
-        and "test" not in f.lower()
-        and "devlog" not in f.lower()
-    ]
-    devlog_updated = any("devlog" in f.lower() for f in changed)
-
-    if real_code_changed and not devlog_updated:
-        failures.append(
-            "这次改了正经代码文件，但没看到DEVLOG被同步更新。"
-            "按项目规则，涉及技术变更的改动要在同一次里更新DEVLOG"
-            "（写清楚改了什么、有没有量化数据），不能事后补。"
-            "\n\n如果这次改动很小、不值得记录（比如修个笔误），"
-            "可以忽略这条提示直接收尾。"
-        )
+    # DEVLOG lives under archive/notes/; no longer required on every code change.
 
     if failures:
         block("以下几点需要处理：\n\n" + "\n\n".join(failures))

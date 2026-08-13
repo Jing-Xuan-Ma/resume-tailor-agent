@@ -169,8 +169,8 @@ class Settings(BaseSettings):
     MAX_DAILY_EMAILS: int = 50
     ENABLE_AUTO_SUBMIT: bool = True
     ENABLE_BROWSER_AUTOMATION: bool = False
-    # Fill forms + screenshot, never click Submit (Sprint D sandbox / gated preview)
-    ENABLE_BROWSER_FILL_PAUSE: bool = True
+    # Playwright fill is retired; apply happens in Agent chat via MCP + skills.
+    ENABLE_BROWSER_FILL_PAUSE: bool = False
     # When False (default), fill-pause always uses local ATS fixtures — never live boards.
     # Live Greenhouse (manual, one URL): ENABLE_BROWSER_FILL_PAUSE=true + ALLOW_LIVE_BROWSER_FILL=true
     # See artifacts/funnel/auto-apply-v2/LIVE_GREENHOUSE.md — Submit is still never clicked by the agent.

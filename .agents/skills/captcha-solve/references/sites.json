@@ -1,0 +1,9 @@
+{
+  "lifeattiktok": {
+    "url_includes": ["lifeattiktok.com"],
+    "fallback": "footer_primary",
+    "inset": 50,
+    "doc": "lifeattiktok.md",
+    "assumption": "弹层底栏：Refresh/Report 在左，Confirm 在右，与 Refresh 同行。仅当 URL 匹配 lifeattiktok.com 时采用。"
+  }
+}

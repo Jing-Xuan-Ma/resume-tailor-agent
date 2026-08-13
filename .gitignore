@@ -57,6 +57,11 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
+
+# Caches
+.pytest_cache/
+.ruff_cache/
 
 # Local resume/test artifacts
 backend/*.pdf

@@ -1,0 +1,19 @@
+node_modules/
+dist/
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+.debug/
+.DS_Store
+*.log
+.env
+__pycache__/
+*.pyc
+config/.key
+config/app.config.json
+config/app.config.enc.json
+
+# GEO skills live in swb-copy (.swb/skills); optional local symlink only
+.cursor/skills/geo-diagnosis
+.cursor/skills/geo-qa-runner

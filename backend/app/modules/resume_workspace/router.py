@@ -10,7 +10,6 @@ from app.modules.resume_workspace.apply_flow import (
     confirm_submit,
     get_apply,
     start_apply,
-    start_apply_async,
 )
 from app.modules.resume_workspace.claude_desktop import goto_claude_desktop
 from app.modules.resume_workspace.constitution import constitution_api_payload
@@ -179,29 +178,25 @@ async def start_apply_endpoint(version_id: str, request: StartApplyRequest):
     mode = (request.mode or "").lower().strip()
     if mode not in {"manual", "auto"}:
         raise HTTPException(status_code=400, detail="mode must be manual or auto")
+    if mode == "auto":
+        raise HTTPException(
+            status_code=410,
+            detail=(
+                "Browser auto-apply moved to Agent chat. "
+                "Use .agents/skills/jobright-apply with ghost-driver-mcp. Never auto-click Submit."
+            ),
+        )
     try:
-        if mode == "auto":
-            payload = await start_apply_async(
-                user_id=request.user_id,
-                version_id=version_id,
-                mode=mode,  # type: ignore[arg-type]
-                company=request.company,
-                position=request.position,
-                final_path=request.final_path,
-                job_id=request.job_id,
-                source_url=request.source_url,
-            )
-        else:
-            payload = start_apply(
-                user_id=request.user_id,
-                version_id=version_id,
-                mode=mode,  # type: ignore[arg-type]
-                company=request.company,
-                position=request.position,
-                final_path=request.final_path,
-                job_id=request.job_id,
-                source_url=request.source_url,
-            )
+        payload = start_apply(
+            user_id=request.user_id,
+            version_id=version_id,
+            mode=mode,  # type: ignore[arg-type]
+            company=request.company,
+            position=request.position,
+            final_path=request.final_path,
+            job_id=request.job_id,
+            source_url=request.source_url,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return StartApplyResponse(

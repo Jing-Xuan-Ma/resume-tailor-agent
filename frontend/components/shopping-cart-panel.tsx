@@ -564,8 +564,8 @@ export default function ShoppingCartPanel({
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-950">
         {hasResult
           ? cartGenerating
-            ? "渐进生成中：已完成的职位可先预览/确认/投递；慢的或卡住的不会挡住其它职位。"
-            : "生成完成：下方以 PDF 预览（未落盘）。点「确认最终版」后才写入公司_职位文件夹，然后可投递已勾选职位。"
+            ? "渐进生成中：已完成的职位可先预览/确认；慢的或卡住的不会挡住其它职位。"
+            : "生成完成：下方以 PDF 预览（未落盘）。点「确认最终版」后才写入公司_职位文件夹。投递请在 Agent 对话里用 jobright-apply skill。"
           : "先确认已选职位，再点底部「批量 Refine」。生成过程中会陆续出现结果，无需等全部结束。"}
         {cart ? (
           <span className="ml-2">
@@ -586,71 +586,17 @@ export default function ShoppingCartPanel({
           data-testid="cart-apply-bar"
         >
           <div className="min-w-0 flex-1 text-xs text-slate-600">
-            {cartGenerating ? (
-              <span className="mr-2 rounded bg-amber-100 px-1.5 py-0.5 text-amber-900">
-                仍有职位生成中
-              </span>
-            ) : null}
-            勾选待自动投递 {selectedReadyCount}/{readyItems.length}
-            {" · "}queued {cart?.apply_summary?.queued ?? 0}
-            {" · "}可提交 {cart?.apply_summary?.ready_to_submit ?? 0}
-            {" · "}投递失败 {cart?.apply_summary?.failed ?? 0}
-            {readyToSubmitItems.length ? (
-              <div className="mt-1 text-emerald-800" data-testid="cart-ready-to-submit-list">
-                可投递：
-                {readyToSubmitItems.map((i) => itemShortLabel(i)).join("；")}
-                <button
-                  type="button"
-                  className="ml-2 underline"
-                  onClick={() => {
-                    const id = readyToSubmitItems[0]?.item_id;
-                    if (id) setExpandedId(id);
-                  }}
-                >
-                  定位
-                </button>
+            确认 PDF 后，在 Cursor / Claude Code 对话里用{" "}
+            <code className="font-mono">jobright-apply</code> skill + ghost-driver-mcp 填表。
+            <strong> 禁止自动点 Submit。</strong>
+            {readyItems.filter((i) => i.status === "confirmed").length ? (
+              <div className="mt-1 text-emerald-800">
+                已确认{" "}
+                {readyItems.filter((i) => i.status === "confirmed").length}/{readyItems.length}{" "}
+                份简历，可把 PDF 路径交给 Agent。
               </div>
-            ) : null}
-            {manualRegisterItems.length ? (
-              <div className="mt-1 text-amber-900" data-testid="cart-manual-register-list">
-                需自行注册账户（验证码）：
-                {manualRegisterItems
-                  .map(
-                    (i) =>
-                      `${itemShortLabel(i)}（${
-                        i.apply?.manual_register_reason ||
-                        formatApplyError(i.apply?.error) ||
-                        "需人工注册"
-                      }）`
-                  )
-                  .join("；")}
-              </div>
-            ) : null}
-            {applyFailedItems.filter((i) => !needsManualRegister(i)).length ? (
-              <div className="mt-1 text-rose-800" data-testid="cart-apply-failed-list">
-                其它投递失败：
-                {applyFailedItems
-                  .filter((i) => !needsManualRegister(i))
-                  .map((i) => `${itemShortLabel(i)}（${formatApplyError(i.apply?.error) || "unknown"}）`)
-                  .join("；")}
-              </div>
-            ) : null}
-            {applyMessage ? <span className="mt-1 block text-emerald-800">{applyMessage}</span> : null}
-            {openFormMessage ? (
-              <span className="mt-1 block text-emerald-800" data-testid="cart-open-form-msg">
-                {openFormMessage}
-              </span>
             ) : null}
           </div>
-          <button
-            type="button"
-            disabled={!canStartApply}
-            data-testid="cart-start-apply-btn"
-            className="rounded-xl bg-[#14352b] px-4 py-2 text-xs font-semibold text-white disabled:opacity-40"
-            onClick={() => void onStartApply()}
-          >
-            {applying ? "导航 ATS 中…" : `投递已勾选（${selectedReadyCount}）`}
-          </button>
           <button
             type="button"
             disabled={refining || cartGenerating}
@@ -807,23 +753,6 @@ export default function ShoppingCartPanel({
                       ATS{item.apply.ats_type ? ` (${item.apply.ats_type})` : ""} →
                     </a>
                   ) : null}
-                  {(applySt === "ready_to_submit" ||
-                    applySt === "filled" ||
-                    item.apply?.phase5_done) &&
-                  (item.apply?.form_url || item.apply?.ats_url) ? (
-                    <button
-                      type="button"
-                      data-testid="cart-open-form-btn"
-                      disabled={openFormBusyId === item.item_id}
-                      className="mt-1 ml-2 inline-flex items-center rounded-lg bg-[#14352b] px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void openFilledForm(item);
-                      }}
-                    >
-                      {openFormBusyId === item.item_id ? "打开中…" : "查看表单"}
-                    </button>
-                  ) : null}
                 </div>
                 {hasResult ? (
                   <span className="shrink-0 text-xs text-slate-400">{open ? "收起" : "展开"}</span>
@@ -834,31 +763,6 @@ export default function ShoppingCartPanel({
                 )}
               </button>
               </div>
-              {needsManualRegister(item) && applySt === "failed" ? (
-                <div
-                  className="flex flex-wrap items-center gap-2 border-t border-amber-100 bg-amber-50/80 px-4 py-2"
-                  data-testid="cart-manual-register-actions"
-                >
-                  <button
-                    type="button"
-                    data-testid="cart-open-register-btn"
-                    disabled={registerBusyId === item.item_id}
-                    className="inline-flex items-center rounded-lg bg-amber-700 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40"
-                    onClick={() => void openManualRegister(item)}
-                  >
-                    {registerBusyId === item.item_id ? "打开中…" : "去注册"}
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="cart-confirm-registered-btn"
-                    disabled={confirmRegisterBusyId === item.item_id}
-                    className="inline-flex items-center rounded-lg border border-amber-700 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-900 disabled:opacity-40"
-                    onClick={() => void confirmManualRegister(item)}
-                  >
-                    {confirmRegisterBusyId === item.item_id ? "继续投递中…" : "已注册完成"}
-                  </button>
-                </div>
-              ) : null}
 
               {open && item.ok && hasResult && cart?.cart_id && item.item_id ? (
                 <div className="border-t border-slate-100 px-4 py-3">
@@ -1033,20 +937,8 @@ export default function ShoppingCartPanel({
                               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950">
                                 <p className="font-semibold">已停在 Submit 前</p>
                                 <p className="mt-1">
-                                  注册/登录与表单填写已完成，最终「一键提交」在阶段 6。
-                                  点「查看表单」可跳到官网已填好的 Submit 页（本机浏览器恢复会话）。
+                                  投递请在 Agent 对话里用 jobright-apply skill。禁止自动点 Submit。
                                 </p>
-                                <button
-                                  type="button"
-                                  data-testid="cart-open-form-btn-pause"
-                                  disabled={openFormBusyId === item.item_id}
-                                  className="mt-3 rounded-lg bg-[#14352b] px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-40"
-                                  onClick={() => void openFilledForm(item)}
-                                >
-                                  {openFormBusyId === item.item_id
-                                    ? "打开中…"
-                                    : "查看表单 → 官网 Submit 页"}
-                                </button>
                               </div>
                             ) : null}
                             {(step === "profile" || step === "filled") && (

@@ -1,17 +1,19 @@
-"""HTTP API for shopping-cart batch tailor + apply queue (Phase 1–5)."""
+"""HTTP API for shopping-cart batch tailor + PDF confirm. Browser apply is Agent/MCP."""
 
 from __future__ import annotations
-
-import asyncio
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from app.modules.shopping_cart import service, store
-from app.modules.shopping_cart.apply_pipeline import enrich_cart_for_response
+from app.modules.shopping_cart import service
 
 router = APIRouter()
+
+_APPLY_MOVED = (
+    "Browser apply moved to Agent chat. Confirm the PDF here, then use "
+    ".agents/skills/jobright-apply with ghost-driver-mcp. Never auto-click Submit."
+)
 
 
 class BatchGenerateRequest(BaseModel):
@@ -166,127 +168,39 @@ async def confirm_item(cart_id: str, item_id: str, request: ConfirmItemRequest):
 
 @router.post("/{cart_id}/apply/start")
 async def start_apply(cart_id: str, request: StartApplyRequest):
-    """Queue apply tasks, then run Phase 2–5 (through form fill / ready_to_submit) by default.
-
-    Playwright uses the sync API — must run off the asyncio event loop (to_thread).
-    """
-    try:
-        return await asyncio.to_thread(
-            service.start_apply,
-            cart_id=cart_id,
-            user_id=request.user_id,
-            item_ids=request.item_ids or None,
-            process_now=bool(request.process_now),
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raise HTTPException(status_code=410, detail=_APPLY_MOVED)
 
 
 @router.post("/{cart_id}/apply/process")
 async def process_apply(cart_id: str, request: ProcessApplyRequest):
-    """Phase 2–5: ATS nav → Autofill → account → form fill (pause before Submit)."""
-    try:
-        return await asyncio.to_thread(
-            service.process_apply_queue,
-            cart_id=cart_id,
-            user_id=request.user_id,
-            limit=request.limit,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raise HTTPException(status_code=410, detail=_APPLY_MOVED)
 
 
 @router.get("/{cart_id}/items/{item_id}/fill-review")
 async def fill_review(cart_id: str, item_id: str, user_id: str = Query(...)):
-    """Flip-through payload: profile checklist, filled fields, screenshot meta."""
-    try:
-        return service.get_fill_review(cart_id=cart_id, item_id=item_id, user_id=user_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    raise HTTPException(status_code=410, detail=_APPLY_MOVED)
 
 
 @router.get("/{cart_id}/items/{item_id}/fill-screenshot")
 async def fill_screenshot(cart_id: str, item_id: str, user_id: str = Query(...)):
-    try:
-        data, media = service.get_fill_screenshot_bytes(
-            cart_id=cart_id, item_id=item_id, user_id=user_id
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return Response(
-        content=data,
-        media_type=media,
-        headers={"Cache-Control": "no-store"},
-    )
+    raise HTTPException(status_code=410, detail=_APPLY_MOVED)
 
 
 @router.post("/{cart_id}/items/{item_id}/open-form")
 async def open_filled_form(cart_id: str, item_id: str, request: OpenFilledFormRequest):
-    """Open the company ATS page where the form was filled (pause before Submit).
-
-    Restores Playwright storage_state when available so the user lands on the
-    filled submit page — does not click Submit.
-    """
-    try:
-        return await asyncio.to_thread(
-            service.open_item_filled_form,
-            cart_id=cart_id,
-            item_id=item_id,
-            user_id=request.user_id,
-            keep_open_ms=int(request.keep_open_ms or 1_800_000),
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raise HTTPException(status_code=410, detail=_APPLY_MOVED)
 
 
 @router.post("/{cart_id}/items/{item_id}/open-register")
 async def open_register(cart_id: str, item_id: str, request: OpenRegisterRequest):
-    """Open/focus headed ATS Create Account page when CAPTCHA blocked auto-register."""
-    try:
-        return await asyncio.to_thread(
-            service.open_item_register_page,
-            cart_id=cart_id,
-            item_id=item_id,
-            user_id=request.user_id,
-            keep_open_ms=int(request.keep_open_ms or 1_800_000),
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raise HTTPException(status_code=410, detail=_APPLY_MOVED)
 
 
 @router.post("/{cart_id}/items/{item_id}/confirm-registered")
 async def confirm_registered(cart_id: str, item_id: str, request: ConfirmRegisteredRequest):
-    """User finished manual ATS registration → continue Phase 5 form fill."""
-    try:
-        return await asyncio.to_thread(
-            service.confirm_item_manual_register,
-            cart_id=cart_id,
-            item_id=item_id,
-            user_id=request.user_id,
-            continue_apply=bool(request.continue_apply),
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raise HTTPException(status_code=410, detail=_APPLY_MOVED)
 
 
 @router.get("/{cart_id}/apply/status")
 async def apply_status(cart_id: str, user_id: str = Query(...)):
-    meta = store.load_cart_meta(cart_id)
-    if not meta or str(meta.get("user_id") or "") != str(user_id):
-        raise HTTPException(status_code=404, detail="Cart not found")
-    enriched = enrich_cart_for_response(meta)
-    return {
-        "cart_id": cart_id,
-        "apply_summary": enriched.get("apply_summary"),
-        "items": [
-            {
-                "item_id": i.get("item_id"),
-                "intern_job_id": i.get("intern_job_id"),
-                "company": i.get("company"),
-                "position": i.get("position"),
-                "status": i.get("status"),
-                "apply": i.get("apply"),
-            }
-            for i in (enriched.get("items") or [])
-        ],
-    }
+    raise HTTPException(status_code=410, detail=_APPLY_MOVED)

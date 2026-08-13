@@ -1,0 +1,75 @@
+{
+  "_comment": [
+    "Behaviour budget for the account-safety guards. Every value here is a",
+    "ceiling the agent cannot exceed, enforced in src/guard/budget.ts against",
+    "the action ledger at ~/.ghost-driver/ledger.db.",
+    "",
+    "Tune these to YOUR normal usage. The risk being managed is not 'does a",
+    "click look human' but 'does today's activity look like this account's",
+    "owner'. If a limit blocks legitimate work, raise it deliberately rather",
+    "than disabling the guard.",
+    "",
+    "writeClass tiers:",
+    "  read  - scroll, navigate (pure consumption)",
+    "  light - click, type, keypress (interaction, no content published)",
+    "  write - submits: posting, commenting, DMing (irreversible and public)"
+  ],
+
+  "enabled": true,
+
+  "rampUpDays": 14,
+  "rampUpFloor": 0.3,
+
+  "writeIntentMinChars": 25,
+
+  "requireWindowFocus": "write",
+
+  "nightGuard": {
+    "enabled": true,
+    "startHour": 1,
+    "endHour": 7
+  },
+
+  "submitDwellMs": {
+    "min": 5000,
+    "max": 20000
+  },
+
+  "limits": {
+    "read": { "perHour": 600, "perDay": 4000 },
+    "light": { "perHour": 120, "perDay": 600 },
+    "write": { "perHour": 6, "perDay": 24 }
+  },
+
+  "domains": {
+    "deepseek.com": {
+      "submitClass": "light",
+      "submitDwellMs": { "min": 800, "max": 2500 }
+    },
+    "doubao.com": {
+      "submitClass": "light",
+      "submitDwellMs": { "min": 800, "max": 2500 }
+    },
+    "kimi.com": {
+      "submitClass": "light",
+      "submitDwellMs": { "min": 800, "max": 2500 }
+    },
+    "moonshot.cn": {
+      "submitClass": "light",
+      "submitDwellMs": { "min": 800, "max": 2500 }
+    },
+    "tongyi.com": {
+      "submitClass": "light",
+      "submitDwellMs": { "min": 800, "max": 2500 }
+    },
+    "chatgpt.com": {
+      "submitClass": "light",
+      "submitDwellMs": { "min": 800, "max": 2500 }
+    },
+    "xiaohongshu.com": {
+      "limits": {
+        "write": { "perHour": 3, "perDay": 10 }
+      }
+    }
+  }
+}

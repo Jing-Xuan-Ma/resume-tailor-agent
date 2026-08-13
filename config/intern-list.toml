@@ -1,0 +1,23 @@
+# Editable scrape settings — change times_per_day / schedule_hours anytime.
+# After editing schedule_hours, re-run: ./scripts/install_intern_list_launchd.sh
+
+[scrape]
+# intern-list.com ?k= aliases: swe da aiml pm af ba
+categories = ["swe", "da", "aiml", "pm", "af", "ba"]
+country = "us"
+
+# Cap per category (≈ pages * page_size). Default ~1000.
+max_jobs_per_category = 1000
+page_size = 20
+
+with_details = true
+# Daily incremental runs still fetch JD for newly inserted list rows.
+details_only_for_new = true
+# Stop when hitting jobs already seen / older than last watermark.
+incremental = true
+sleep_seconds = 0.25
+
+# How often the scheduled agent runs each day (change freely).
+# Local clock: start 10:00, then every 6 hours → 10 / 16 / 22 / 04.
+times_per_day = 4
+schedule_hours = [10, 16, 22, 4]
